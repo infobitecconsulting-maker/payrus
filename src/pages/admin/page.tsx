@@ -1,0 +1,814 @@
+import { useState, useEffect, useRef } from "react";
+import { motion, AnimatePresence } from "motion/react";
+import PageHeader from "@/components/ui/page-header.tsx";
+import {
+  TrendingUp, TrendingDown, Activity, DollarSign, Zap,
+  ArrowUpRight, ArrowDownLeft, RefreshCw, Shield, Globe,
+  ChevronRight, BarChart3, Users, Wifi, AlertTriangle,
+  CheckCircle2, Clock, Layers, PieChart, Flag, Star,
+  MonitorPlay, Building, Landmark, PiggyBank, Send, Plane,
+  HandHeart, CreditCard, History, Settings, Wallet, PlugZap, FileDown
+} from "lucide-react";
+import { cn } from "@/lib/utils.ts";
+import { useNavigate, useParams } from "react-router-dom";
+import { generateTechAnalysisPDF } from "./_components/tech-analysis-pdf.ts";
+import { useProfile, getDefaultProfile } from "@/contexts/profile-context.tsx";
+import type { ProfileType } from "@/contexts/profile-context.tsx";
+import {
+  AreaChart, Area, XAxis, YAxis, ResponsiveContainer, Tooltip,
+  BarChart, Bar, LineChart, Line, CartesianGrid, PieChart as RechartsPie, Pie, Cell
+} from "recharts";
+
+/* ─── Types ─────────────────────────────────────────────────── */
+
+interface LiveTx {
+  id: string;
+  from: string;
+  to: string;
+  amount: number;
+  currency: string;
+  corridor: string;
+  marginPct: number;
+  fxProvider: string;
+  fxRate: number;
+  fxCost: number;
+  profit: number;
+  status: "processing" | "completed" | "flagged";
+  timestamp: string;
+  type: "remittance" | "p2p" | "payment" | "group";
+}
+
+interface TooltipProps {
+  active?: boolean;
+  payload?: Array<{ value: number; name?: string; color?: string }>;
+  label?: string;
+}
+
+/* ─── Mock data generators ───────────────────────────────────── */
+
+const CORRIDORS = ["CDF→XAF", "XAF→XOF", "USD→CDF", "EUR→XAF", "GBP→XOF", "USD→XAF"];
+const FX_PROVIDERS = ["BIS Marketplace", "Oanda Pro", "Wise FX", "Currencycloud", "OpenFX"];
+const NAMES_FROM = ["Amara K.", "Oumar D.", "Fatou B.", "Kofi A.", "Marie L.", "Jean P.", "Ngozi E.", "Samir R."];
+const NAMES_TO = ["Mwana S.", "CNSS RDC", "Kivu SARL", "Ubuntu NGO", "Dupont & Fils", "ProCredit", "AfricaRe"];
+const TX_TYPES: LiveTx["type"][] = ["remittance", "p2p", "payment", "group"];
+
+let txCounter = 1;
+function generateTx(): LiveTx {
+  const amount = Math.round((Math.random() * 9500 + 500) * 100) / 100;
+  const marginPct = Math.round((5 + Math.random() * 5) * 10) / 10; // 5–10%
+  const fxCostPct = Math.round((0.3 + Math.random() * 0.7) * 100) / 100; // 0.3–1%
+  const fxCost = Math.round(amount * fxCostPct) / 100;
+  const profit = Math.round(amount * (marginPct / 100) * 100) / 100;
+  const corridorIdx = Math.floor(Math.random() * CORRIDORS.length);
+  const currencies = CORRIDORS[corridorIdx].split("→");
+  const statuses: LiveTx["status"][] = ["processing", "completed", "completed", "completed", "flagged"];
+
+  return {
+    id: `TX-${String(txCounter++).padStart(5, "0")}`,
+    from: NAMES_FROM[Math.floor(Math.random() * NAMES_FROM.length)],
+    to: NAMES_TO[Math.floor(Math.random() * NAMES_TO.length)],
+    amount,
+    currency: currencies[0],
+    corridor: CORRIDORS[corridorIdx],
+    marginPct,
+    fxProvider: FX_PROVIDERS[Math.floor(Math.random() * FX_PROVIDERS.length)],
+    fxRate: Math.round((580 + Math.random() * 20) * 100) / 100,
+    fxCost,
+    profit,
+    status: statuses[Math.floor(Math.random() * statuses.length)],
+    timestamp: new Date().toISOString(),
+    type: TX_TYPES[Math.floor(Math.random() * TX_TYPES.length)],
+  };
+}
+
+const INITIAL_TXS: LiveTx[] = Array.from({ length: 12 }, () => {
+  const tx = generateTx();
+  // Backdate slightly
+  const ago = Math.floor(Math.random() * 300000);
+  tx.timestamp = new Date(Date.now() - ago).toISOString();
+  tx.status = "completed";
+  return tx;
+});
+
+// Activity chart data (last 24 hours, hourly)
+const activityData = Array.from({ length: 24 }, (_, i) => ({
+  hour: `${String(i).padStart(2, "0")}:00`,
+  volume: Math.round(8000 + Math.random() * 40000),
+  profit: Math.round(400 + Math.random() * 2000),
+  txCount: Math.round(20 + Math.random() * 80),
+}));
+
+// Daily profit (last 30 days)
+const dailyProfitData = Array.from({ length: 30 }, (_, i) => ({
+  day: `Aug ${i + 1}`,
+  profit: Math.round(12000 + Math.random() * 8000 + i * 200),
+  volume: Math.round(120000 + Math.random() * 80000 + i * 1000),
+}));
+
+// FX cost by provider
+const fxProviderData = [
+  { name: "BIS Mkt", cost: 0.38, share: 34, color: "#4ade80" },
+  { name: "Oanda Pro", cost: 0.52, share: 24, color: "#60a5fa" },
+  { name: "Wise FX", cost: 0.61, share: 18, color: "#a78bfa" },
+  { name: "Currencycloud", cost: 0.74, share: 14, color: "#fb923c" },
+  { name: "OpenFX", cost: 0.88, share: 10, color: "#f472b6" },
+];
+
+// Corridor breakdown
+const corridorData = [
+  { corridor: "CDF→XAF", volume: 284000, margin: 7.4, txCount: 842 },
+  { corridor: "USD→CDF", volume: 196000, margin: 8.1, txCount: 631 },
+  { corridor: "XAF→XOF", volume: 147000, margin: 6.8, txCount: 480 },
+  { corridor: "EUR→XAF", volume: 98000, margin: 9.2, txCount: 318 },
+  { corridor: "GBP→XOF", volume: 72000, margin: 8.7, txCount: 214 },
+  { corridor: "USD→XAF", volume: 54000, margin: 7.9, txCount: 163 },
+];
+
+/* ─── Pilot countries data ─────────────────────────────────── */
+
+const PILOT_COUNTRIES = [
+  {
+    flag: "🇨🇫",
+    name: "Central African Republic",
+    abbr: "RCA",
+    currency: "XAF",
+    capital: "Bangui",
+    population: "5.5M",
+    pilotPhase: "Phase 1",
+    status: "active",
+    features: ["Mobile Money", "P2P Transfers", "Remittance", "Savings Groups"],
+    metrics: { users: "12,400", volume: "XAF 1.8B", txMonth: "34,200" },
+    color: "from-blue-900/60 to-blue-700/20",
+    accent: "text-blue-400",
+    borderAccent: "border-blue-400/30",
+    bgAccent: "bg-blue-400/10",
+  },
+  {
+    flag: "🇨🇬",
+    name: "Congo Brazzaville",
+    abbr: "Congo-B",
+    currency: "XAF",
+    capital: "Brazzaville",
+    population: "6M",
+    pilotPhase: "Phase 1",
+    status: "active",
+    features: ["Mobile Money", "Business Payments", "Fundraising", "Gov Collections"],
+    metrics: { users: "18,750", volume: "XAF 3.1B", txMonth: "51,800" },
+    color: "from-emerald-900/60 to-emerald-700/20",
+    accent: "text-emerald-400",
+    borderAccent: "border-emerald-400/30",
+    bgAccent: "bg-emerald-400/10",
+  },
+];
+
+const DEMO_PROFILES: { type: ProfileType; label: string; desc: string; icon: React.ComponentType<{ size?: number; className?: string }>; color: string }[] = [
+  { type: "individual", label: "Individual", desc: "Personal wallet & transfers", icon: Users, color: "text-emerald-400" },
+  { type: "business", label: "Business / SME", desc: "Payroll, invoicing, bulk pay", icon: Building, color: "text-blue-400" },
+  { type: "government", label: "Government", desc: "Tax, payroll, sovereign ops", icon: Landmark, color: "text-amber-400" },
+  { type: "microfinance", label: "Microfinance", desc: "Loans, savings, agent banking", icon: PiggyBank, color: "text-violet-400" },
+  { type: "investment_fund", label: "Investment Fund", desc: "Portfolio, yields, PayRus Invest", icon: TrendingUp, color: "text-primary" },
+  { type: "ngo", label: "NGO", desc: "Donor collection, grants", icon: HandHeart, color: "text-rose-400" },
+];
+
+const DEMO_PAGES = [
+  { path: "/", label: "Dashboard", icon: BarChart3 },
+  { path: "/payments", label: "Payments", icon: CreditCard },
+  { path: "/invest", label: "PayRus Invest", icon: TrendingUp },
+  { path: "/fundraise", label: "Fundraising", icon: HandHeart },
+  { path: "/savings", label: "Savings", icon: PiggyBank },
+  { path: "/remittance", label: "FX & Remittance", icon: Send },
+  { path: "/gov", label: "Gov Hub", icon: Landmark },
+  { path: "/travel", label: "Travel", icon: Plane },
+  { path: "/api-hub", label: "API Hub", icon: PlugZap },
+  { path: "/investor", label: "Investor Deck", icon: MonitorPlay },
+  { path: "/transactions", label: "Transactions", icon: History },
+  { path: "/settings", label: "Settings", icon: Settings },
+];
+
+
+
+function CustomTooltip({ active, payload, label }: TooltipProps) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="bg-card border border-border rounded-xl px-3 py-2 shadow-xl text-xs">
+      <p className="text-muted-foreground mb-1">{label}</p>
+      {payload.map((p, i) => (
+        <p key={i} className="font-bold font-mono" style={{ color: p.color }}>
+          {p.name}: {typeof p.value === "number" ? p.value.toLocaleString() : p.value}
+        </p>
+      ))}
+    </div>
+  );
+}
+
+function StatusBadge({ status }: { status: LiveTx["status"] }) {
+  return (
+    <span className={cn(
+      "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold",
+      status === "completed" && "bg-primary/15 text-primary",
+      status === "processing" && "bg-accent/15 text-accent",
+      status === "flagged" && "bg-destructive/15 text-destructive",
+    )}>
+      {status === "completed" && <CheckCircle2 size={9} />}
+      {status === "processing" && <Clock size={9} />}
+      {status === "flagged" && <AlertTriangle size={9} />}
+      {status}
+    </span>
+  );
+}
+
+function KpiCard({
+  label, value, sub, icon: Icon, color, trend, delta
+}: {
+  label: string; value: string; sub: string;
+  icon: React.ComponentType<{ size?: number; className?: string }>;
+  color: string; trend?: "up" | "down" | "neutral"; delta?: string;
+}) {
+  return (
+    <div className="bg-card border border-border rounded-2xl p-4 relative overflow-hidden">
+      <div className={cn("absolute inset-0 opacity-[0.04] bg-gradient-to-br", color)} />
+      <div className="relative">
+        <div className="flex items-center justify-between mb-3">
+          <span className="text-[10px] text-muted-foreground uppercase tracking-widest">{label}</span>
+          <div className={cn("w-8 h-8 rounded-xl flex items-center justify-center", color.replace("from-", "bg-").split(" ")[0] + "/15")}>
+            <Icon size={15} className={color.includes("primary") ? "text-primary" : color.includes("accent") ? "text-accent" : color.includes("amber") ? "text-amber-400" : color.includes("violet") ? "text-violet-400" : "text-primary"} />
+          </div>
+        </div>
+        <div className="text-2xl font-black font-mono tracking-tight text-foreground">{value}</div>
+        <div className="flex items-center gap-1.5 mt-1">
+          {trend === "up" && <TrendingUp size={10} className="text-primary" />}
+          {trend === "down" && <TrendingDown size={10} className="text-destructive" />}
+          {delta && <span className={cn("text-[10px] font-semibold", trend === "up" ? "text-primary" : trend === "down" ? "text-destructive" : "text-muted-foreground")}>{delta}</span>}
+          <span className="text-[10px] text-muted-foreground">{sub}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Main page ──────────────────────────────────────────────── */
+
+export default function AdminDashboard() {
+  const [liveTxs, setLiveTxs] = useState<LiveTx[]>(INITIAL_TXS);
+  const [pulseCount, setPulseCount] = useState(0);
+  const [totalProfit, setTotalProfit] = useState(214840);
+  const [totalVolume, setTotalVolume] = useState(3847200);
+  const [txCount, setTxCount] = useState(2648);
+  const [avgMargin, setAvgMargin] = useState(7.3);
+  const [newTxId, setNewTxId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"overview" | "transactions" | "fx" | "corridors" | "pilot" | "demo">("pilot");
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const navigate = useNavigate();
+  const { lng } = useParams<{ lng: string }>();
+  const { setProfile } = useProfile();
+  const base = `/${lng ?? "en"}`;
+
+  // Simulate live tx stream
+  useEffect(() => {
+    intervalRef.current = setInterval(() => {
+      const tx = generateTx();
+      setLiveTxs((prev) => [tx, ...prev.slice(0, 49)]);
+      setNewTxId(tx.id);
+      setPulseCount((p) => p + 1);
+      setTotalProfit((p) => Math.round((p + tx.profit) * 100) / 100);
+      setTotalVolume((p) => Math.round((p + tx.amount) * 100) / 100);
+      setTxCount((p) => p + 1);
+      setAvgMargin((p) => Math.round((p * 0.97 + tx.marginPct * 0.03) * 10) / 10);
+      setTimeout(() => setNewTxId(null), 1500);
+    }, 2200);
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+  }, []);
+
+  const formatCompact = (n: number) => {
+    if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(2)}M`;
+    if (n >= 1_000) return `$${(n / 1_000).toFixed(1)}K`;
+    return `$${n.toFixed(2)}`;
+  };
+
+  const tabs = [
+    { id: "pilot", label: "Pilot Countries", icon: Flag },
+    { id: "demo", label: "Demo Access", icon: MonitorPlay },
+    { id: "overview", label: "Overview", icon: BarChart3 },
+    { id: "transactions", label: "Live Txns", icon: Activity },
+    { id: "fx", label: "FX Costs", icon: Globe },
+    { id: "corridors", label: "Corridors", icon: Layers },
+  ] as const;
+
+  return (
+    <div className="p-4 md:p-6 max-w-6xl mx-auto space-y-5">
+      <PageHeader title="Admin" className="mb-4 md:mb-6" />
+
+      {/* Header */}
+      <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="flex items-center justify-between">
+        <div>
+          <div className="flex items-center gap-2 mb-0.5">
+            <Shield size={14} className="text-primary" />
+            <span className="text-[10px] text-muted-foreground font-semibold tracking-widest uppercase">PayRus Admin</span>
+          </div>
+          <h1 className="text-xl font-black text-foreground tracking-tight">Business Intelligence</h1>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary/10 border border-primary/20">
+            <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+            <span className="text-[11px] text-primary font-semibold">LIVE</span>
+            <span className="text-[11px] text-muted-foreground font-mono">{pulseCount} events</span>
+          </div>
+          <button
+            onClick={() => generateTechAnalysisPDF()}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-violet-500/10 border border-violet-500/25 text-[11px] font-semibold text-violet-400 cursor-pointer hover:bg-violet-500/15 transition-colors"
+          >
+            <FileDown size={13} /> Tech Analysis PDF
+          </button>
+          <button className="w-8 h-8 rounded-xl bg-secondary border border-border flex items-center justify-center cursor-pointer hover:bg-secondary/80 transition-colors">
+            <RefreshCw size={13} className="text-muted-foreground" />
+          </button>
+        </div>
+      </motion.div>
+
+      {/* KPI grid */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {[
+          { label: "Total Profit Today", value: formatCompact(totalProfit), sub: "net after FX", icon: DollarSign, color: "from-primary to-emerald-400", trend: "up" as const, delta: "+12.4%" },
+          { label: "Transaction Volume", value: formatCompact(totalVolume), sub: "gross today", icon: TrendingUp, color: "from-accent to-sky-400", trend: "up" as const, delta: "+8.1%" },
+          { label: "Avg Margin", value: `${avgMargin}%`, sub: "per transaction", icon: PieChart, color: "from-amber-400 to-yellow-300", trend: "up" as const, delta: "target 7–10%" },
+          { label: "Transactions", value: txCount.toLocaleString(), sub: "total today", icon: Activity, color: "from-violet-500 to-purple-400", trend: "up" as const, delta: `+${Math.round(pulseCount)}` },
+        ].map((kpi, i) => (
+          <motion.div key={kpi.label} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }}>
+            <KpiCard {...kpi} />
+          </motion.div>
+        ))}
+      </div>
+
+      {/* Tab bar */}
+      <div className="flex gap-1 p-1 bg-secondary rounded-xl">
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={cn(
+              "flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-xs font-semibold transition-all cursor-pointer",
+              activeTab === tab.id
+                ? "bg-card text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <tab.icon size={13} />
+            <span className="hidden sm:inline">{tab.label}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Tab content */}
+      <AnimatePresence mode="wait">
+
+        {/* ── PILOT COUNTRIES ── */}
+        {activeTab === "pilot" && (
+          <motion.div key="pilot" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className="space-y-5">
+
+            {/* Header banner */}
+            <div className="bg-card border border-border rounded-2xl p-4 flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-primary/15 border border-primary/30 flex items-center justify-center shrink-0">
+                <Flag size={22} className="text-primary" />
+              </div>
+              <div>
+                <div className="font-black text-base">Pilot Program — CEMAC Zone</div>
+                <div className="text-xs text-muted-foreground">
+                  PayRus is currently piloting in <span className="text-foreground font-semibold">Central African Republic</span> and <span className="text-foreground font-semibold">Congo Brazzaville</span> as the first two markets in the XAF zone.
+                </div>
+              </div>
+              <div className="ml-auto shrink-0">
+                <span className="flex items-center gap-1.5 text-[10px] font-black bg-emerald-400/10 border border-emerald-400/30 text-emerald-400 px-3 py-1.5 rounded-full">
+                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  2 Countries Active
+                </span>
+              </div>
+            </div>
+
+            {/* Country cards */}
+            {PILOT_COUNTRIES.map((c, i) => (
+              <motion.div key={c.abbr} initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.1 }}
+                className="bg-card border border-border rounded-2xl overflow-hidden">
+                {/* Country banner */}
+                <div className={cn("bg-gradient-to-br p-5 flex items-start gap-4", c.color)}>
+                  <div className="text-5xl leading-none">{c.flag}</div>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="font-black text-lg">{c.name}</h3>
+                      <span className={cn("text-[9px] font-black border px-2 py-0.5 rounded-full uppercase tracking-wider", c.borderAccent, c.bgAccent, c.accent)}>
+                        {c.pilotPhase} · Active
+                      </span>
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-0.5">
+                      Capital: {c.capital} · Population: {c.population} · Currency: {c.currency}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Metrics */}
+                <div className="grid grid-cols-3 divide-x divide-border border-b border-border">
+                  {[
+                    { label: "Registered Users", value: c.metrics.users },
+                    { label: "Monthly Volume", value: c.metrics.volume },
+                    { label: "Transactions / mo", value: c.metrics.txMonth },
+                  ].map(m => (
+                    <div key={m.label} className="p-3 text-center">
+                      <div className={cn("font-black text-base font-mono", c.accent)}>{m.value}</div>
+                      <div className="text-[10px] text-muted-foreground">{m.label}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Features */}
+                <div className="p-4">
+                  <div className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wider mb-2">Activated Features</div>
+                  <div className="flex flex-wrap gap-2">
+                    {c.features.map(f => (
+                      <span key={f} className={cn("flex items-center gap-1 text-xs font-semibold px-3 py-1 rounded-xl border", c.bgAccent, c.borderAccent, c.accent)}>
+                        <CheckCircle2 size={11} />{f}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+
+            {/* Roadmap */}
+            <div className="bg-card border border-border rounded-2xl p-4 space-y-3">
+              <div className="font-bold text-sm">Pilot Roadmap</div>
+              {[
+                { phase: "Phase 1 · Q3 2026", label: "RCA & Congo-B launch — Mobile money, P2P, remittance", done: true },
+                { phase: "Phase 2 · Q4 2026", label: "Business & Gov accounts — Payroll, tax collection, API Hub", done: false },
+                { phase: "Phase 3 · Q1 2027", label: "Full CEMAC rollout — Cameroon, Chad, Gabon, Equatorial Guinea", done: false },
+                { phase: "Phase 4 · 2027", label: "ECOWAS expansion — Nigeria, Côte d'Ivoire, Senegal, Ghana", done: false },
+              ].map((r, i) => (
+                <div key={i} className="flex items-start gap-3">
+                  <div className={cn("w-5 h-5 rounded-full border flex items-center justify-center shrink-0 mt-0.5",
+                    r.done ? "bg-primary/15 border-primary/40 text-primary" : "bg-secondary border-border text-muted-foreground")}>
+                    {r.done ? <CheckCircle2 size={11} /> : <Clock size={11} />}
+                  </div>
+                  <div>
+                    <div className={cn("text-[10px] font-black uppercase tracking-wider", r.done ? "text-primary" : "text-muted-foreground")}>{r.phase}</div>
+                    <div className="text-xs text-muted-foreground">{r.label}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        )}
+
+        {/* ── DEMO ACCESS ── */}
+        {activeTab === "demo" && (
+          <motion.div key="demo" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className="space-y-5">
+
+            <div className="flex items-center gap-3 p-4 bg-amber-400/5 border border-amber-400/20 rounded-2xl">
+              <Star size={16} className="text-amber-400 shrink-0" />
+              <div className="text-xs text-muted-foreground leading-relaxed">
+                <span className="text-foreground font-semibold">System Administrator demo mode.</span> Switch to any profile to preview every feature exactly as an end user would see it. You will be redirected to that profile's dashboard.
+              </div>
+            </div>
+
+            {/* Profile switcher */}
+            <div>
+              <div className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-3">Switch Profile & Preview</div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {DEMO_PROFILES.map((p) => (
+                  <button
+                    key={p.type}
+                    onClick={() => {
+                      setProfile(getDefaultProfile(p.type));
+                      navigate(`${base}/`);
+                    }}
+                    className="flex items-center gap-3 bg-card border border-border rounded-2xl p-4 hover:border-primary/40 transition-colors cursor-pointer text-left group"
+                  >
+                    <div className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center shrink-0">
+                      <p.icon size={18} className={p.color} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-bold text-sm">{p.label}</div>
+                      <div className="text-[11px] text-muted-foreground truncate">{p.desc}</div>
+                    </div>
+                    <ChevronRight size={14} className="text-muted-foreground group-hover:text-foreground transition-colors shrink-0" />
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Direct page navigation */}
+            <div>
+              <div className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-3">Jump to any page</div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {DEMO_PAGES.map((page) => (
+                  <button
+                    key={page.path}
+                    onClick={() => navigate(`${base}${page.path}`)}
+                    className="flex items-center gap-2 bg-card border border-border rounded-xl px-3 py-2.5 hover:border-primary/40 hover:bg-primary/5 transition-colors cursor-pointer text-left group"
+                  >
+                    <page.icon size={14} className="text-muted-foreground group-hover:text-primary transition-colors shrink-0" />
+                    <span className="text-xs font-semibold text-muted-foreground group-hover:text-foreground transition-colors truncate">{page.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {activeTab === "overview" && (
+          <motion.div key="overview" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className="space-y-5">
+
+            {/* Profit + Volume chart */}
+            <div className="bg-card border border-border rounded-2xl p-4">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <div className="text-xs font-semibold text-foreground">Daily Profit Growth</div>
+                  <div className="text-[10px] text-muted-foreground">Last 30 days · USD</div>
+                </div>
+                <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-primary inline-block" />Profit</span>
+                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-accent inline-block" />Volume /1k</span>
+                </div>
+              </div>
+              <ResponsiveContainer width="100%" height={200}>
+                <AreaChart data={dailyProfitData} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
+                  <defs>
+                    <linearGradient id="gProfit" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="oklch(0.66 0.20 138)" stopOpacity={0.3} />
+                      <stop offset="100%" stopColor="oklch(0.66 0.20 138)" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="gVolume" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="oklch(0.65 0.17 218)" stopOpacity={0.2} />
+                      <stop offset="100%" stopColor="oklch(0.65 0.17 218)" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <XAxis dataKey="day" tick={{ fill: "oklch(0.55 0.01 240)", fontSize: 8 }} axisLine={false} tickLine={false} interval={4} />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Area type="monotone" dataKey="profit" name="Profit $" stroke="oklch(0.66 0.20 138)" strokeWidth={2} fill="url(#gProfit)" dot={false} />
+                  <Area type="monotone" dataKey="volume" name="Volume /100" stroke="oklch(0.65 0.17 218)" strokeWidth={1.5} fill="url(#gVolume)" dot={false} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Hourly activity */}
+            <div className="bg-card border border-border rounded-2xl p-4">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <div className="text-xs font-semibold text-foreground">Hourly Transaction Activity</div>
+                  <div className="text-[10px] text-muted-foreground">Last 24 hours · count</div>
+                </div>
+              </div>
+              <ResponsiveContainer width="100%" height={150}>
+                <BarChart data={activityData} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
+                  <XAxis dataKey="hour" tick={{ fill: "oklch(0.55 0.01 240)", fontSize: 8 }} axisLine={false} tickLine={false} interval={3} />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Bar dataKey="txCount" name="Transactions" fill="oklch(0.66 0.20 138)" radius={[4, 4, 0, 0]} opacity={0.85} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Mini stats row */}
+            <div className="grid grid-cols-3 gap-3">
+              {[
+                { label: "Avg FX Cost", value: "0.52%", icon: Globe, color: "text-accent", sub: "per transaction" },
+                { label: "Flagged Txns", value: "14", icon: AlertTriangle, color: "text-destructive", sub: "needs review" },
+                { label: "Active Users", value: "1,842", icon: Users, color: "text-primary", sub: "online now" },
+              ].map((s) => (
+                <div key={s.label} className="bg-card border border-border rounded-xl p-3">
+                  <s.icon size={14} className={cn("mb-2", s.color)} />
+                  <div className="text-lg font-black font-mono text-foreground">{s.value}</div>
+                  <div className="text-[10px] text-muted-foreground">{s.label}</div>
+                  <div className="text-[10px] text-muted-foreground/60">{s.sub}</div>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        )}
+
+        {activeTab === "transactions" && (
+          <motion.div key="transactions" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
+            <div className="bg-card border border-border rounded-2xl overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+                  <span className="text-xs font-semibold text-foreground">Live Transaction Monitor</span>
+                </div>
+                <span className="text-[10px] text-muted-foreground">{liveTxs.length} recent</span>
+              </div>
+
+              {/* Header row */}
+              <div className="hidden md:grid grid-cols-[1.5fr_1.2fr_0.8fr_0.7fr_0.7fr_0.8fr_0.7fr] gap-2 px-4 py-2 border-b border-border bg-secondary/50">
+                {["Transaction", "Corridor / Provider", "Amount", "Margin", "FX Cost", "Profit", "Status"].map((h) => (
+                  <span key={h} className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wide">{h}</span>
+                ))}
+              </div>
+
+              <div className="divide-y divide-border max-h-[520px] overflow-y-auto">
+                <AnimatePresence initial={false}>
+                  {liveTxs.map((tx) => (
+                    <motion.div
+                      key={tx.id}
+                      initial={{ opacity: 0, backgroundColor: "oklch(0.66 0.20 138 / 0.12)" }}
+                      animate={{ opacity: 1, backgroundColor: "oklch(0 0 0 / 0)" }}
+                      transition={{ duration: 1.2 }}
+                      className={cn(
+                        "grid md:grid-cols-[1.5fr_1.2fr_0.8fr_0.7fr_0.7fr_0.8fr_0.7fr] gap-2 px-4 py-3 hover:bg-secondary/30 transition-colors cursor-pointer",
+                        newTxId === tx.id && "bg-primary/8"
+                      )}
+                    >
+                      {/* Transaction */}
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          {tx.type === "remittance" && <ArrowUpRight size={11} className="text-primary shrink-0" />}
+                          {tx.type === "p2p" && <Wifi size={11} className="text-accent shrink-0" />}
+                          {tx.type === "payment" && <DollarSign size={11} className="text-amber-400 shrink-0" />}
+                          {tx.type === "group" && <Users size={11} className="text-violet-400 shrink-0" />}
+                          <span className="text-xs font-mono text-foreground font-semibold truncate">{tx.id}</span>
+                        </div>
+                        <div className="text-[10px] text-muted-foreground mt-0.5 truncate">{tx.from} → {tx.to}</div>
+                        <div className="text-[9px] text-muted-foreground/60">{new Date(tx.timestamp).toLocaleTimeString()}</div>
+                      </div>
+                      {/* Corridor */}
+                      <div className="min-w-0">
+                        <div className="text-[11px] font-semibold text-accent font-mono">{tx.corridor}</div>
+                        <div className="text-[10px] text-muted-foreground truncate">{tx.fxProvider}</div>
+                        <div className="text-[9px] text-muted-foreground/60">Rate: {tx.fxRate}</div>
+                      </div>
+                      {/* Amount */}
+                      <div className="font-mono">
+                        <div className="text-xs font-bold text-foreground">{tx.amount.toLocaleString()}</div>
+                        <div className="text-[10px] text-muted-foreground">{tx.currency}</div>
+                      </div>
+                      {/* Margin */}
+                      <div>
+                        <div className={cn("text-xs font-bold font-mono", tx.marginPct >= 8 ? "text-primary" : tx.marginPct >= 6 ? "text-amber-400" : "text-muted-foreground")}>
+                          {tx.marginPct}%
+                        </div>
+                        <div className="text-[9px] text-muted-foreground">5–10% target</div>
+                      </div>
+                      {/* FX Cost */}
+                      <div>
+                        <div className="text-xs font-mono text-accent">${tx.fxCost.toFixed(2)}</div>
+                        <div className="text-[9px] text-muted-foreground">best rate</div>
+                      </div>
+                      {/* Profit */}
+                      <div>
+                        <div className="text-xs font-bold font-mono text-primary">+${tx.profit.toFixed(2)}</div>
+                        <div className="text-[9px] text-muted-foreground">net profit</div>
+                      </div>
+                      {/* Status */}
+                      <div className="flex items-start">
+                        <StatusBadge status={tx.status} />
+                      </div>
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {activeTab === "fx" && (
+          <motion.div key="fx" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className="space-y-4">
+
+            <div className="bg-card border border-border rounded-2xl p-4">
+              <div className="text-xs font-semibold text-foreground mb-1">FX Provider Cost Comparison</div>
+              <div className="text-[10px] text-muted-foreground mb-4">Average cost % per transaction · lower is better</div>
+              <div className="space-y-3">
+                {fxProviderData.map((p, i) => (
+                  <motion.div key={p.name} initial={{ opacity: 0, x: -16 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.08 }}>
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: p.color }} />
+                        <span className="text-xs font-semibold text-foreground">{p.name}</span>
+                        {i === 0 && (
+                          <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-primary/15 text-primary font-semibold">CHEAPEST</span>
+                        )}
+                      </div>
+                      <div className="text-right">
+                        <span className="text-xs font-mono font-bold text-foreground">{p.cost}%</span>
+                        <span className="text-[10px] text-muted-foreground ml-2">{p.share}% share</span>
+                      </div>
+                    </div>
+                    <div className="h-2 bg-secondary rounded-full overflow-hidden">
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${(p.cost / 1) * 100}%` }}
+                        transition={{ duration: 0.8, delay: i * 0.08 }}
+                        className="h-full rounded-full"
+                        style={{ backgroundColor: p.color }}
+                      />
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            </div>
+
+            {/* FX share pie + cost line */}
+            <div className="grid md:grid-cols-2 gap-4">
+              <div className="bg-card border border-border rounded-2xl p-4">
+                <div className="text-xs font-semibold text-foreground mb-4">Provider Market Share</div>
+                <ResponsiveContainer width="100%" height={200}>
+                  <RechartsPie>
+                    <Pie data={fxProviderData} dataKey="share" nameKey="name" cx="50%" cy="50%" innerRadius={55} outerRadius={85} paddingAngle={3}>
+                      {fxProviderData.map((p) => <Cell key={p.name} fill={p.color} />)}
+                    </Pie>
+                    <Tooltip content={<CustomTooltip />} />
+                  </RechartsPie>
+                </ResponsiveContainer>
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {fxProviderData.map((p) => (
+                    <span key={p.name} className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                      <span className="w-2 h-2 rounded-full" style={{ backgroundColor: p.color }} />
+                      {p.name}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <div className="bg-card border border-border rounded-2xl p-4">
+                <div className="text-xs font-semibold text-foreground mb-4">Hourly FX Savings vs Market Rate</div>
+                <ResponsiveContainer width="100%" height={200}>
+                  <LineChart data={activityData.slice(0, 12)} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
+                    <CartesianGrid stroke="oklch(0.22 0.02 240)" strokeDasharray="3 3" />
+                    <XAxis dataKey="hour" tick={{ fill: "oklch(0.55 0.01 240)", fontSize: 8 }} axisLine={false} tickLine={false} />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Line type="monotone" dataKey="profit" name="FX Savings $" stroke="oklch(0.66 0.20 138)" strokeWidth={2} dot={false} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            {/* Best rate alert */}
+            <div className="flex items-center gap-3 p-3.5 rounded-xl bg-primary/8 border border-primary/20">
+              <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center shrink-0">
+                <Zap size={14} className="text-primary" />
+              </div>
+              <div className="flex-1">
+                <div className="text-xs font-semibold text-foreground">BIS Marketplace routing active</div>
+                <div className="text-[11px] text-muted-foreground">All CDF↔XAF corridors routed through cheapest provider. Saving avg $0.34/tx vs market rate.</div>
+              </div>
+              <ChevronRight size={13} className="text-muted-foreground shrink-0" />
+            </div>
+          </motion.div>
+        )}
+
+        {activeTab === "corridors" && (
+          <motion.div key="corridors" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className="space-y-4">
+
+            <div className="bg-card border border-border rounded-2xl overflow-hidden">
+              <div className="px-4 py-3 border-b border-border">
+                <div className="text-xs font-semibold text-foreground">Corridor Performance</div>
+                <div className="text-[10px] text-muted-foreground">Volume, margin, and transaction count per corridor</div>
+              </div>
+              <div className="hidden md:grid grid-cols-4 gap-2 px-4 py-2 border-b border-border bg-secondary/50">
+                {["Corridor", "Volume (USD)", "Avg Margin", "Tx Count"].map((h) => (
+                  <span key={h} className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wide">{h}</span>
+                ))}
+              </div>
+              <div className="divide-y divide-border">
+                {corridorData.map((c, i) => (
+                  <motion.div key={c.corridor} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.06 }}
+                    className="grid md:grid-cols-4 gap-2 px-4 py-3.5 hover:bg-secondary/30 transition-colors cursor-pointer">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-lg bg-accent/10 flex items-center justify-center">
+                        <ArrowDownLeft size={13} className="text-accent" />
+                      </div>
+                      <span className="text-xs font-mono font-bold text-foreground">{c.corridor}</span>
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold font-mono text-foreground">${c.volume.toLocaleString()}</div>
+                      <div className="mt-1 h-1.5 bg-secondary rounded-full overflow-hidden">
+                        <div className="h-full bg-accent rounded-full" style={{ width: `${(c.volume / 284000) * 100}%` }} />
+                      </div>
+                    </div>
+                    <div className={cn("text-xs font-bold font-mono", c.margin >= 8.5 ? "text-primary" : c.margin >= 7 ? "text-amber-400" : "text-muted-foreground")}>
+                      {c.margin}%
+                      <div className="text-[9px] font-normal text-muted-foreground">of volume</div>
+                    </div>
+                    <div className="text-xs font-mono text-foreground">
+                      {c.txCount.toLocaleString()}
+                      <div className="text-[9px] text-muted-foreground">transactions</div>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            </div>
+
+            {/* Corridor volume bar chart */}
+            <div className="bg-card border border-border rounded-2xl p-4">
+              <div className="text-xs font-semibold text-foreground mb-1">Volume by Corridor</div>
+              <div className="text-[10px] text-muted-foreground mb-4">USD equivalent · today</div>
+              <ResponsiveContainer width="100%" height={180}>
+                <BarChart data={corridorData} margin={{ top: 4, right: 4, bottom: 0, left: 0 }} layout="vertical">
+                  <XAxis type="number" tick={{ fill: "oklch(0.55 0.01 240)", fontSize: 8 }} axisLine={false} tickLine={false} />
+                  <YAxis type="category" dataKey="corridor" tick={{ fill: "oklch(0.75 0.01 240)", fontSize: 9 }} axisLine={false} tickLine={false} width={72} />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Bar dataKey="volume" name="Volume $" fill="oklch(0.65 0.17 218)" radius={[0, 4, 4, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+    </div>
+  );
+}

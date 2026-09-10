@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "payrus-app",
+      "runtimeExecutable": "C:\\Users\\Paul Makela\\AppData\\Roaming\\npm\\pnpm.cmd",
+      "runtimeArgs": ["dev"],
+      "port": 5173
+    }
+  ]
+}

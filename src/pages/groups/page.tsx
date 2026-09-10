@@ -1,0 +1,468 @@
+import { useState } from "react";
+import { useTranslation } from "react-i18next";
+import { motion, AnimatePresence } from "motion/react";
+import PageHeader from "@/components/ui/page-header.tsx";
+import {
+  Users, Plus, Send, ChevronRight, CheckCircle, X, Search,
+  Briefcase, Heart, Shield, Star, Crown, UserCheck, Banknote,
+  FileText, Gift, BadgeCheck, Building2, ArrowRight, Upload,
+  Settings2, ChevronDown
+} from "lucide-react";
+import { Button } from "@/components/ui/button.tsx";
+import { cn } from "@/lib/utils.ts";
+import { toast } from "sonner";
+import { PayRusLogo } from "@/pages/layout/AppLayout.tsx";
+
+/* ─── Types ────────────────────────────────────────────── */
+type GroupType = "employees" | "friends" | "volunteers" | "officials" | "private" | "vip";
+type PaymentType = "salary" | "bonus" | "voucher" | "gift" | "allowance" | "incentive";
+
+type GroupMember = {
+  id: string;
+  name: string;
+  avatar: string;
+  role: string;
+  country: string;
+  flag: string;
+  currency: string;
+  customAmount?: number;
+  selected: boolean;
+};
+
+const GROUP_ICONS: Record<GroupType, React.ComponentType<{ size?: number; className?: string }>> = {
+  employees: Briefcase,
+  friends: Heart,
+  volunteers: UserCheck,
+  officials: Shield,
+  private: Star,
+  vip: Crown,
+};
+
+const GROUP_LABELS: Record<GroupType, string> = {
+  employees: "Employés",
+  friends: "Amis",
+  volunteers: "Bénévoles",
+  officials: "Officiels",
+  private: "Privé",
+  vip: "VIP · Personnalités",
+};
+
+const GROUP_COLORS: Record<GroupType, string> = {
+  employees: "text-blue-400 bg-blue-400/10 border-blue-400/30",
+  friends: "text-pink-400 bg-pink-400/10 border-pink-400/30",
+  volunteers: "text-green-400 bg-green-400/10 border-green-400/30",
+  officials: "text-amber-400 bg-amber-400/10 border-amber-400/30",
+  private: "text-purple-400 bg-purple-400/10 border-purple-400/30",
+  vip: "text-yellow-400 bg-yellow-400/10 border-yellow-400/30",
+};
+
+const PAYMENT_TYPES: { id: PaymentType; label: string; icon: React.ComponentType<{ size?: number }> }[] = [
+  { id: "salary", label: "Salaire", icon: Banknote },
+  { id: "bonus", label: "Prime / Bonus", icon: Star },
+  { id: "voucher", label: "Bon d'achat", icon: FileText },
+  { id: "gift", label: "Cadeau", icon: Gift },
+  { id: "allowance", label: "Allocation", icon: Shield },
+  { id: "incentive", label: "Incentive", icon: BadgeCheck },
+];
+
+const MOCK_GROUPS = [
+  {
+    id: "g1",
+    name: "Équipe Kinshasa",
+    type: "employees" as GroupType,
+    memberCount: 24,
+    currency: "CDF",
+    lastPayment: "15 juil 2026",
+  },
+  {
+    id: "g2",
+    name: "Conseil d'administration",
+    type: "officials" as GroupType,
+    memberCount: 7,
+    currency: "USD",
+    lastPayment: "01 août 2026",
+  },
+  {
+    id: "g3",
+    name: "Équipe commerciale",
+    type: "employees" as GroupType,
+    memberCount: 12,
+    currency: "XAF",
+    lastPayment: "15 juil 2026",
+  },
+  {
+    id: "g4",
+    name: "Partenaires ONG",
+    type: "volunteers" as GroupType,
+    memberCount: 18,
+    currency: "USD",
+    lastPayment: "01 juil 2026",
+  },
+  {
+    id: "g5",
+    name: "Ambassadeurs VIP",
+    type: "vip" as GroupType,
+    memberCount: 5,
+    currency: "EUR",
+    lastPayment: "10 août 2026",
+  },
+  {
+    id: "g6",
+    name: "Famille & Proches",
+    type: "private" as GroupType,
+    memberCount: 9,
+    currency: "CDF",
+    lastPayment: "05 août 2026",
+  },
+];
+
+const MOCK_MEMBERS: GroupMember[] = [
+  { id: "m1", name: "Amara Koné", avatar: "AK", role: "Directeur RH", country: "RDC", flag: "🇨🇩", currency: "CDF", customAmount: 1500000, selected: true },
+  { id: "m2", name: "Jean Makoko", avatar: "JM", role: "Chef de projet", country: "Congo-B", flag: "🇨🇬", currency: "XAF", customAmount: 900000, selected: true },
+  { id: "m3", name: "Alice Umuhu", avatar: "AU", role: "Comptable", country: "Rwanda", flag: "🇷🇼", currency: "RWF", customAmount: 500000, selected: true },
+  { id: "m4", name: "Paulo Damba", avatar: "PD", role: "Technicien", country: "Angola", flag: "🇦🇴", currency: "AOA", customAmount: 400000, selected: false },
+  { id: "m5", name: "Fatou Diallo", avatar: "FD", role: "Commercial", country: "Sénégal", flag: "🇸🇳", currency: "XOF", customAmount: 600000, selected: true },
+  { id: "m6", name: "Chioma Obi", avatar: "CO", role: "Développeur", country: "Nigeria", flag: "🇳🇬", currency: "NGN", customAmount: 800000, selected: false },
+];
+
+const AVATAR_COLORS: Record<string, string> = {
+  AK: "bg-purple-600", JM: "bg-teal-600", AU: "bg-pink-600", PD: "bg-orange-600",
+  FD: "bg-emerald-600", CO: "bg-rose-600", KA: "bg-blue-600", ND: "bg-indigo-600",
+};
+
+function Avatar({ initials, size = "md" }: { initials: string; size?: "sm" | "md" | "lg" }) {
+  const sz = size === "sm" ? "w-7 h-7 text-xs" : size === "lg" ? "w-12 h-12 text-base" : "w-9 h-9 text-sm";
+  return (
+    <div className={cn("rounded-full flex items-center justify-center font-bold text-white shrink-0", sz, AVATAR_COLORS[initials] ?? "bg-primary")}>
+      {initials}
+    </div>
+  );
+}
+
+export default function GroupTransfers() {
+  const { t } = useTranslation("common");
+  const [activeView, setActiveView] = useState<"groups" | "new-payment" | "confirm" | "success">("groups");
+  const [selectedGroup, setSelectedGroup] = useState<typeof MOCK_GROUPS[0] | null>(null);
+  const [paymentType, setPaymentType] = useState<PaymentType>("salary");
+  const [currency, setCurrency] = useState("CDF");
+  const [baseAmount, setBaseAmount] = useState("");
+  const [members, setMembers] = useState(MOCK_MEMBERS);
+  const [showCurrencyDrop, setShowCurrencyDrop] = useState(false);
+  const [query, setQuery] = useState("");
+
+  const selectedMembers = members.filter(m => m.selected);
+  const totalAmount = selectedMembers.reduce((sum, m) => sum + (m.customAmount ?? (parseFloat(baseAmount) || 0)), 0);
+  const payrusMargin = totalAmount * 0.075;
+  const grandTotal = totalAmount + payrusMargin;
+
+  function toggleMember(id: string) {
+    setMembers(prev => prev.map(m => m.id === id ? { ...m, selected: !m.selected } : m));
+  }
+
+  function openGroup(group: typeof MOCK_GROUPS[0]) {
+    setSelectedGroup(group);
+    setActiveView("new-payment");
+  }
+
+  const filteredMembers = query.trim()
+    ? members.filter(m => m.name.toLowerCase().includes(query.toLowerCase()) || m.role.toLowerCase().includes(query.toLowerCase()))
+    : members;
+
+  return (
+    <div className="p-4 md:p-6 max-w-3xl mx-auto">
+      <PageHeader title={t("groups.title")} className="mb-4 md:mb-6" />
+
+      {/* Header */}
+      <div className="flex items-center gap-3 mb-6">
+        <div className="rounded-lg bg-white px-2 py-1 shadow-md shadow-black/30">
+          <PayRusLogo className="h-5 w-auto" />
+        </div>
+        <div>
+          <h1 className="text-xl font-bold text-foreground">{t("groups.heading")}</h1>
+          <p className="text-xs text-muted-foreground">{t("groups.subtitle")}</p>
+        </div>
+        <button
+          onClick={() => toast.info("Créer un groupe — bientôt disponible")}
+          className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary/10 border border-primary/30 text-primary text-xs font-semibold hover:bg-primary/20 transition-colors cursor-pointer"
+        >
+          <Plus size={13} /> {t("groups.newGroup")}
+        </button>
+      </div>
+
+      <AnimatePresence mode="wait">
+
+        {/* ── Groups list ─── */}
+        {activeView === "groups" && (
+          <motion.div key="groups" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+
+            {/* Stats row */}
+            <div className="grid grid-cols-3 gap-3 mb-5">
+              {[
+                { label: t("groups.activeGroups"), value: "6", sub: "+2 ce mois" },
+                { label: t("groups.totalMembers"), value: "75", sub: "54 pays" },
+                { label: t("groups.lastSent"), value: "XAF 8.5M", sub: "15 juil" },
+              ].map(s => (
+                <div key={s.label} className="rounded-xl bg-card border border-border p-3 text-center">
+                  <div className="text-lg font-bold font-mono text-foreground">{s.value}</div>
+                  <div className="text-[10px] text-muted-foreground">{s.label}</div>
+                  <div className="text-[10px] text-primary mt-0.5">{s.sub}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Group cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {MOCK_GROUPS.map(group => {
+                const Icon = GROUP_ICONS[group.type];
+                const colorClass = GROUP_COLORS[group.type];
+                return (
+                  <motion.button
+                    key={group.id}
+                    whileHover={{ scale: 1.01 }}
+                    onClick={() => openGroup(group)}
+                    className="text-left p-4 rounded-2xl bg-card border border-border hover:border-primary/30 hover:bg-primary/5 transition-all cursor-pointer group"
+                  >
+                    <div className="flex items-start justify-between mb-3">
+                      <div className={cn("flex items-center gap-1.5 px-2 py-1 rounded-lg border text-xs font-semibold", colorClass)}>
+                        <Icon size={12} />
+                        {GROUP_LABELS[group.type]}
+                      </div>
+                      <ChevronRight size={14} className="text-muted-foreground group-hover:text-primary" />
+                    </div>
+                    <div className="font-bold text-foreground mb-1">{group.name}</div>
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <div className="flex items-center gap-1">
+                        <Users size={11} />
+                        {group.memberCount} membres
+                      </div>
+                      <span>{group.currency}</span>
+                    </div>
+                    <div className="text-[10px] text-muted-foreground mt-1">
+                      Dernier paiement: {group.lastPayment}
+                    </div>
+                  </motion.button>
+                );
+              })}
+
+              {/* Add group button */}
+              <button
+                onClick={() => toast.info("Créer un groupe — bientôt disponible")}
+                className="text-left p-4 rounded-2xl border-2 border-dashed border-border hover:border-primary/40 hover:bg-primary/5 transition-all cursor-pointer flex flex-col items-center justify-center gap-2 min-h-[120px]"
+              >
+                <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center">
+                  <Plus size={18} className="text-muted-foreground" />
+                </div>
+                <span className="text-xs font-medium text-muted-foreground text-center">Créer un nouveau groupe</span>
+              </button>
+            </div>
+          </motion.div>
+        )}
+
+        {/* ── New payment ─── */}
+        {activeView === "new-payment" && selectedGroup && (
+          <motion.div key="new-payment" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-4">
+
+            {/* Back + group info */}
+            <div className="flex items-center gap-3">
+              <button onClick={() => setActiveView("groups")} className="text-muted-foreground hover:text-foreground cursor-pointer p-1">
+                <X size={16} />
+              </button>
+              <div className={cn("flex items-center gap-1.5 px-2 py-1 rounded-lg border text-xs font-semibold", GROUP_COLORS[selectedGroup.type])}>
+                {(() => { const Icon = GROUP_ICONS[selectedGroup.type]; return <Icon size={12} />; })()}
+                {selectedGroup.name}
+              </div>
+              <span className="text-xs text-muted-foreground">{selectedGroup.memberCount} membres</span>
+            </div>
+
+            {/* Payment type */}
+            <div>
+              <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Type de paiement</div>
+              <div className="grid grid-cols-3 gap-2">
+                {PAYMENT_TYPES.map(pt => (
+                  <button
+                    key={pt.id}
+                    onClick={() => setPaymentType(pt.id)}
+                    className={cn(
+                      "flex flex-col items-center gap-1.5 py-3 rounded-xl border text-xs font-medium transition-all cursor-pointer",
+                      paymentType === pt.id ? "border-primary/50 bg-primary/10 text-primary" : "border-border bg-secondary text-muted-foreground hover:bg-primary/5"
+                    )}
+                  >
+                    <pt.icon size={15} />
+                    {pt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Amount + currency */}
+            <div className="rounded-2xl bg-card border border-border p-4 space-y-3">
+              <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Montant de base</div>
+              <div className="flex gap-2">
+                <div className="relative">
+                  <button
+                    onClick={() => setShowCurrencyDrop(!showCurrencyDrop)}
+                    className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-secondary border border-border text-sm font-bold hover:bg-primary/10 transition-colors cursor-pointer"
+                  >
+                    {currency} <ChevronDown size={12} />
+                  </button>
+                  {showCurrencyDrop && (
+                    <div className="absolute top-full left-0 mt-1 z-30 bg-popover border border-border rounded-xl shadow-xl w-24">
+                      {["CDF", "XAF", "USD", "EUR", "XOF"].map(c => (
+                        <button key={c} onClick={() => { setCurrency(c); setShowCurrencyDrop(false); }} className={cn("w-full px-3 py-2 text-sm text-left hover:bg-primary/10 cursor-pointer", c === currency && "text-primary")}>
+                          {c}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <input
+                  type="number"
+                  value={baseAmount}
+                  onChange={e => setBaseAmount(e.target.value)}
+                  placeholder="Montant par défaut"
+                  className="flex-1 px-3 py-2.5 rounded-xl bg-secondary border border-border text-sm font-mono text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-primary/50"
+                />
+              </div>
+              <p className="text-[10px] text-muted-foreground">Ce montant sera appliqué aux membres sans montant personnalisé.</p>
+            </div>
+
+            {/* Member list */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  Destinataires ({selectedMembers.length} sélectionnés)
+                </div>
+                <button onClick={() => setMembers(prev => prev.map(m => ({ ...m, selected: !selectedMembers.length || selectedMembers.length < members.length })))} className="text-[10px] text-primary cursor-pointer hover:underline">
+                  {selectedMembers.length === members.length ? "Tout désélectionner" : "Tout sélectionner"}
+                </button>
+              </div>
+
+              {/* Search */}
+              <div className="relative mb-2">
+                <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  type="text"
+                  value={query}
+                  onChange={e => setQuery(e.target.value)}
+                  placeholder="Rechercher un membre…"
+                  className="w-full pl-8 pr-3 py-2 rounded-xl bg-secondary border border-border text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50"
+                />
+              </div>
+
+              <div className="space-y-2">
+                {filteredMembers.map(m => (
+                  <div key={m.id} className={cn("flex items-center gap-3 p-3 rounded-xl border transition-all", m.selected ? "border-primary/30 bg-primary/5" : "border-border bg-secondary opacity-60")}>
+                    <button onClick={() => toggleMember(m.id)} className={cn("w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 cursor-pointer transition-all", m.selected ? "bg-primary border-primary" : "border-border bg-transparent")}>
+                      {m.selected && <CheckCircle size={12} className="text-primary-foreground" />}
+                    </button>
+                    <Avatar initials={m.avatar} size="sm" />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium text-foreground truncate">{m.name}</div>
+                      <div className="text-[10px] text-muted-foreground">{m.role} · {m.flag} {m.country}</div>                    </div>
+                    <div className="text-right shrink-0">
+                      <div className="text-sm font-bold font-mono text-foreground">
+                        {m.customAmount ? m.customAmount.toLocaleString() : (baseAmount || "—")}
+                      </div>
+                      <div className="text-[10px] text-muted-foreground">{m.currency}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Summary */}
+            {selectedMembers.length > 0 && (
+              <div className="rounded-xl bg-primary/5 border border-primary/20 p-4 space-y-2">
+                {[
+                  ["Bénéficiaires", `${selectedMembers.length} membres`],
+                  ["Sous-total", `${currency} ${totalAmount.toLocaleString()}`],
+                  ["Frais PayRus (7.5%)", `${currency} ${payrusMargin.toLocaleString(undefined, { maximumFractionDigits: 0 })}`],
+                ].map(([k, v]) => (
+                  <div key={k} className="flex justify-between text-xs text-muted-foreground">
+                    <span>{k}</span><span className="font-medium text-foreground">{v}</span>
+                  </div>
+                ))}
+                <div className="flex justify-between text-sm font-bold pt-2 border-t border-primary/20">
+                  <span className="text-primary">Total à décaisser</span>
+                  <span className="text-primary">{currency} {grandTotal.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                </div>
+              </div>
+            )}
+
+            <Button
+              className="w-full gap-2 font-bold cursor-pointer"
+              disabled={selectedMembers.length === 0}
+              onClick={() => {
+                if (!baseAmount && selectedMembers.every(m => !m.customAmount)) {
+                  toast.error("Entrez un montant");
+                  return;
+                }
+                setActiveView("confirm");
+              }}
+            >
+              <Send size={15} /> Confirmer le paiement groupé
+            </Button>
+          </motion.div>
+        )}
+
+        {/* ── Confirm ─── */}
+        {activeView === "confirm" && selectedGroup && (
+          <motion.div key="confirm" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }} className="space-y-4">
+            <div className="rounded-2xl border border-border bg-card overflow-hidden">
+              <div className="bg-gradient-to-r from-primary/20 to-accent/10 px-5 py-4 border-b border-border flex items-center gap-3">
+                <div className="rounded-md bg-white px-2 py-0.5">
+                  <PayRusLogo className="h-4 w-auto" />
+                </div>
+                <span className="font-bold text-foreground">Confirmation paiement groupé</span>
+              </div>
+              <div className="p-5 space-y-3">
+                {[
+                  ["Groupe", selectedGroup.name],
+                  ["Type", PAYMENT_TYPES.find(p => p.id === paymentType)?.label ?? "—"],
+                  ["Bénéficiaires", `${selectedMembers.length} membres`],
+                  ["Devise", currency],
+                  ["Sous-total", `${currency} ${totalAmount.toLocaleString()}`],
+                  ["Frais PayRus (7.5%)", `${currency} ${payrusMargin.toLocaleString(undefined, { maximumFractionDigits: 0 })}`],
+                  ["Total décaissé", `${currency} ${grandTotal.toLocaleString(undefined, { maximumFractionDigits: 0 })}`],
+                ].map(([l, v]) => (
+                  <div key={l} className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">{l}</span>
+                    <span className="font-semibold text-foreground">{v}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <Button variant="secondary" onClick={() => setActiveView("new-payment")} className="cursor-pointer">Modifier</Button>
+              <Button className="gap-2 font-bold cursor-pointer" onClick={() => { setActiveView("success"); toast.success("Paiement groupé envoyé !"); }}>
+                <CheckCircle size={15} /> Valider
+              </Button>
+            </div>
+          </motion.div>
+        )}
+
+        {/* ── Success ─── */}
+        {activeView === "success" && (
+          <motion.div key="success" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="text-center space-y-5">
+            <div className="rounded-2xl border border-primary/30 bg-primary/5 p-8 flex flex-col items-center gap-4">
+              <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", stiffness: 200, damping: 12, delay: 0.1 }} className="w-20 h-20 rounded-full bg-primary/20 flex items-center justify-center">
+                <CheckCircle size={40} className="text-primary" />
+              </motion.div>
+              <div>
+                <div className="text-2xl font-bold text-foreground">Paiement groupé envoyé !</div>
+                <div className="text-sm text-muted-foreground mt-1">{selectedMembers.length} membres notifiés instantanément</div>
+              </div>
+              <div className="rounded-md bg-white px-3 py-1.5 shadow-sm">
+                <PayRusLogo className="h-5 w-auto" />
+              </div>
+              <div className="font-mono text-xs text-muted-foreground">REF: GRP-{Date.now().toString(36).toUpperCase()}</div>
+            </div>
+            <Button className="w-full gap-2 cursor-pointer" onClick={() => { setActiveView("groups"); setSelectedGroup(null); setBaseAmount(""); }}>
+              <ArrowRight size={15} /> Retour aux groupes
+            </Button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}

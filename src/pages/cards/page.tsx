@@ -1,0 +1,554 @@
+import { useState } from "react";
+import { useTranslation } from "react-i18next";
+import { motion, AnimatePresence } from "motion/react";
+import PageHeader from "@/components/ui/page-header.tsx";
+import {
+  Eye, EyeOff, Lock, Unlock, Settings2, Plus, Wifi, Shield,
+  Copy, RefreshCw, ArrowUpRight, ArrowDownLeft, ChevronRight,
+  Smartphone, Zap, Star, Globe, CreditCard, BadgeCheck
+} from "lucide-react";
+import { Button } from "@/components/ui/button.tsx";
+import { cn } from "@/lib/utils.ts";
+import { toast } from "sonner";
+import { PayRusLogo } from "@/pages/layout/AppLayout.tsx";
+
+/* ─── Card data ─────────────────────────────────────────── */
+const CARDS = [
+  {
+    id: 1,
+    tier: "Prime",
+    brand: "Visa",
+    last4: "4821",
+    holder: "JEAN DUPONT",
+    expiry: "09/27",
+    cvv: "***",
+    balance: 12485.50,
+    currency: "USD",
+    type: "Virtual",
+    network: "Visa Infinite",
+    contactless: true,
+    // Gradient: deep navy → teal (Visa Prime)
+    gradient: "from-[#0d1b4b] via-[#1a3a6b] to-[#0e5c7e]",
+    shimmer: "from-white/0 via-white/10 to-white/0",
+    accentColor: "#4fc3f7",
+    locked: false,
+    monthlySpend: 320,
+    monthlyLimit: 5000,
+  },
+  {
+    id: 2,
+    tier: "Platinum",
+    brand: "Mastercard",
+    last4: "9302",
+    holder: "JEAN DUPONT",
+    expiry: "03/26",
+    cvv: "***",
+    balance: 3820.00,
+    currency: "USD",
+    type: "Physical",
+    network: "Mastercard World Elite",
+    contactless: true,
+    // Gradient: near-black → charcoal → dark gold (Platinum MC)
+    gradient: "from-[#1a1a1a] via-[#2a2a2a] to-[#3d2f0f]",
+    shimmer: "from-white/0 via-yellow-200/10 to-white/0",
+    accentColor: "#fbbf24",
+    locked: false,
+    monthlySpend: 1200,
+    monthlyLimit: 10000,
+  },
+  {
+    id: 3,
+    tier: "Business",
+    brand: "Visa",
+    last4: "7701",
+    holder: "PAYRUS SARL",
+    expiry: "12/28",
+    cvv: "***",
+    balance: 55000.00,
+    currency: "XAF",
+    type: "Corporate",
+    network: "Visa Business",
+    contactless: true,
+    // Gradient: forest green → emerald (Business)
+    gradient: "from-[#064e3b] via-[#065f46] to-[#047857]",
+    shimmer: "from-white/0 via-green-200/10 to-white/0",
+    accentColor: "#6ee7b7",
+    locked: false,
+    monthlySpend: 8500,
+    monthlyLimit: 50000,
+  },
+  {
+    id: 4,
+    tier: "Diaspora",
+    brand: "Mastercard",
+    last4: "5510",
+    holder: "JEAN DUPONT",
+    expiry: "06/29",
+    cvv: "***",
+    balance: 2100.00,
+    currency: "EUR",
+    type: "Virtual",
+    network: "Mastercard Standard",
+    contactless: true,
+    // Gradient: deep purple → violet (Diaspora)
+    gradient: "from-[#2e1065] via-[#4c1d95] to-[#6d28d9]",
+    shimmer: "from-white/0 via-purple-200/10 to-white/0",
+    accentColor: "#c4b5fd",
+    locked: false,
+    monthlySpend: 450,
+    monthlyLimit: 3000,
+  },
+] as const;
+
+type CardData = {
+  id: number;
+  tier: string;
+  brand: string;
+  last4: string;
+  holder: string;
+  expiry: string;
+  cvv: string;
+  balance: number;
+  currency: string;
+  type: string;
+  network: string;
+  contactless: boolean;
+  gradient: string;
+  shimmer: string;
+  accentColor: string;
+  locked: boolean;
+  monthlySpend: number;
+  monthlyLimit: number;
+};
+
+/* ─── Chip SVG ─────────────────────────────────────────── */
+function ChipSVG({ color = "#d4af37" }: { color?: string }) {
+  return (
+    <svg width="42" height="32" viewBox="0 0 42 32" fill="none">
+      <rect x="0.5" y="0.5" width="41" height="31" rx="4.5" stroke={color} strokeOpacity="0.5" fill={color} fillOpacity="0.18" />
+      <rect x="14" y="0.5" width="14" height="31" rx="0" stroke={color} strokeOpacity="0.3" fill="none" />
+      <rect x="0.5" y="10" width="41" height="12" rx="0" stroke={color} strokeOpacity="0.3" fill="none" />
+      <rect x="14" y="10" width="14" height="12" rx="1" stroke={color} strokeOpacity="0.5" fill={color} fillOpacity="0.2" />
+      <line x1="21" y1="0.5" x2="21" y2="10" stroke={color} strokeOpacity="0.3" />
+      <line x1="21" y1="22" x2="21" y2="31.5" stroke={color} strokeOpacity="0.3" />
+    </svg>
+  );
+}
+
+/* ─── Visa Logo SVG ────────────────────────────────────── */
+function VisaLogo({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 80 26" className={className} fill="none">
+      <text x="0" y="22" fontFamily="Arial Black, sans-serif" fontWeight="900" fontSize="26" fill="white" letterSpacing="-1" opacity="0.95">VISA</text>
+    </svg>
+  );
+}
+
+/* ─── Mastercard Logo SVG ──────────────────────────────── */
+function MastercardLogo({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 60 38" className={className} fill="none">
+      <circle cx="20" cy="19" r="18" fill="#EB001B" />
+      <circle cx="40" cy="19" r="18" fill="#F79E1B" />
+      <path d="M30 5.8C33.8 8.2 36.4 12.3 36.4 19s-2.6 10.8-6.4 13.2C20.2 29.8 17.6 25.7 17.6 19s2.6-10.8 12.4-13.2z" fill="#FF5F00" />
+    </svg>
+  );
+}
+
+/* ─── Contactless Wave SVG ─────────────────────────────── */
+function ContactlessIcon({ color = "white" }: { color?: string }) {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+      <path d="M5 12.5C5 8.36 8.36 5 12.5 5" stroke={color} strokeWidth="1.6" strokeLinecap="round" opacity="0.5" />
+      <path d="M7.5 12.5C7.5 9.74 9.74 7.5 12.5 7.5" stroke={color} strokeWidth="1.6" strokeLinecap="round" opacity="0.7" />
+      <path d="M10 12.5C10 11.12 11.12 10 12.5 10" stroke={color} strokeWidth="1.6" strokeLinecap="round" opacity="0.9" />
+      <circle cx="12.5" cy="12.5" r="1.5" fill={color} />
+    </svg>
+  );
+}
+
+/* ─── Card Face Component ──────────────────────────────── */
+function CardFace({
+  card,
+  showBalances,
+  selected,
+  onClick,
+}: {
+  card: CardData;
+  showBalances: boolean;
+  selected: boolean;
+  onClick: () => void;
+}) {
+  const chipColor = card.accentColor;
+
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        "relative shrink-0 w-80 h-48 rounded-2xl overflow-hidden cursor-pointer transition-all duration-300 select-none",
+        "bg-gradient-to-br", card.gradient,
+        selected ? "ring-2 ring-primary shadow-2xl shadow-primary/30 scale-[1.02]" : "opacity-85 hover:opacity-100 hover:scale-[1.01]"
+      )}
+      style={{ boxShadow: selected ? `0 8px 40px ${card.accentColor}30` : undefined }}
+    >
+      {/* Locked overlay */}
+      {card.locked && (
+        <div className="absolute inset-0 bg-black/70 flex items-center justify-center z-20 rounded-2xl">
+          <div className="flex flex-col items-center gap-2">
+            <Lock size={28} className="text-white/90" />
+            <span className="text-white/70 text-xs font-medium tracking-wider uppercase">Card Locked</span>
+          </div>
+        </div>
+      )}
+
+      {/* Shimmer overlay */}
+      <div className={cn("absolute inset-0 bg-gradient-to-r opacity-0 hover:opacity-100 transition-opacity duration-700 -skew-x-12 translate-x-full hover:translate-x-[-200%]", card.shimmer)} />
+
+      {/* Glossy top strip */}
+      <div className="absolute top-0 left-0 right-0 h-px bg-white/20" />
+      <div className="absolute top-0 left-0 right-0 h-8 bg-gradient-to-b from-white/10 to-transparent" />
+
+      {/* Card body */}
+      <div className="relative z-10 h-full flex flex-col justify-between p-5">
+
+        {/* Row 1: PayRus logo + tier badge + contactless */}
+        <div className="flex items-start justify-between">
+          <div className="flex items-center gap-2">
+            <div className="rounded-md bg-white px-2 py-0.5 shadow-sm shadow-black/20">
+              <PayRusLogo className="h-4 w-auto" />
+            </div>
+            <span
+              className="text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider"
+              style={{ backgroundColor: `${card.accentColor}30`, color: card.accentColor, border: `1px solid ${card.accentColor}50` }}
+            >
+              {card.tier}
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            {card.contactless && <ContactlessIcon />}
+            <Wifi size={14} className="text-white/60" />
+          </div>
+        </div>
+
+        {/* Row 2: Chip + card type badge */}
+        <div className="flex items-center gap-3">
+          <ChipSVG color={chipColor} />
+          <span className="text-[10px] text-white/50 uppercase tracking-widest font-mono">{card.type}</span>
+        </div>
+
+        {/* Row 3: Card number */}
+        <div className="font-mono text-[15px] font-bold tracking-[0.2em] text-white/90">
+          •••• &nbsp;•••• &nbsp;•••• &nbsp;{card.last4}
+        </div>
+
+        {/* Row 4: Holder / Expiry / Network logo */}
+        <div className="flex items-end justify-between">
+          <div className="flex gap-6">
+            <div>
+              <div className="text-[9px] text-white/40 uppercase tracking-widest mb-0.5">Card Holder</div>
+              <div className="text-[11px] font-semibold text-white/90 font-mono tracking-wider">{card.holder}</div>
+            </div>
+            <div>
+              <div className="text-[9px] text-white/40 uppercase tracking-widest mb-0.5">Expires</div>
+              <div className="text-[11px] font-semibold text-white/90 font-mono">{card.expiry}</div>
+            </div>
+          </div>
+          {/* Network logo */}
+          <div className="flex items-center">
+            {card.brand === "Visa" ? (
+              <VisaLogo className="h-6 w-auto" />
+            ) : (
+              <div className="flex items-center gap-1">
+                <MastercardLogo className="h-7 w-auto" />
+                <span className="text-[8px] font-bold text-white/70 leading-tight text-left ml-1" style={{ maxWidth: 40 }}>
+                  {card.network.replace("Mastercard ", "")}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </button>
+  );
+}
+
+/* ─── Main Page ────────────────────────────────────────── */
+export default function Cards() {
+  const { t } = useTranslation("common");
+  const [cards, setCards] = useState<CardData[]>(CARDS.map(c => ({ ...c })));
+  const [showBalances, setShowBalances] = useState(true);
+  const [activeCard, setActiveCard] = useState(0);
+  const [activeTab, setActiveTab] = useState<"details" | "linked">("details");
+
+  const card = cards[activeCard];
+
+  const toggleLock = () => {
+    setCards(prev => prev.map(c => c.id === card.id ? { ...c, locked: !c.locked } : c));
+    toast.success(card.locked ? "Carte débloquée" : "Carte bloquée");
+  };
+
+  const copyNumber = () => {
+    navigator.clipboard.writeText(`•••• •••• •••• ${card.last4}`).catch(() => {});
+    toast.success("Numéro copié !");
+  };
+
+  const spendPct = Math.min(100, Math.round((card.monthlySpend / card.monthlyLimit) * 100));
+
+  const LINKED = [
+    { name: "PayRus Wallet (CDF)", type: "Wallet", balance: "CDF 7,303,000", icon: "🟢", limit: "$8,000" },
+    { name: "Rawbank Visa •• 4821", type: "Bank Card", balance: "$4,200", icon: "🏦", limit: "$5,000" },
+    { name: "Ecobank MC •• 9302", type: "Bank Card", balance: "$1,600", icon: "🏦", limit: "$2,000" },
+    { name: "Orange Money +243", type: "Mobile Money", balance: "XAF 48,200", icon: "🟠", limit: "$500" },
+    { name: "Bitcoin Wallet", type: "Crypto", balance: "0.021 BTC", icon: "₿", limit: "$800" },
+  ];
+
+  const PERKS: Record<string, string[]> = {
+    Prime: ["1% cashback sur tous les achats", "2 retraits ATM gratuits/mois", "PayRus Miles sur vols", "Assurance voyage incluse"],
+    Platinum: ["2% cashback international", "Accès salon aéroport (LoungeKey)", "Concierge 24h/7j", "Protection achats 90 jours"],
+    Business: ["Gestion de dépenses équipe", "0.5% sur volumes > XAF 1M", "Rapports comptables auto", "Carte virtuelle illimitée"],
+    Diaspora: ["Transferts gratuits PayRus→PayRus", "Taux FX préférentiel", "Paiement en 3× sans frais", "Assurance santé déplacement"],
+  };
+
+  const cardPerks = PERKS[card.tier] ?? [];
+
+  return (
+    <div className="p-4 md:p-6 max-w-3xl mx-auto">
+      <PageHeader title={t("cards.title")} className="mb-4 md:mb-6" />
+      {/* ── Header */}
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <div className="flex items-center gap-2.5 mb-1">
+            <div className="rounded-lg bg-white px-2 py-1 shadow-md shadow-black/30">
+              <PayRusLogo className="h-5 w-auto" />
+            </div>
+            <h1 className="text-xl font-bold text-foreground tracking-tight">PayRus Card</h1>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {t("cards.subtitle")}
+          </p>
+        </div>
+        <button
+          onClick={() => setShowBalances(!showBalances)}
+          className="w-9 h-9 rounded-xl bg-secondary border border-border flex items-center justify-center hover:bg-primary/10 transition-colors cursor-pointer"
+        >
+          {showBalances ? <Eye size={16} className="text-muted-foreground" /> : <EyeOff size={16} className="text-muted-foreground" />}
+        </button>
+      </div>
+
+      {/* ── Combined balance banner */}
+      <div className="mb-5 rounded-2xl bg-gradient-to-r from-primary/20 via-accent/10 to-primary/5 border border-primary/20 px-5 py-3 flex items-center justify-between">
+        <div>
+          <div className="text-[10px] text-muted-foreground uppercase tracking-widest flex items-center gap-1">
+            <Zap size={10} className="text-primary" /> {t("cards.combinedBalance")}
+          </div>
+          <div className="text-2xl font-bold font-mono text-foreground mt-0.5">
+            {showBalances ? "$19,460.00" : "•••••••"}
+          </div>
+          <div className="text-[10px] text-muted-foreground mt-0.5">
+            {cards.length} sources actives · $18,500 limite totale
+          </div>
+        </div>
+        <div className="flex -space-x-1">
+          {["🟢","🏦","🏦","🟠","₿"].map((icon, i) => (
+            <div key={i} className="w-7 h-7 rounded-full bg-secondary border border-border flex items-center justify-center text-xs">{icon}</div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Card carousel */}
+      <div className="flex gap-4 overflow-x-auto pb-3 mb-5 snap-x snap-mandatory">
+        {cards.map((c, i) => (
+          <div key={c.id} className="snap-start">
+            <CardFace card={c} showBalances={showBalances} selected={activeCard === i} onClick={() => setActiveCard(i)} />
+          </div>
+        ))}
+        {/* Add card */}
+        <button
+          onClick={() => toast.info("Émission de carte — bientôt disponible !")}
+          className="shrink-0 w-40 h-48 rounded-2xl border-2 border-dashed border-border flex flex-col items-center justify-center gap-3 text-muted-foreground hover:border-primary/50 hover:text-primary transition-colors cursor-pointer snap-start"
+        >
+          <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center">
+            <Plus size={20} />
+          </div>
+          <span className="text-xs font-medium text-center px-2">Ajouter une carte</span>
+        </button>
+      </div>
+
+      {/* ── Card detail panel */}
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={activeCard}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          transition={{ duration: 0.2 }}
+          className="rounded-2xl bg-card border border-border overflow-hidden"
+        >
+          {/* Tabs */}
+          <div className="flex border-b border-border">
+            {(["details", "linked"] as const).map(tab => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={cn(
+                  "flex-1 py-3 text-xs font-semibold uppercase tracking-wider transition-colors cursor-pointer",
+                  activeTab === tab ? "text-primary border-b-2 border-primary bg-primary/5" : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {tab === "details" ? t("cards.tabDetails") : `${t("cards.tabLinked")} (${LINKED.length})`}
+              </button>
+            ))}
+          </div>
+
+          {activeTab === "details" && (
+            <div className="p-5 space-y-5">
+              {/* Status + balance */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-xs text-muted-foreground">{card.brand} •••• {card.last4} · {card.network}</div>
+                  <div className="text-2xl font-bold font-mono text-foreground mt-0.5">
+                    {showBalances ? `${card.currency} ${card.balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : "•••••"}
+                  </div>
+                </div>
+                <div className="flex flex-col items-end gap-1">
+                  <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", card.locked ? "bg-destructive/20 text-destructive" : "bg-primary/10 text-primary")}>
+                    {card.locked ? "Bloquée" : "Active"}
+                  </span>
+                  <span className="text-[10px] text-muted-foreground">{card.type}</span>
+                </div>
+              </div>
+
+              {/* Monthly spend bar */}
+              <div>
+                <div className="flex justify-between text-xs text-muted-foreground mb-1.5">
+                  <span>Dépenses ce mois</span>
+                  <span>${card.monthlySpend} / ${card.monthlyLimit.toLocaleString()}</span>
+                </div>
+                <div className="h-1.5 rounded-full bg-secondary overflow-hidden">
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: `${spendPct}%` }}
+                    transition={{ duration: 0.6, ease: "easeOut" }}
+                    className={cn("h-full rounded-full", spendPct > 80 ? "bg-destructive" : "bg-primary")}
+                  />
+                </div>
+                <div className="text-[10px] text-muted-foreground mt-1">{spendPct}% du plafond utilisé</div>
+              </div>
+
+              {/* Action buttons */}
+              <div className="grid grid-cols-4 gap-2">
+                {[
+                  { label: "Bloquer", icon: card.locked ? Unlock : Lock, action: toggleLock, variant: card.locked ? "destructive" : "secondary" },
+                  { label: "Détails", icon: Eye, action: () => toast.info("Affichage sécurisé — bientôt"), variant: "secondary" },
+                  { label: "Copier", icon: Copy, action: copyNumber, variant: "secondary" },
+                  { label: "Régler", icon: Settings2, action: () => toast.info("Paramètres — bientôt"), variant: "secondary" },
+                ].map(({ label, icon: Icon, action, variant }) => (
+                  <button
+                    key={label}
+                    onClick={action}
+                    className={cn(
+                      "flex flex-col items-center gap-1.5 py-3 rounded-xl text-xs font-medium transition-colors cursor-pointer border",
+                      variant === "destructive" ? "bg-destructive/10 text-destructive border-destructive/20 hover:bg-destructive/20" : "bg-secondary text-foreground border-border hover:bg-primary/10 hover:text-primary"
+                    )}
+                  >
+                    <Icon size={16} />
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Quick actions */}
+              <div className="grid grid-cols-2 gap-2">
+                <button onClick={() => toast.info("Envoyer — bientôt")} className="flex items-center gap-2 p-3 rounded-xl bg-secondary border border-border hover:bg-primary/10 transition-colors cursor-pointer text-sm font-medium">
+                  <ArrowUpRight size={16} className="text-primary" /> Envoyer de l'argent
+                </button>
+                <button onClick={() => toast.info("Recharger — bientôt")} className="flex items-center gap-2 p-3 rounded-xl bg-secondary border border-border hover:bg-primary/10 transition-colors cursor-pointer text-sm font-medium">
+                  <ArrowDownLeft size={16} className="text-accent" /> Recharger la carte
+                </button>
+              </div>
+
+              {/* Perks */}
+              <div>
+                <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1">
+                  <Star size={11} className="text-primary" /> Avantages {card.tier}
+                </div>
+                <div className="grid grid-cols-1 gap-1.5">
+                  {cardPerks.map(perk => (
+                    <div key={perk} className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <BadgeCheck size={13} className="text-primary shrink-0" />
+                      {perk}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Security notice */}
+              <div className="flex items-start gap-3 p-3 rounded-xl border border-border bg-secondary/50">
+                <Shield size={15} className="text-primary shrink-0 mt-0.5" />
+                <p className="text-xs text-muted-foreground">
+                  <span className="text-foreground font-medium">Sécurité PayRus · </span>
+                  Cryptage 256-bit · 3DS2 activé · Visa/Mastercard Zero Liability · Alertes temps réel
+                </p>
+              </div>
+            </div>
+          )}
+
+          {activeTab === "linked" && (
+            <div className="p-5 space-y-3">
+              <p className="text-xs text-muted-foreground">
+                Tous ces comptes alimentent votre <span className="text-primary font-semibold">One Limit</span>.
+                La carte débite automatiquement la meilleure source disponible.
+              </p>
+              {LINKED.map((acc) => (
+                <div key={acc.name} className="flex items-center gap-3 p-3 rounded-xl bg-secondary border border-border hover:bg-primary/5 transition-colors">
+                  <div className="w-9 h-9 rounded-full bg-card border border-border flex items-center justify-center text-sm shrink-0">{acc.icon}</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium text-foreground truncate">{acc.name}</div>
+                    <div className="text-xs text-muted-foreground">{acc.type} · Solde: {acc.balance}</div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <div className="text-xs text-muted-foreground">Plafond</div>
+                    <div className="text-sm font-semibold text-primary">{acc.limit}</div>
+                  </div>
+                  <ChevronRight size={14} className="text-muted-foreground shrink-0" />
+                </div>
+              ))}
+              <button
+                onClick={() => toast.info("Lier un compte — bientôt disponible")}
+                className="w-full py-3 rounded-xl border-2 border-dashed border-border text-xs font-medium text-muted-foreground hover:border-primary/50 hover:text-primary transition-colors cursor-pointer flex items-center justify-center gap-2"
+              >
+                <Plus size={14} /> Lier un nouveau compte
+              </button>
+
+              {/* Global acceptance */}
+              <div className="flex items-start gap-3 p-3 rounded-xl border border-border bg-secondary/50 mt-2">
+                <Globe size={14} className="text-accent shrink-0 mt-0.5" />
+                <p className="text-xs text-muted-foreground">
+                  <span className="text-foreground font-medium">Acceptée dans 180+ pays · </span>
+                  Visa &amp; Mastercard réseau mondial · Compatible Apple Pay · Google Pay · Samsung Pay
+                </p>
+              </div>
+            </div>
+          )}
+        </motion.div>
+      </AnimatePresence>
+
+      {/* ── Network acceptance strip */}
+      <div className="mt-4 rounded-2xl border border-border bg-card/50 px-5 py-3 flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <VisaLogo className="h-5 w-auto opacity-80" />
+          <div className="h-4 w-px bg-border" />
+          <MastercardLogo className="h-6 w-auto opacity-80" />
+        </div>
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <Smartphone size={12} />
+          <span>NFC · Apple Pay · Google Pay</span>
+        </div>
+        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+          <CreditCard size={12} className="text-primary" />
+          <span className="text-primary font-medium">54 pays africains</span>
+        </div>
+      </div>
+    </div>
+  );
+}
