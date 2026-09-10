@@ -1,0 +1,276 @@
+@import url("https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;0,8..60,700;1,8..60,400&display=swap");
+@import "tailwindcss";
+
+/*
+ * Design tokens ported from the Broadsheet design system
+ * (project/_ds/broadsheet-.../styles.css in the Claude Design handoff),
+ * with PayRus's navy/green brand accents in place of Broadsheet's stock
+ * cyan/magenta. Semantic tokens below follow shadcn/ui's Tailwind v4
+ * convention (:root tokens, then `@theme inline` maps them into
+ * Tailwind's color/font/radius namespaces) so shadcn components added
+ * later inherit the brand automatically.
+ *
+ * --spacing is intentionally overridden to 5px (Broadsheet's base unit):
+ * its steps 1/2/3/4/6/8 (5/10/15/20/30/40px) are exact multiples of 5,
+ * so Tailwind's own numeric spacing utilities (p-6, gap-4, mt-8, ...)
+ * reproduce the design's spacing scale directly.
+ */
+
+:root {
+  --background: #f3f2f2;
+  --foreground: #201e1d;
+
+  --card: #f3f2f2;
+  --card-foreground: #201e1d;
+  --popover: #f3f2f2;
+  --popover-foreground: #201e1d;
+
+  --primary: #0e3a6b; /* PayRus navy */
+  --primary-foreground: #f3f2f2;
+  --secondary: #eae9e9;
+  --secondary-foreground: #201e1d;
+
+  --muted: #eae9e9;
+  --muted-foreground: #605d5d;
+
+  --accent: #5c9a22; /* PayRus green */
+  --accent-foreground: #f3f2f2;
+
+  --destructive: #b3261e;
+  --destructive-foreground: #f3f2f2;
+
+  --border: color-mix(in srgb, #201e1d 16%, transparent);
+  --input: color-mix(in srgb, #201e1d 16%, transparent);
+  --ring: #0e3a6b;
+
+  --radius: 2px;
+
+  /* Broadsheet's full tonal ramps, kept alongside the shadcn-standard
+     tokens above for the multi-step tints this design leans on (tag
+     pills, kickers, dividers) that a single primary/accent pair can't
+     cover. */
+  --pr-neutral-100: #f8f4f4;
+  --pr-neutral-200: #eae7e7;
+  --pr-neutral-300: #d7d3d3;
+  --pr-neutral-400: #bab6b6;
+  --pr-neutral-500: #9b9797;
+  --pr-neutral-600: #7d7979;
+  --pr-neutral-700: #605d5d;
+  --pr-neutral-800: #444141;
+  --pr-neutral-900: #2d2b2b;
+
+  --pr-navy-100: #e6ebf2;
+  --pr-navy-200: #c8d5e5;
+  --pr-navy-300: #9db3cd;
+  --pr-navy-400: #4b7ba9;
+  --pr-navy-500: #0e3a6b;
+  --pr-navy-600: #0b2f57;
+  --pr-navy-700: #0a2748;
+  --pr-navy-800: #071d36;
+  --pr-navy-900: #051425;
+
+  --pr-green-100: #eaf3dd;
+  --pr-green-200: #d4e8bb;
+  --pr-green-300: #b3d685;
+  --pr-green-400: #84b83f;
+  --pr-green-500: #5c9a22;
+  --pr-green-600: #4c801c;
+  --pr-green-700: #3f6a17;
+  --pr-green-800: #2e4d11;
+  --pr-green-900: #1f350b;
+
+  --font-family-heading: "Source Serif 4", system-ui, sans-serif;
+}
+
+@theme inline {
+  --spacing: 5px;
+
+  /* The landing page's hero/last-mile 2-column split kicks in at 900px
+     (project/PayRus Landing.dc.html), between Tailwind's default md
+     (768px) and lg (1024px) — so it gets its own breakpoint. */
+  --breakpoint-pr: 900px;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-pr-neutral-100: var(--pr-neutral-100);
+  --color-pr-neutral-200: var(--pr-neutral-200);
+  --color-pr-neutral-300: var(--pr-neutral-300);
+  --color-pr-neutral-400: var(--pr-neutral-400);
+  --color-pr-neutral-500: var(--pr-neutral-500);
+  --color-pr-neutral-600: var(--pr-neutral-600);
+  --color-pr-neutral-700: var(--pr-neutral-700);
+  --color-pr-neutral-800: var(--pr-neutral-800);
+  --color-pr-neutral-900: var(--pr-neutral-900);
+
+  --color-pr-navy-100: var(--pr-navy-100);
+  --color-pr-navy-200: var(--pr-navy-200);
+  --color-pr-navy-300: var(--pr-navy-300);
+  --color-pr-navy-400: var(--pr-navy-400);
+  --color-pr-navy-500: var(--pr-navy-500);
+  --color-pr-navy-600: var(--pr-navy-600);
+  --color-pr-navy-700: var(--pr-navy-700);
+  --color-pr-navy-800: var(--pr-navy-800);
+  --color-pr-navy-900: var(--pr-navy-900);
+
+  --color-pr-green-100: var(--pr-green-100);
+  --color-pr-green-200: var(--pr-green-200);
+  --color-pr-green-300: var(--pr-green-300);
+  --color-pr-green-400: var(--pr-green-400);
+  --color-pr-green-500: var(--pr-green-500);
+  --color-pr-green-600: var(--pr-green-600);
+  --color-pr-green-700: var(--pr-green-700);
+  --color-pr-green-800: var(--pr-green-800);
+  --color-pr-green-900: var(--pr-green-900);
+
+  --font-heading: var(--font-family-heading);
+  --font-sans: var(--font-family-heading);
+
+  --radius-sm: calc(var(--radius) * 0.75);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) * 2);
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+  html {
+    scroll-behavior: smooth;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-heading);
+    font-size: 15px;
+    line-height: 1.55;
+  }
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-heading);
+    font-weight: 600;
+    line-height: 1.12;
+    letter-spacing: -0.015em;
+    margin: 0 0 calc(var(--spacing) * 2);
+  }
+  h1 {
+    font-size: 42px;
+  }
+  h2 {
+    font-size: 32px;
+  }
+  h3 {
+    font-size: 25px;
+  }
+  h4 {
+    font-size: 20px;
+  }
+  h5 {
+    font-size: 16px;
+  }
+  h6 {
+    font-size: 13px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  p {
+    margin: 0 0 15px;
+  }
+  a {
+    color: var(--pr-navy-700);
+    text-decoration: none;
+    text-underline-offset: 3px;
+  }
+  a:hover {
+    color: var(--pr-green-700);
+  }
+  img {
+    display: block;
+    max-width: 100%;
+  }
+  :focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  /* The CMYK "press plate" photo treatment — see src/lib/press-plates.ts
+     for the SVG filter defs + hover driver this styles. */
+  .cmyk {
+    position: relative;
+    overflow: hidden;
+    background: var(--background);
+  }
+  .cmyk .print {
+    position: relative;
+    width: 100%;
+    filter: url(#sep-all);
+  }
+  .cmyk .print img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .cmyk::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background-image: radial-gradient(
+      circle,
+      rgba(0, 0, 0, 0.22) 30%,
+      transparent 32%
+    );
+    background-size: 3px 3px;
+    mix-blend-mode: multiply;
+  }
+  @media (prefers-reduced-motion: reduce), (hover: none), (pointer: coarse) {
+    .cmyk .print:hover {
+      filter: none;
+    }
+  }
+  .cmyk-credit {
+    position: absolute;
+    left: 6px;
+    bottom: 6px;
+    max-width: calc(100% - 12px);
+    padding: 3px 7px;
+    border-radius: 5px;
+    background: rgba(0, 0, 0, 0.55);
+    color: #fff;
+    font:
+      10px/1.2 system-ui,
+      -apple-system,
+      sans-serif;
+    text-decoration: none;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .cmyk-credit:hover {
+    color: #fff;
+    text-decoration: underline;
+  }
+}
