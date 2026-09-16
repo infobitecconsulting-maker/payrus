@@ -15,11 +15,23 @@ vi.mock("react-router-dom", async () => {
 // shared mock stands in for both and tests assert on call order/shape.
 const mockMutation = vi.fn();
 const mockConvexQuery = vi.fn();
+// Street- and postal-code-autosuggest useAction() calls — both default to no
+// suggestions so the existing tests (which never touch either dropdown) are
+// unaffected; only the dedicated autosuggest tests override these. The
+// component calls useAction(suggestStreets) then useAction(suggestPostalCodes)
+// in that fixed order on every render (React's rules of hooks guarantee the
+// order never changes), and — same as useMutation above — Convex's api.*
+// references have no stable identity to switch on, so parity of a call
+// counter (reset every test) stands in for "which action is this".
+const mockSuggestStreets = vi.fn().mockResolvedValue({ suggestions: [] });
+const mockSuggestPostalCodes = vi.fn().mockResolvedValue({ suggestions: [] });
+let useActionCallCount = 0;
 vi.mock("convex/react", async () => {
   const actual = await vi.importActual<typeof import("convex/react")>("convex/react");
   return {
     ...actual,
     useMutation: () => mockMutation,
+    useAction: () => (useActionCallCount++ % 2 === 0 ? mockSuggestStreets : mockSuggestPostalCodes),
     useConvex: () => ({ query: mockConvexQuery }),
   };
 });
@@ -64,6 +76,7 @@ describe("Register", () => {
   afterEach(() => {
     cleanup();
     vi.clearAllMocks();
+    useActionCallCount = 0;
   });
 
   it("requests first name, last name, email, phone, country, full address and a password", () => {
@@ -159,13 +172,56 @@ describe("Register", () => {
     expect(localStorage.getItem("payrus_local_user_id")).toBe("user_1");
   });
 
-  it("reveals the provider icons behind the grey PayRus SSO button, then redirects on click", async () => {
+  it("shows AI street suggestions once country, city and province are set, and fills the street on pick", async () => {
+    mockSuggestStreets.mockResolvedValueOnce({ suggestions: ["Rue de la Paix"] });
+    renderRegister();
+    fireEvent.change(screen.getByLabelText(/country of registration/i), { target: { value: "SN" } });
+    fireEvent.change(screen.getByLabelText(/^city$/i), { target: { value: "Dakar" } });
+    fireEvent.change(screen.getByLabelText(/province/i), { target: { value: "Dakar" } });
+    fireEvent.change(screen.getByLabelText(/^street$/i), { target: { value: "Rue de" } });
+
+    await waitFor(() =>
+      expect(mockSuggestStreets).toHaveBeenCalledWith({ country: "SN", city: "Dakar", province: "Dakar", query: "Rue de" }),
+    );
+    fireEvent.click(await screen.findByText("Rue de la Paix"));
+
+    expect(screen.getByLabelText(/^street$/i)).toHaveValue("Rue de la Paix");
+  });
+
+  it("fetches postal code suggestions automatically once country, city and province are all set, and fills it on pick", async () => {
+    mockSuggestPostalCodes.mockResolvedValueOnce({
+      suggestions: [{ postalCode: "BP 1234", area: "Plateau" }, { postalCode: "BP 5678" }],
+    });
+    renderRegister();
+    expect(mockSuggestPostalCodes).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByLabelText(/country of registration/i), { target: { value: "SN" } });
+    fireEvent.change(screen.getByLabelText(/^city$/i), { target: { value: "Dakar" } });
+    fireEvent.change(screen.getByLabelText(/province/i), { target: { value: "Dakar" } });
+
+    await waitFor(() =>
+      expect(mockSuggestPostalCodes).toHaveBeenCalledWith({ country: "SN", city: "Dakar", province: "Dakar" }),
+    );
+    fireEvent.click(await screen.findByText("BP 1234"));
+
+    expect(screen.getByLabelText(/postal code/i)).toHaveValue("BP 1234");
+  });
+
+  it("does not request street suggestions before country, city and province are all chosen", async () => {
+    renderRegister();
+    fireEvent.change(screen.getByLabelText(/^street$/i), { target: { value: "Rue de" } });
+
+    await new Promise((r) => setTimeout(r, 450));
+    expect(mockSuggestStreets).not.toHaveBeenCalled();
+  });
+
+  it("reveals the provider icons behind the grey social sign-up button, then redirects on click", async () => {
     mockSignInWithOAuth.mockResolvedValue({ error: null });
     renderRegister();
 
-    // Provider icons are collapsed behind the single grey SSO button until clicked.
+    // Provider icons are collapsed behind the single grey button until clicked.
     expect(screen.queryByText("Google")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByText("Continue with PayRus SSO"));
+    fireEvent.click(screen.getByText("Continue with a social account"));
     fireEvent.click(screen.getByText("Google"));
 
     await waitFor(() => expect(mockSignInWithOAuth).toHaveBeenCalledWith({

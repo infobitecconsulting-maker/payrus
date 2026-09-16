@@ -1514,11 +1514,11 @@
   "signin.nameTab": "Name",
   "signin.namePlaceholder": "Start typing your name...",
   "signin.nameNeedsSuggestion": "Pick your account from the suggestions, or try email/phone instead.",
-  "signin.ssoSectionTitle": "PayRus SSO",
+  "signin.ssoSectionTitle": "Quick sign-in",
   "register.headline": "Let's set up your account.",
   "register.subtitle": "One PayRus profile, shared across the BITEC ecosystem.",
-  "register.ssoTitle": "PayRus SSO",
-  "register.ssoButton": "Continue with PayRus SSO",
+  "register.ssoTitle": "Quick sign-up",
+  "register.ssoButton": "Continue with a social account",
   "register.firstName": "First name",
   "register.lastName": "Last name",
   "register.email": "Email address",
@@ -1587,5 +1587,6 @@
   "register.provincePlaceholder": "Select your province",
   "register.postalCode": "Postal code (optional)",
   "register.cityPlaceholder": "Select or type your city",
-  "profile.kyc.reusingKnownInfo": "We already have your phone, date of birth and address on file — you'll only need to confirm your proof of identity for this role."
+  "profile.kyc.reusingKnownInfo": "We already have your phone, date of birth and address on file — you'll only need to confirm your proof of identity for this role.",
+  "signin.ssoInvalidEmail": "Enter a valid work email address"
 }

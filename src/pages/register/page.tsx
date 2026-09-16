@@ -1,11 +1,13 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { useMutation } from "convex/react";
+import { useAction, useMutation } from "convex/react";
 import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/convex/_generated/api.js";
 import LocaleSwitcher from "@/components/ui/locale-switcher.tsx";
+import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover.tsx";
+import { useDebouncedCallback } from "@/hooks/use-debounce.ts";
 import { COUNTRY_OPTIONS, callingCodeForCountry } from "@/convex/geo.ts";
 import { provincesForCountry, citiesForCountry } from "@/convex/addressRegister.ts";
 import { setLocalUserId } from "@/lib/local-user.ts";
@@ -31,6 +33,8 @@ export default function Register() {
   const { setProfile } = useProfile();
   const upsertSupabaseUser = useMutation(api.supabaseAuth.upsertSupabaseUser);
   const completeRegistrationProfile = useMutation(api.supabaseAuth.completeRegistrationProfile);
+  const suggestStreets = useAction(api.addressSuggestions.suggestStreets);
+  const suggestPostalCodes = useAction(api.addressSuggestions.suggestPostalCodes);
   const [oauthPending, setOauthPending] = useState<OAuthProviderId | null>(null);
   const [ssoExpanded, setSsoExpanded] = useState(false);
 
@@ -50,9 +54,71 @@ export default function Register() {
   const [city, setCity] = useState("");
   const [province, setProvince] = useState("");
   const [postalCode, setPostalCode] = useState("");
+  const [streetSuggestions, setStreetSuggestions] = useState<string[]>([]);
+  const [streetSuggestOpen, setStreetSuggestOpen] = useState(false);
+  const [postalCodeSuggestions, setPostalCodeSuggestions] = useState<{ postalCode: string; area?: string }[]>([]);
+  const [postalCodeSuggestOpen, setPostalCodeSuggestOpen] = useState(false);
+  const lastPostalLookupRef = useRef("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [saving, setSaving] = useState(false);
+
+  // AI-backed street autosuggest — only fires once country+city+province are
+  // all chosen (no city/country context, no useful suggestion), and only
+  // after a short pause in typing so every keystroke doesn't fire a request.
+  const fetchStreetSuggestions = useDebouncedCallback(async (query: string) => {
+    if (!country || !city.trim() || !province || query.trim().length < 2) {
+      setStreetSuggestions([]);
+      setStreetSuggestOpen(false);
+      return;
+    }
+    const { suggestions } = await suggestStreets({ country, city: city.trim(), province, query: query.trim() });
+    setStreetSuggestions(suggestions);
+    setStreetSuggestOpen(suggestions.length > 0);
+  }, 400);
+
+  const handleStreetChange = (value: string) => {
+    setStreet(value);
+    fetchStreetSuggestions(value);
+  };
+
+  const handlePickStreetSuggestion = (streetName: string) => {
+    setStreet(streetName);
+    setStreetSuggestOpen(false);
+  };
+
+  // AI-backed postal-code autosuggest — fires automatically the moment
+  // country+city+province are all chosen (no typing needed), and again if
+  // the user changes city/province afterwards. Guarded by a ref (rather than
+  // just the effect's own dep array) so a fast double-fire in dev/StrictMode
+  // or a stale in-flight request from a since-changed combo can't clobber a
+  // newer result.
+  useEffect(() => {
+    const trimmedCity = city.trim();
+    if (!country || !trimmedCity || !province) {
+      setPostalCodeSuggestions([]);
+      setPostalCodeSuggestOpen(false);
+      return;
+    }
+    const key = `${country}|${trimmedCity}|${province}`;
+    if (lastPostalLookupRef.current === key) return;
+    lastPostalLookupRef.current = key;
+    void (async () => {
+      const { suggestions } = await suggestPostalCodes({ country, city: trimmedCity, province });
+      if (lastPostalLookupRef.current !== key) return; // a newer lookup has since started
+      setPostalCodeSuggestions(suggestions);
+      setPostalCodeSuggestOpen(suggestions.length > 0);
+    })();
+    // suggestPostalCodes is a stable useAction identity — omitting it (and
+    // the other handlers) keeps this effect keyed purely on the address
+    // fields it actually needs to react to.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [country, city, province]);
+
+  const handlePickPostalCode = (suggestion: { postalCode: string; area?: string }) => {
+    setPostalCode(suggestion.postalCode);
+    setPostalCodeSuggestOpen(false);
+  };
 
   // OAuth sign-up is really just sign-in: the account is found-or-created
   // once Supabase redirects back (src/pages/auth-callback/page.tsx), from
@@ -251,12 +317,33 @@ export default function Register() {
             </div>
             <div className="flex flex-col gap-1.5">
               <label className="text-[11px] font-bold tracking-wide text-[#66798F]" htmlFor="reg-street">{t("register.street")}</label>
-              <input
-                id="reg-street"
-                value={street}
-                onChange={(e) => setStreet(e.target.value)}
-                className="rounded-xl border border-[#E4EAF0] bg-white px-3.5 py-3 text-[14px] text-[#0A2F5C] focus:outline-none focus:ring-2 focus:ring-[#0E7FB0]/30"
-              />
+              <Popover open={streetSuggestOpen} onOpenChange={setStreetSuggestOpen}>
+                <PopoverAnchor asChild>
+                  <input
+                    id="reg-street"
+                    value={street}
+                    onChange={(e) => handleStreetChange(e.target.value)}
+                    autoComplete="off"
+                    className="rounded-xl border border-[#E4EAF0] bg-white px-3.5 py-3 text-[14px] text-[#0A2F5C] focus:outline-none focus:ring-2 focus:ring-[#0E7FB0]/30"
+                  />
+                </PopoverAnchor>
+                <PopoverContent
+                  align="start"
+                  onOpenAutoFocus={(e) => e.preventDefault()}
+                  className="w-[--radix-popover-trigger-width] min-w-56 p-1"
+                >
+                  {streetSuggestions.map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => handlePickStreetSuggestion(s)}
+                      className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-left text-sm text-[#0A2F5C] hover:bg-secondary cursor-pointer"
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </PopoverContent>
+              </Popover>
             </div>
             <div className="flex flex-col gap-1.5">
               <label className="text-[11px] font-bold tracking-wide text-[#66798F]" htmlFor="reg-house-number">{t("register.houseNumber")}</label>
@@ -320,12 +407,35 @@ export default function Register() {
             </div>
             <div className="flex flex-col gap-1.5 col-span-2">
               <label className="text-[11px] font-bold tracking-wide text-[#66798F]" htmlFor="reg-postal-code">{t("register.postalCode")}</label>
-              <input
-                id="reg-postal-code"
-                value={postalCode}
-                onChange={(e) => setPostalCode(e.target.value)}
-                className="rounded-xl border border-[#E4EAF0] bg-white px-3.5 py-3 text-[14px] text-[#0A2F5C] focus:outline-none focus:ring-2 focus:ring-[#0E7FB0]/30"
-              />
+              <Popover open={postalCodeSuggestOpen} onOpenChange={setPostalCodeSuggestOpen}>
+                <PopoverAnchor asChild>
+                  <input
+                    id="reg-postal-code"
+                    value={postalCode}
+                    onChange={(e) => setPostalCode(e.target.value)}
+                    onFocus={() => setPostalCodeSuggestOpen(postalCodeSuggestions.length > 0)}
+                    autoComplete="off"
+                    className="rounded-xl border border-[#E4EAF0] bg-white px-3.5 py-3 text-[14px] text-[#0A2F5C] focus:outline-none focus:ring-2 focus:ring-[#0E7FB0]/30"
+                  />
+                </PopoverAnchor>
+                <PopoverContent
+                  align="start"
+                  onOpenAutoFocus={(e) => e.preventDefault()}
+                  className="w-[--radix-popover-trigger-width] min-w-56 p-1"
+                >
+                  {postalCodeSuggestions.map((s) => (
+                    <button
+                      key={s.postalCode}
+                      type="button"
+                      onClick={() => handlePickPostalCode(s)}
+                      className="w-full flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg text-left text-sm hover:bg-secondary cursor-pointer"
+                    >
+                      <span className="text-[#0A2F5C] font-medium">{s.postalCode}</span>
+                      {s.area && <span className="text-[11px] text-[#66798F]">{s.area}</span>}
+                    </button>
+                  ))}
+                </PopoverContent>
+              </Popover>
             </div>
             <div className="flex flex-col gap-1.5">
               <label className="text-[11px] font-bold tracking-wide text-[#66798F]" htmlFor="reg-password">{t("register.password")}</label>

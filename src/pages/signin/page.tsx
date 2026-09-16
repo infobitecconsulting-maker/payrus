@@ -175,7 +175,7 @@ export default function SignIn() {
   const handleSsoContinue = async () => {
     const domain = ssoEmail.trim().split("@")[1];
     if (!domain) {
-      toast.error(t("signin.ssoWorkEmailLabel"));
+      toast.error(t("signin.ssoInvalidEmail"));
       return;
     }
     setSsoSending(true);

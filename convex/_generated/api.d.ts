@@ -9,12 +9,14 @@
  */
 
 import type * as addressRegister from "../addressRegister.js";
+import type * as addressSuggestions from "../addressSuggestions.js";
 import type * as addresses from "../addresses.js";
 import type * as admin from "../admin.js";
 import type * as cards from "../cards.js";
 import type * as financialData from "../financialData.js";
 import type * as fx from "../fx.js";
 import type * as geo from "../geo.js";
+import type * as http from "../http.js";
 import type * as linkedPaymentMethods from "../linkedPaymentMethods.js";
 import type * as localAuth from "../localAuth.js";
 import type * as marketplacePartners from "../marketplacePartners.js";
@@ -36,12 +38,14 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   addressRegister: typeof addressRegister;
+  addressSuggestions: typeof addressSuggestions;
   addresses: typeof addresses;
   admin: typeof admin;
   cards: typeof cards;
   financialData: typeof financialData;
   fx: typeof fx;
   geo: typeof geo;
+  http: typeof http;
   linkedPaymentMethods: typeof linkedPaymentMethods;
   localAuth: typeof localAuth;
   marketplacePartners: typeof marketplacePartners;
