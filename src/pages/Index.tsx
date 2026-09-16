@@ -6,16 +6,19 @@ import { useCurrentAppUser } from "@/hooks/use-current-app-user.ts";
 import { useProfile } from "@/contexts/profile-context.tsx";
 import { api } from "@/convex/_generated/api.js";
 import { getAnonId } from "@/lib/anon-id.ts";
+import { midMarketConvert } from "@/convex/fx.ts";
 import { PAYMENT_PROVIDERS } from "@/components/ui/add-payment-method-sheet.tsx";
 import WalletHistorySheet, { type WalletSummary } from "@/components/ui/wallet-history-sheet.tsx";
 import {
   ArrowRight,
   ArrowUpRight,
+  ArrowDownLeft,
   Bell,
   ChevronRight,
   CreditCard,
   Eye,
   EyeOff,
+  Globe,
   Landmark,
   Plus,
   Repeat,
@@ -38,7 +41,7 @@ const quickActions = [
   { title: "Add Money", icon: Plus, path: "wallet", bg: "#EAF3EC", fg: "#78B72E" },
   { title: "Send", icon: Send, path: "p2p", bg: "#E9F2F8", fg: "#0E7FB0" },
   { title: "Card", icon: CreditCard, path: "cards", bg: "#EDEBF7", fg: "#0A2F5C" },
-  { title: "Convert", icon: Repeat, path: "wallet", bg: "#F1EDFD", fg: "#7A5CF0" },
+  { title: "Convert", icon: Repeat, path: "wallet?tab=convert", bg: "#F1EDFD", fg: "#7A5CF0" },
 ];
 
 const activity = [
@@ -69,6 +72,13 @@ export default function Index() {
   const realWallets = useQuery(api.wallets.listForUser, currentUser ? { userId: currentUser._id } : "skip");
   const realCards = useQuery(api.cards.listForUser, currentUser ? { userId: currentUser._id } : "skip");
   const linkedMethods = useQuery(api.linkedPaymentMethods.list, { ownerKey: getAnonId() });
+  const recentTx = useQuery(api.transactions.listRecentForUser, currentUser ? { userId: currentUser._id, limit: 5 } : "skip");
+
+  const displayCurrency = currentUser?.defaultCurrency ?? "USD";
+  const hasRealWallets = !!realWallets && realWallets.length > 0;
+  const totalBalance = hasRealWallets
+    ? realWallets!.reduce((sum, w) => sum + midMarketConvert(w.balance, w.currency, displayCurrency), 0)
+    : null;
 
   const walletsToShow = realWallets && realWallets.length > 0
     ? realWallets.map((w) => ({
@@ -142,11 +152,21 @@ export default function Index() {
                 </button>
               </div>
               <div className="relative mt-3.5 text-[34px] font-extrabold tracking-tight" style={{ fontFamily: "'Sora', sans-serif" }}>
-                {showBalance ? "$12,480.65" : "•••••••••"}
+                {showBalance
+                  ? (totalBalance != null
+                      ? `${displayCurrency} ${totalBalance.toLocaleString(undefined, { maximumFractionDigits: 2 })}`
+                      : "$12,480.65")
+                  : "•••••••••"}
               </div>
               <div className="relative mt-3.5 flex flex-wrap items-center gap-2">
-                <span className="text-xs font-bold px-2.5 py-1 rounded-full" style={{ background: "rgba(120,183,46,0.25)", color: "#B9E88F" }}>▲ 3.2% this month</span>
-                <span className="text-xs opacity-80">across 7 wallets · 3 mobile money · 1 bank</span>
+                {hasRealWallets ? (
+                  <span className="text-xs opacity-80">across {walletsToShow.length} wallet{walletsToShow.length === 1 ? "" : "s"} · {channelsToShow.length} linked</span>
+                ) : (
+                  <>
+                    <span className="text-xs font-bold px-2.5 py-1 rounded-full" style={{ background: "rgba(120,183,46,0.25)", color: "#B9E88F" }}>▲ 3.2% this month</span>
+                    <span className="text-xs opacity-80">across 7 wallets · 3 mobile money · 1 bank</span>
+                  </>
+                )}
               </div>
             </div>
 
@@ -208,18 +228,44 @@ export default function Index() {
             <div className="flex flex-col gap-3">
               <span className="text-[15px] font-bold text-[#0A2F5C]" style={{ fontFamily: "'Sora', sans-serif" }}>Recent Activity</span>
               <div className="flex flex-col gap-2.5">
-                {activity.map(({ name, type, time, amount, positive, bg, fg, icon: Icon }) => (
-                  <div key={name} className="rounded-[20px] bg-white border border-[#E4EAF0] p-3.5 flex items-center gap-3" style={{ boxShadow: "0 1px 2px rgba(10,42,74,0.06)" }}>
-                    <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: bg, color: fg }}>
-                      <Icon size={18} strokeWidth={1.8} />
+                {currentUser && recentTx && recentTx.length > 0 ? (
+                  recentTx.map((tx) => {
+                    const isCredit = tx.credited != null;
+                    const wallet = realWallets?.find(w => w._id === tx.walletId);
+                    const typeIcons: Record<string, typeof Send> = { transfer: Send, payment: CreditCard, remittance: Globe, deposit: Plus, convert_out: Repeat, convert_in: Repeat };
+                    const Icon = isCredit ? ArrowDownLeft : (typeIcons[tx.type] ?? Send);
+                    const typeLabels: Record<string, string> = { transfer: "Transfer", payment: "Payment", remittance: "Remittance", deposit: "Deposit", convert_out: "Conversion out", convert_in: "Conversion in" };
+                    return (
+                      <div key={tx._id} className="rounded-[20px] bg-white border border-[#E4EAF0] p-3.5 flex items-center gap-3" style={{ boxShadow: "0 1px 2px rgba(10,42,74,0.06)" }}>
+                        <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: isCredit ? "#EAF3EC" : "#EDEBF7", color: isCredit ? "#3E8E3F" : "#0A2F5C" }}>
+                          <Icon size={18} strokeWidth={1.8} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-[13.5px] font-bold text-[#0B2A4A]">{typeLabels[tx.type] ?? tx.type} {wallet ? `· ${wallet.flag} ${wallet.currency}` : ""}</div>
+                          <div className="text-[11.5px] text-[#9BAAB9]">{new Date(tx.createdAt).toLocaleString()}</div>
+                        </div>
+                        <div className="text-sm font-extrabold" style={{ color: isCredit ? "#3E8E3F" : "#0B2A4A" }}>
+                          {isCredit ? "+" : "-"}{tx.walletCurrency} {(isCredit ? tx.credited! : tx.debited).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : currentUser ? (
+                  <div className="rounded-[20px] bg-white border border-[#E4EAF0] p-4 text-center text-xs text-[#9BAAB9]">No activity yet — add money or send a transfer to see it here.</div>
+                ) : (
+                  activity.map(({ name, type, time, amount, positive, bg, fg, icon: Icon }) => (
+                    <div key={name} className="rounded-[20px] bg-white border border-[#E4EAF0] p-3.5 flex items-center gap-3" style={{ boxShadow: "0 1px 2px rgba(10,42,74,0.06)" }}>
+                      <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: bg, color: fg }}>
+                        <Icon size={18} strokeWidth={1.8} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-[13.5px] font-bold text-[#0B2A4A]">{name}</div>
+                        <div className="text-[11.5px] text-[#9BAAB9]">{time} · {type}</div>
+                      </div>
+                      <div className="text-sm font-extrabold" style={{ color: positive ? "#3E8E3F" : "#0B2A4A" }}>{amount}</div>
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="text-[13.5px] font-bold text-[#0B2A4A]">{name}</div>
-                      <div className="text-[11.5px] text-[#9BAAB9]">{time} · {type}</div>
-                    </div>
-                    <div className="text-sm font-extrabold" style={{ color: positive ? "#3E8E3F" : "#0B2A4A" }}>{amount}</div>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
               <Link to={`/${lng}/transactions`} className="self-start inline-flex items-center gap-1 text-xs font-bold text-[#0E7FB0]">
                 See all activity <ArrowUpRight size={13} />

@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils.ts";
 import { Button } from "@/components/ui/button.tsx";
 
 type TransactionReceiptProps = {
-  type: "payment" | "transfer" | "remittance" | "pos" | "bill";
+  type: "payment" | "transfer" | "remittance" | "pos" | "bill" | "deposit" | "convert";
   amount: string;
   currency: string;
   convertedAmount?: string;

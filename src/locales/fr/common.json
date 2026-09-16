@@ -1025,7 +1025,7 @@
   "p2p.noUserFound": "Aucun utilisateur trouvé pour \"{{query}}\"",
   "p2p.allMembers": "Membres PayRus",
   "p2p.amountToSend": "Montant à envoyer",
-  "p2p.fee": "Frais PayRus (7.5%)",
+  "p2p.fee": "Frais PayRus (3,5%)",
   "p2p.totalDebited": "Total débité",
   "p2p.receivedBy": "Reçu par {{name}}",
   "p2p.notePlaceholder": "Note (optionnel) — ex: Loyer mars",

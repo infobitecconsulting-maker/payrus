@@ -25,6 +25,7 @@ import type * as testUsers from "../testUsers.js";
 import type * as transactions from "../transactions.js";
 import type * as userRoles from "../userRoles.js";
 import type * as users from "../users.js";
+import type * as walletMeta from "../walletMeta.js";
 import type * as wallets from "../wallets.js";
 
 import type {
@@ -51,6 +52,7 @@ declare const fullApi: ApiFromModules<{
   transactions: typeof transactions;
   userRoles: typeof userRoles;
   users: typeof users;
+  walletMeta: typeof walletMeta;
   wallets: typeof wallets;
 }>;
 

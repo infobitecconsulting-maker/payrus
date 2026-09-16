@@ -6,39 +6,45 @@ import { Input } from "@/components/ui/input.tsx";
 import { cn } from "@/lib/utils.ts";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
+import { useMutation } from "convex/react";
 import TransactionReceipt from "@/components/ui/transaction-receipt.tsx";
+import { api } from "@/convex/_generated/api.js";
+import { commissionFor, midMarketConvert } from "@/convex/fx.ts";
+import { useCurrentAppUser } from "@/hooks/use-current-app-user.ts";
 
 // Launch-phase priority corridors lead the list: XAF (CEMAC — Cameroon, Congo-Brazzaville,
 // CAR/Bangui, Gabon, Chad, Eq. Guinea) and AOA (Angola). AED and CNY are visible for
-// completeness but are not launch-priority corridors.
+// completeness but are not launch-priority corridors. Rates themselves come from
+// convex/fx.ts (the same source of truth applyTransaction uses server-side) —
+// this list only supplies display metadata (name/flag) per currency.
 const currencies = [
-  { code: "EUR", name: "Euro", flag: "🇪🇺", rate: 0.92 },
-  { code: "XAF", name: "Franc CFA (CEMAC)", flag: "🌍", rate: 601 },
-  { code: "AOA", name: "Angolan Kwanza", flag: "🇦🇴", rate: 912 },
-  { code: "USD", name: "US Dollar", flag: "🇺🇸", rate: 1 },
-  { code: "CDF", name: "Franc Congolais", flag: "🇨🇩", rate: 2800 },
-  { code: "XOF", name: "Franc CFA (UEMOA)", flag: "🌍", rate: 601 },
-  { code: "KES", name: "Kenyan Shilling", flag: "🇰🇪", rate: 131 },
-  { code: "NGN", name: "Nigerian Naira", flag: "🇳🇬", rate: 1620 },
-  { code: "ZAR", name: "South African Rand", flag: "🇿🇦", rate: 18.7 },
-  { code: "MAD", name: "Moroccan Dirham", flag: "🇲🇦", rate: 9.9 },
-  { code: "GBP", name: "British Pound", flag: "🇬🇧", rate: 0.79 },
-  { code: "AED", name: "UAE Dirham", flag: "🇦🇪", rate: 3.67 },
-  { code: "CNY", name: "Chinese Yuan", flag: "🇨🇳", rate: 7.24 },
+  { code: "EUR", name: "Euro", flag: "🇪🇺" },
+  { code: "XAF", name: "Franc CFA (CEMAC)", flag: "🌍" },
+  { code: "AOA", name: "Angolan Kwanza", flag: "🇦🇴" },
+  { code: "USD", name: "US Dollar", flag: "🇺🇸" },
+  { code: "CDF", name: "Franc Congolais", flag: "🇨🇩" },
+  { code: "XOF", name: "Franc CFA (UEMOA)", flag: "🌍" },
+  { code: "KES", name: "Kenyan Shilling", flag: "🇰🇪" },
+  { code: "NGN", name: "Nigerian Naira", flag: "🇳🇬" },
+  { code: "ZAR", name: "South African Rand", flag: "🇿🇦" },
+  { code: "GBP", name: "British Pound", flag: "🇬🇧" },
+  { code: "AED", name: "UAE Dirham", flag: "🇦🇪" },
+  { code: "CNY", name: "Chinese Yuan", flag: "🇨🇳" },
 ];
 
-const corridors = [
-  { from: "🇪🇺 EUR", to: "🌍 XAF", rate: "655.96", trend: "0.0%" },
-  { from: "🇺🇸 USD", to: "🌍 XAF", rate: "601", trend: "-0.1%" },
-  { from: "🇪🇺 EUR", to: "🇦🇴 AOA", rate: "992.30", trend: "+0.6%" },
-  { from: "🇺🇸 USD", to: "🇦🇴 AOA", rate: "912", trend: "+0.4%" },
-  { from: "🇺🇸 USD", to: "🇨🇩 CDF", rate: "2,800", trend: "+0.3%" },
-  { from: "🇪🇺 EUR", to: "🇨🇩 CDF", rate: "3,044", trend: "+0.2%" },
-  { from: "🇺🇸 USD", to: "🇳🇬 NGN", rate: "1,620", trend: "+1.2%" },
-  { from: "🇺🇸 USD", to: "🇰🇪 KES", rate: "131", trend: "+0.5%" },
-  { from: "🇺🇸 USD", to: "🇦🇪 AED", rate: "3.67", trend: "0.0%" },
-  { from: "🇺🇸 USD", to: "🇨🇳 CNY", rate: "7.24", trend: "+0.1%" },
+const corridorPairs: [string, string, string][] = [
+  ["🇪🇺 EUR", "EUR", "XAF"], ["🇺🇸 USD", "USD", "XAF"],
+  ["🇪🇺 EUR", "EUR", "AOA"], ["🇺🇸 USD", "USD", "AOA"],
+  ["🇺🇸 USD", "USD", "CDF"], ["🇪🇺 EUR", "EUR", "CDF"],
+  ["🇺🇸 USD", "USD", "NGN"], ["🇺🇸 USD", "USD", "KES"],
+  ["🇺🇸 USD", "USD", "AED"], ["🇺🇸 USD", "USD", "CNY"],
 ];
+const flagFor = (code: string) => currencies.find(c => c.code === code)?.flag ?? "🏳️";
+const corridors = corridorPairs.map(([fromLabel, from, to]) => ({
+  from: fromLabel,
+  to: `${flagFor(to)} ${to}`,
+  rate: midMarketConvert(1, from, to).toLocaleString(undefined, { maximumFractionDigits: 2 }),
+}));
 
 type Step = "form" | "confirm" | "success";
 
@@ -53,22 +59,48 @@ export default function Remittance() {
   const [showFromPicker, setShowFromPicker] = useState(false);
   const [showToPicker, setShowToPicker] = useState(false);
 
+  const currentUser = useCurrentAppUser();
+  const applyTransaction = useMutation(api.wallets.applyTransaction);
+  const [sending, setSending] = useState(false);
+
   const fromCurr = currencies.find(c => c.code === fromCurrency)!;
   const toCurr = currencies.find(c => c.code === toCurrency)!;
-  const convertedAmount = amount ? ((parseFloat(amount) / fromCurr.rate) * toCurr.rate).toFixed(2) : "0.00";
-  const fxRate = (toCurr.rate / fromCurr.rate).toFixed(4);
+  const numAmt = parseFloat(amount) || 0;
+  const convertedAmount = amount ? midMarketConvert(numAmt, fromCurrency, toCurrency).toFixed(2) : "0.00";
+  const fxRate = midMarketConvert(1, fromCurrency, toCurrency).toFixed(4);
+  const fee = commissionFor(numAmt);
 
   const swap = () => { setFromCurrency(toCurrency); setToCurrency(fromCurrency); };
   const handleSend = () => { if (!amount || !recipient) { toast.error(t("common.error")); return; } setStep("confirm"); };
-  const handleConfirm = () => { setStep("success"); toast.success(t("common.success")); };
+  const [txReference, setTxReference] = useState(() => `REF-${Date.now().toString().slice(-10)}`);
+
+  const handleConfirm = async () => {
+    if (!currentUser) {
+      // Anonymous preview — no real wallet to debit, keep the existing demo flow.
+      setStep("success");
+      toast.success(t("common.success"));
+      return;
+    }
+    setSending(true);
+    try {
+      const result = await applyTransaction({ userId: currentUser._id, amount: numAmt, currency: fromCurrency, type: "remittance", note: recipient || undefined });
+      setTxReference(result.reference);
+      setStep("success");
+      toast.success(t("common.success"));
+    } catch {
+      toast.error(t("common.error"));
+    } finally {
+      setSending(false);
+    }
+  };
+
   const reset = () => { setStep("form"); setAmount(""); setRecipient(""); setRecipientAccount(""); };
-  const [txReference] = useState(() => `REF-${Date.now().toString().slice(-10)}`);
 
   const confirmRows = [
     { label: t("remittance.youSend"), value: `${amount} ${fromCurrency}` },
     { label: t("remittance.theyReceive"), value: `${parseFloat(convertedAmount).toLocaleString()} ${toCurrency}` },
     { label: t("remittance.rate"), value: `1 ${fromCurrency} = ${fxRate} ${toCurrency}` },
-    { label: t("remittance.fee"), value: "$1.50" },
+    { label: t("remittance.fee"), value: `${fromCurrency} ${fee.toFixed(2)}` },
     { label: t("remittance.recipient"), value: recipient || "—" },
     { label: t("remittance.delivery"), value: t("remittance.instant") },
   ];
@@ -96,10 +128,7 @@ export default function Remittance() {
           {corridors.map(c => (
             <div key={c.from + c.to} className="flex items-center justify-between text-xs">
               <span className="text-muted-foreground">{c.from} → {c.to}</span>
-              <div className="flex items-center gap-1">
-                <span className="font-mono font-semibold text-foreground">{c.rate}</span>
-                <span className={cn("text-xs", c.trend.startsWith("+") ? "text-primary" : "text-destructive")}>{c.trend}</span>
-              </div>
+              <span className="font-mono font-semibold text-foreground">{c.rate}</span>
             </div>
           ))}
         </div>
@@ -195,7 +224,7 @@ export default function Remittance() {
             </div>
             <div className="flex gap-3">
               <Button variant="secondary" onClick={reset} className="flex-1 h-12 rounded-xl">{t("common.cancel")}</Button>
-              <Button onClick={handleConfirm} className="flex-1 h-12 text-base font-semibold rounded-xl">{t("remittance.confirmSend")}</Button>
+              <Button onClick={() => void handleConfirm()} disabled={sending} className="flex-1 h-12 text-base font-semibold rounded-xl">{sending ? t("signin.checking") : t("remittance.confirmSend")}</Button>
             </div>
           </motion.div>
         )}
@@ -210,11 +239,11 @@ export default function Remittance() {
               convertedCurrency={toCurrency}
               recipient={recipient || undefined}
               method={`${fromCurrency} → ${toCurrency}`}
-              fee="$1.50"
+              fee={`${fromCurrency} ${fee.toFixed(2)}`}
               reference={txReference}
               date={new Date().toLocaleString()}
-              onClose={() => setStep("form")}
-              onNewTransaction={() => setStep("form")}
+              onClose={reset}
+              onNewTransaction={reset}
             />
           </motion.div>
         )}

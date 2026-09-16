@@ -9,7 +9,7 @@ import { useTranslation } from "react-i18next";
 import { useMutation } from "convex/react";
 import TransactionReceipt from "@/components/ui/transaction-receipt.tsx";
 import { api } from "@/convex/_generated/api.js";
-import { commissionFor } from "@/convex/fx.ts";
+import { commissionFor, midMarketConvert } from "@/convex/fx.ts";
 import { useCurrentAppUser } from "@/hooks/use-current-app-user.ts";
 
 type PaymentMethod = "card" | "qr" | "mobile" | "cash" | "wallet";
@@ -157,7 +157,7 @@ export default function Payments() {
                 <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-lg">$</span>
                 <Input type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0.00" className="pl-8 bg-card border-border text-2xl font-bold font-mono h-14" />
               </div>
-              {amount && <p className="text-xs text-muted-foreground">≈ {(parseFloat(amount) * 601).toLocaleString()} XAF</p>}
+              {amount && <p className="text-xs text-muted-foreground">≈ {midMarketConvert(parseFloat(amount), "USD", "XAF").toLocaleString(undefined, { maximumFractionDigits: 0 })} XAF</p>}
             </div>
             <div className="space-y-1.5">
               <label className="text-sm text-muted-foreground font-medium">{t("payments.descLabel")}</label>
@@ -175,7 +175,7 @@ export default function Payments() {
                 {[
                   { label: t("payments.method"), value: selectedMethod?.label ?? "" },
                   { label: t("payments.amount"), value: `$${parseFloat(amount).toFixed(2)}` },
-                  { label: t("payments.equivalent"), value: `${(parseFloat(amount) * 601).toLocaleString()} XAF` },
+                  { label: t("payments.equivalent"), value: `${midMarketConvert(parseFloat(amount), "USD", "XAF").toLocaleString(undefined, { maximumFractionDigits: 0 })} XAF` },
                   { label: t("payments.fees"), value: `$${commission.toFixed(2)}` },
                   { label: t("payments.total"), value: `$${(numAmt + commission).toFixed(2)}` },
                 ].map(row => (
@@ -200,7 +200,7 @@ export default function Payments() {
           type="payment"
           amount={`$${parseFloat(amount).toFixed(2)}`}
           currency="USD"
-          convertedAmount={`${(parseFloat(amount) * 601).toLocaleString()}`}
+          convertedAmount={`${midMarketConvert(parseFloat(amount), "USD", "XAF").toLocaleString(undefined, { maximumFractionDigits: 0 })}`}
           convertedCurrency="XAF"
           recipient={recipient || undefined}
           method={selectedMethod?.label}

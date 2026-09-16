@@ -2,7 +2,7 @@
 // live market-data feed, so rates are fixed rather than fetched, but kept
 // consistent with the fictional figures already shown elsewhere (admin
 // dashboard, p2p page).
-const RATES_PER_USD: Record<string, number> = {
+export const RATES_PER_USD: Record<string, number> = {
   USD: 1,
   EUR: 0.92,
   XAF: 601,
@@ -51,4 +51,21 @@ export function convertWithMargin(amount: number, from: string, to: string): { c
 
 export function commissionFor(amount: number): number {
   return amount * COMMISSION_RATE;
+}
+
+/** Cosmetic-turned-real fee rates per top-up method, mirrored from the
+ * method list already shown in src/pages/wallet/page.tsx so the UI and the
+ * mutation that actually moves money agree on the same numbers. */
+export const DEPOSIT_FEE_RATES: Record<string, number> = {
+  bank: 0,
+  agent: 0.01,
+  crypto: 0.005,
+  card: 0.025,
+  mobile: 0.015,
+  apple_pay: 0.01,
+  google_pay: 0.01,
+};
+
+export function depositFeeFor(method: string | undefined, amount: number): number {
+  return amount * (DEPOSIT_FEE_RATES[method ?? "bank"] ?? 0);
 }

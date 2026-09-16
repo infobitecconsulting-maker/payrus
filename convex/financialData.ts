@@ -1,5 +1,6 @@
 import type { MutationCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
+import { WALLET_TEMPLATES } from "./walletMeta";
 
 /**
  * Deterministic hash so a user's starter financial data varies by identity
@@ -14,14 +15,6 @@ function hashToInt(input: string): number {
   }
   return hash;
 }
-
-const WALLET_TEMPLATES = [
-  { provider: "Orange Money", currency: "XAF", flag: "🍊", colorClass: "bg-orange-50 border-orange-200 text-orange-700" },
-  { provider: "MTN MoMo", currency: "XAF", flag: "🟡", colorClass: "bg-yellow-50 border-yellow-200 text-yellow-700" },
-  { provider: "Unitel Money", currency: "AOA", flag: "🇦🇴", colorClass: "bg-red-50 border-red-200 text-red-700" },
-  { provider: "Wave", currency: "XOF", flag: "🌊", colorClass: "bg-blue-50 border-blue-200 text-blue-700" },
-  { provider: "Airtel Money", currency: "CDF", flag: "🔴", colorClass: "bg-rose-50 border-rose-200 text-rose-700" },
-];
 
 const CARD_TEMPLATES = {
   individual: { tier: "Prime", brand: "Visa", network: "Visa Infinite", gradient: "from-[#0d1b4b] via-[#1a3a6b] to-[#0e5c7e]", shimmer: "from-white/0 via-white/10 to-white/0", accentColor: "#4fc3f7" },

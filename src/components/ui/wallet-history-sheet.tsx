@@ -1,5 +1,5 @@
 import { useQuery } from "convex/react";
-import { ArrowUpRight, Send, CreditCard } from "lucide-react";
+import { ArrowUpRight, ArrowDownLeft, Send, CreditCard, Repeat, Globe, Plus } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet.tsx";
 import { api } from "@/convex/_generated/api.js";
 import type { Id } from "@/convex/_generated/dataModel.js";
@@ -49,24 +49,45 @@ export default function WalletHistorySheet({
             <p className="text-xs text-muted-foreground py-6 text-center">No transactions on this wallet yet.</p>
           )}
           {history?.map((tx) => {
-            const Icon = tx.type === "transfer" ? Send : CreditCard;
+            const isCredit = tx.credited != null;
+            const icons = { transfer: Send, payment: CreditCard, remittance: Globe, deposit: Plus, convert_out: Repeat, convert_in: Repeat } as const;
+            const Icon = icons[tx.type as keyof typeof icons] ?? CreditCard;
+            const labels: Record<string, string> = {
+              transfer: "Transfer", payment: "Payment", remittance: "Remittance",
+              deposit: "Deposit", convert_out: "Conversion out", convert_in: "Conversion in",
+            };
             return (
               <div key={tx._id} className="flex items-center gap-3 p-3 rounded-xl border border-border bg-card">
                 <div className="w-9 h-9 rounded-xl bg-secondary flex items-center justify-center shrink-0 text-foreground">
                   <Icon size={15} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-semibold capitalize truncate">{tx.type} · {tx.reference}</div>
+                  <div className="text-sm font-semibold truncate">{labels[tx.type] ?? tx.type} · {tx.reference}</div>
                   <div className="text-[11px] text-muted-foreground truncate">
                     {new Date(tx.createdAt).toLocaleString()}
                     {tx.fxMargin > 0 && ` · FX margin ${tx.walletCurrency} ${tx.fxMargin.toFixed(2)}`}
                   </div>
                 </div>
                 <div className="text-right shrink-0">
-                  <div className="text-sm font-bold text-destructive flex items-center gap-1 justify-end">
-                    <ArrowUpRight size={12} /> -{tx.walletCurrency} {tx.debited.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-                  </div>
-                  <div className="text-[10px] text-muted-foreground">commission {tx.currency} {tx.commission.toFixed(2)}</div>
+                  {isCredit ? (
+                    <>
+                      <div className="text-sm font-bold text-primary flex items-center gap-1 justify-end">
+                        <ArrowDownLeft size={12} /> +{tx.walletCurrency} {tx.credited!.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                      </div>
+                      {tx.commission > 0 && (
+                        <div className="text-[10px] text-muted-foreground">fee {tx.currency} {tx.commission.toFixed(2)}</div>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <div className="text-sm font-bold text-destructive flex items-center gap-1 justify-end">
+                        <ArrowUpRight size={12} /> -{tx.walletCurrency} {tx.debited.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                      </div>
+                      {tx.commission > 0 && (
+                        <div className="text-[10px] text-muted-foreground">commission {tx.currency} {tx.commission.toFixed(2)}</div>
+                      )}
+                    </>
+                  )}
                 </div>
               </div>
             );
