@@ -1,20 +1,15 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import { useUser } from "@usehercules/auth/react";
+import { getLocalUserId } from "@/lib/local-user.ts";
 
 export type ProfileType =
-  | "individual"
-  | "business"
-  | "corporate"
+  | "personal"
+  | "merchant"
+  | "agent"
+  | "treasury"
+  | "public_institution"
   | "ngo"
-  | "government"
-  | "state_entity"
-  // Financial institutions
-  | "pension_fund"
-  | "microfinance"
-  | "cooperative"
-  | "insurance"
-  | "investment_fund"
-  | "development_bank"
+  | "group"
+  | "starter"
   // System
   | "admin";
 
@@ -37,7 +32,7 @@ interface ProfileContextValue {
 const ProfileContext = createContext<ProfileContextValue | null>(null);
 
 const PROFILES: Record<ProfileType, Omit<ProfileData, "type">> = {
-  individual: {
+  personal: {
     name: "Jean Dupont",
     accountNumber: "4821",
     tier: "Premium ✦",
@@ -45,21 +40,37 @@ const PROFILES: Record<ProfileType, Omit<ProfileData, "type">> = {
     balance: 7303000,
     balanceUSD: 12149,
   },
-  business: {
+  merchant: {
     name: "Dupont & Fils SARL",
     accountNumber: "8830",
-    tier: "Business Pro",
+    tier: "Merchant Pro",
     currency: "XAF",
     balance: 42500000,
     balanceUSD: 70833,
   },
-  corporate: {
+  agent: {
+    name: "Kiosque Mama Amina — Mobile Money",
+    accountNumber: "1190",
+    tier: "Agent Network",
+    currency: "XAF",
+    balance: 3850000,
+    balanceUSD: 6417,
+  },
+  treasury: {
     name: "CEMAC Holdings S.A.",
     accountNumber: "0012",
-    tier: "Corporate Platinum",
+    tier: "Corporate Treasury",
     currency: "USD",
     balance: 2850000,
     balanceUSD: 2850000,
+  },
+  public_institution: {
+    name: "Ministère des Finances — RCA",
+    accountNumber: "0001",
+    tier: "Sovereign",
+    currency: "XAF",
+    balance: 68500000000,
+    balanceUSD: 115970000,
   },
   ngo: {
     name: "Fondation Ubuntu Centrafrique",
@@ -69,69 +80,21 @@ const PROFILES: Record<ProfileType, Omit<ProfileData, "type">> = {
     balance: 385000,
     balanceUSD: 385000,
   },
-  government: {
-    name: "Ministère des Finances — RCA",
-    accountNumber: "0001",
-    tier: "Sovereign",
-    currency: "XAF",
-    balance: 68500000000,
-    balanceUSD: 115970000,
-  },
-  state_entity: {
-    name: "SODECA — Société des Eaux RCA",
-    accountNumber: "0500",
-    tier: "State Entity",
-    currency: "XAF",
-    balance: 4200000000,
-    balanceUSD: 7108000,
-  },
-  pension_fund: {
-    name: "CNSS RCA — Caisse de Retraite",
-    accountNumber: "0720",
-    tier: "Pension Fund",
-    currency: "XAF",
-    balance: 18700000000,
-    balanceUSD: 31651000,
-  },
-  microfinance: {
-    name: "ADIE Centrafrique",
-    accountNumber: "2201",
-    tier: "Microfinance",
-    currency: "XAF",
-    balance: 3150000000,
-    balanceUSD: 5330000,
-  },
-  cooperative: {
+  group: {
     name: "MUCODEC Congo-Brazzaville",
     accountNumber: "4410",
-    tier: "Cooperative",
+    tier: "Group / Cooperative",
     currency: "XAF",
     balance: 980000000,
     balanceUSD: 1659000,
   },
-  insurance: {
-    name: "AfricaRe Assurances",
-    accountNumber: "3380",
-    tier: "Insurance Entity",
-    currency: "USD",
-    balance: 14200000,
-    balanceUSD: 14200000,
-  },
-  investment_fund: {
-    name: "CEMAC Capital Fund",
-    accountNumber: "5510",
-    tier: "Investment Fund",
-    currency: "USD",
-    balance: 48500000,
-    balanceUSD: 48500000,
-  },
-  development_bank: {
-    name: "BDEAC — Banque de Développement CEMAC",
-    accountNumber: "0100",
-    tier: "Dev Bank",
+  starter: {
+    name: "New PayRus Member",
+    accountNumber: "9002",
+    tier: "Starter",
     currency: "XAF",
-    balance: 245000000000,
-    balanceUSD: 414746000,
+    balance: 25000,
+    balanceUSD: 42,
   },
   admin: {
     name: "PayRus System Administrator",
@@ -148,8 +111,9 @@ export function getDefaultProfile(type: ProfileType): ProfileData {
 }
 
 export function ProfileProvider({ children }: { children: ReactNode }) {
-  const { id: userId } = useUser();
-  const storageKey = `payrus_profile:${userId ?? "guest"}`;
+  // Falling back to "guest" for a visitor with no local identity would let
+  // unrelated accounts on the same browser share one profile's data.
+  const storageKey = `payrus_profile:${getLocalUserId() ?? "guest"}`;
   const [profile, setProfileState] = useState<ProfileData | null>(null);
 
   useEffect(() => {
@@ -175,14 +139,22 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("storage", handleStorage);
   }, [storageKey]);
 
+  // Recompute the key fresh at call time rather than closing over the
+  // render-time `storageKey`: a login/registration flow calls
+  // setLocalUserId(...) and then setProfile(...) synchronously in the same
+  // handler, before ProfileProvider gets a chance to re-render — using the
+  // stale closed-over key would write the profile under the previous
+  // ("guest") identity and leave the just-signed-in user with no profile.
+  const currentStorageKey = () => `payrus_profile:${getLocalUserId() ?? "guest"}`;
+
   const setProfile = (p: ProfileData) => {
     setProfileState(p);
-    try { localStorage.setItem(storageKey, JSON.stringify(p)); } catch { /* ignore */ }
+    try { localStorage.setItem(currentStorageKey(), JSON.stringify(p)); } catch { /* ignore */ }
   };
 
   const clearProfile = () => {
     setProfileState(null);
-    try { localStorage.removeItem(storageKey); } catch { /* ignore */ }
+    try { localStorage.removeItem(currentStorageKey()); } catch { /* ignore */ }
   };
 
   return (

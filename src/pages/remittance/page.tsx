@@ -61,6 +61,7 @@ export default function Remittance() {
   const swap = () => { setFromCurrency(toCurrency); setToCurrency(fromCurrency); };
   const handleSend = () => { if (!amount || !recipient) { toast.error(t("common.error")); return; } setStep("confirm"); };
   const handleConfirm = () => { setStep("success"); toast.success(t("common.success")); };
+  const reset = () => { setStep("form"); setAmount(""); setRecipient(""); setRecipientAccount(""); };
   const [txReference] = useState(() => `REF-${Date.now().toString().slice(-10)}`);
 
   const confirmRows = [
@@ -193,7 +194,7 @@ export default function Remittance() {
               </div>
             </div>
             <div className="flex gap-3">
-              <Button variant="secondary" onClick={() => setStep("form")} className="flex-1 h-12 rounded-xl">{t("remittance.back")}</Button>
+              <Button variant="secondary" onClick={reset} className="flex-1 h-12 rounded-xl">{t("common.cancel")}</Button>
               <Button onClick={handleConfirm} className="flex-1 h-12 text-base font-semibold rounded-xl">{t("remittance.confirmSend")}</Button>
             </div>
           </motion.div>

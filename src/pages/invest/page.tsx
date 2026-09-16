@@ -459,12 +459,12 @@ const TICKER_EVENTS = [
 
 const CATEGORIES: { key: PitchCategory; label: string; icon: React.ElementType; color: string }[] = [
   { key: "all", label: "All", icon: TrendingUp, color: "text-foreground" },
-  { key: "agriculture", label: "Agriculture", icon: Sprout, color: "text-emerald-400" },
-  { key: "retail", label: "Retail", icon: ShoppingBag, color: "text-amber-400" },
-  { key: "tech", label: "Tech", icon: Cpu, color: "text-blue-400" },
-  { key: "manufacturing", label: "Manufacturing", icon: Factory, color: "text-slate-400" },
-  { key: "real_estate", label: "Real Estate", icon: Building2, color: "text-violet-400" },
-  { key: "energy", label: "Energy", icon: Bolt, color: "text-yellow-400" },
+  { key: "agriculture", label: "Agriculture", icon: Sprout, color: "text-emerald-700" },
+  { key: "retail", label: "Retail", icon: ShoppingBag, color: "text-amber-700" },
+  { key: "tech", label: "Tech", icon: Cpu, color: "text-blue-700" },
+  { key: "manufacturing", label: "Manufacturing", icon: Factory, color: "text-slate-700" },
+  { key: "real_estate", label: "Real Estate", icon: Building2, color: "text-violet-700" },
+  { key: "energy", label: "Energy", icon: Bolt, color: "text-yellow-700" },
 ];
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
@@ -485,8 +485,8 @@ function catLabel(cat: PitchCategory) {
 
 function RiskBadge({ risk }: { risk: RiskLevel }) {
   const cfg = {
-    low: { icon: ShieldCheck, label: "Low Risk", cls: "text-emerald-400 bg-emerald-400/10 border-emerald-400/30" },
-    medium: { icon: Shield, label: "Medium Risk", cls: "text-amber-400 bg-amber-400/10 border-amber-400/30" },
+    low: { icon: ShieldCheck, label: "Low Risk", cls: "text-emerald-700 bg-emerald-50 border-emerald-200" },
+    medium: { icon: Shield, label: "Medium Risk", cls: "text-amber-700 bg-amber-50 border-amber-200" },
     high: { icon: ShieldAlert, label: "High Risk", cls: "text-destructive bg-destructive/10 border-destructive/30" },
   }[risk];
   return (
@@ -580,7 +580,7 @@ function PitchCard({ pitch, onSelect, onInvest }: {
         <div className="flex gap-2 text-[10px] flex-wrap">
           <span className="flex items-center gap-1 text-muted-foreground"><CalendarDays size={9} />{pitch.timelineMonths}mo</span>
           <span className="flex items-center gap-1 text-muted-foreground"><Users size={9} />{pitch.backers} backers</span>
-          <span className="flex items-center gap-1 text-amber-400 font-bold"><Clock size={9} />{pitch.daysLeft}d left</span>
+          <span className="flex items-center gap-1 text-amber-700 font-bold"><Clock size={9} />{pitch.daysLeft}d left</span>
         </div>
 
         {/* Risk & impact */}
@@ -713,7 +713,7 @@ function InvestModal({ pitch, onClose }: { pitch: Pitch; onClose: () => void }) 
                     </div>
                     <div>
                       <div className="text-muted-foreground text-[10px]">Net gain</div>
-                      <div className="font-black font-mono text-emerald-400">+{Math.round(projectedReturn - numAmount).toLocaleString()} {pitch.currency}</div>
+                      <div className="font-black font-mono text-emerald-700">+{Math.round(projectedReturn - numAmount).toLocaleString()} {pitch.currency}</div>
                     </div>
                     <div>
                       <div className="text-muted-foreground text-[10px]">Timeline</div>
@@ -724,7 +724,7 @@ function InvestModal({ pitch, onClose }: { pitch: Pitch; onClose: () => void }) 
               )}
 
               <div className="flex gap-2.5 bg-muted/30 border border-border rounded-xl p-3">
-                <AlertCircle size={14} className="text-amber-400 shrink-0 mt-0.5" />
+                <AlertCircle size={14} className="text-amber-700 shrink-0 mt-0.5" />
                 <p className="text-[10px] text-muted-foreground leading-relaxed">
                   Investments are held in escrow by PayRus. Returns are not guaranteed. Past performance does not predict future results.
                 </p>
@@ -806,8 +806,8 @@ function PitchDetail({ pitch, onBack, onInvest }: {
             { label: "Goal", value: fmt(pitch.goal, pitch.currency), icon: Target, color: "text-foreground" },
             { label: "Raised", value: fmt(pitch.raised, pitch.currency), icon: TrendingUp, color: "text-primary" },
             { label: "Backers", value: pitch.backers.toLocaleString(), icon: Users, color: "text-foreground" },
-            { label: "Days left", value: `${pitch.daysLeft}d`, icon: Clock, color: "text-amber-400" },
-            { label: "Return", value: `${pitch.returnPct}% / yr`, icon: Percent, color: "text-emerald-400" },
+            { label: "Days left", value: `${pitch.daysLeft}d`, icon: Clock, color: "text-amber-700" },
+            { label: "Return", value: `${pitch.returnPct}% / yr`, icon: Percent, color: "text-emerald-700" },
             { label: "Timeline", value: `${pitch.timelineMonths} months`, icon: CalendarDays, color: "text-foreground" },
           ].map(s => (
             <div key={s.label} className="bg-secondary/40 border border-border rounded-xl p-3 flex items-center gap-2.5">
@@ -880,27 +880,27 @@ function PitchDetail({ pitch, onBack, onInvest }: {
         </div>
 
         {/* Impact */}
-        <div className="bg-emerald-400/5 border border-emerald-400/20 rounded-2xl p-4">
+        <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4">
           <div className="flex items-center gap-2 mb-3">
-            <Leaf size={14} className="text-emerald-400" />
-            <h3 className="font-bold text-sm text-emerald-400">Social Impact</h3>
+            <Leaf size={14} className="text-emerald-700" />
+            <h3 className="font-bold text-sm text-emerald-700">Social Impact</h3>
           </div>
           <p className="text-[11px] text-muted-foreground leading-relaxed mb-3">{pitch.impact.detail}</p>
           <div className="flex gap-3 flex-wrap">
-            <div className="bg-emerald-400/10 rounded-xl px-3 py-2">
-              <div className="text-[10px] text-emerald-400/70">Jobs created</div>
-              <div className="font-black text-emerald-400 font-mono">{pitch.impact.jobs.toLocaleString()}</div>
+            <div className="bg-emerald-50 rounded-xl px-3 py-2">
+              <div className="text-[10px] text-emerald-700/70">Jobs created</div>
+              <div className="font-black text-emerald-700 font-mono">{pitch.impact.jobs.toLocaleString()}</div>
             </div>
             {pitch.impact.households > 0 && (
-              <div className="bg-emerald-400/10 rounded-xl px-3 py-2">
-                <div className="text-[10px] text-emerald-400/70">Households impacted</div>
-                <div className="font-black text-emerald-400 font-mono">{pitch.impact.households.toLocaleString()}</div>
+              <div className="bg-emerald-50 rounded-xl px-3 py-2">
+                <div className="text-[10px] text-emerald-700/70">Households impacted</div>
+                <div className="font-black text-emerald-700 font-mono">{pitch.impact.households.toLocaleString()}</div>
               </div>
             )}
             {pitch.impact.co2Saved && (
-              <div className="bg-emerald-400/10 rounded-xl px-3 py-2">
-                <div className="text-[10px] text-emerald-400/70">CO₂ saved (t/yr)</div>
-                <div className="font-black text-emerald-400 font-mono">{pitch.impact.co2Saved}</div>
+              <div className="bg-emerald-50 rounded-xl px-3 py-2">
+                <div className="text-[10px] text-emerald-700/70">CO₂ saved (t/yr)</div>
+                <div className="font-black text-emerald-700 font-mono">{pitch.impact.co2Saved}</div>
               </div>
             )}
           </div>
@@ -909,16 +909,16 @@ function PitchDetail({ pitch, onBack, onInvest }: {
         {/* Risk */}
         <div className={cn(
           "flex gap-2.5 border rounded-xl p-3.5",
-          pitch.risk === "low" ? "bg-emerald-400/5 border-emerald-400/20" :
-          pitch.risk === "medium" ? "bg-amber-400/5 border-amber-400/20" :
+          pitch.risk === "low" ? "bg-emerald-50 border-emerald-200" :
+          pitch.risk === "medium" ? "bg-amber-50 border-amber-200" :
           "bg-destructive/5 border-destructive/20"
         )}>
-          {pitch.risk === "low" ? <ShieldCheck size={15} className="text-emerald-400 shrink-0 mt-0.5" /> :
-           pitch.risk === "medium" ? <Shield size={15} className="text-amber-400 shrink-0 mt-0.5" /> :
+          {pitch.risk === "low" ? <ShieldCheck size={15} className="text-emerald-700 shrink-0 mt-0.5" /> :
+           pitch.risk === "medium" ? <Shield size={15} className="text-amber-700 shrink-0 mt-0.5" /> :
            <ShieldAlert size={15} className="text-destructive shrink-0 mt-0.5" />}
           <div>
             <div className={cn("text-[11px] font-bold mb-0.5",
-              pitch.risk === "low" ? "text-emerald-400" : pitch.risk === "medium" ? "text-amber-400" : "text-destructive"
+              pitch.risk === "low" ? "text-emerald-700" : pitch.risk === "medium" ? "text-amber-700" : "text-destructive"
             )}>Risk Assessment</div>
             <p className="text-[11px] text-muted-foreground leading-relaxed">{pitch.riskNote}</p>
           </div>
@@ -953,14 +953,14 @@ function PortfolioView({ onBrowse }: { onBrowse: () => void }) {
   const growthPct = (((currentValue - prevValue) / prevValue) * 100).toFixed(1);
 
   function statusColor(s: RepayStatus) {
-    if (s === "completed") return "text-emerald-400";
+    if (s === "completed") return "text-emerald-700";
     if (s === "current") return "text-primary";
     if (s === "late") return "text-destructive";
     return "text-muted-foreground";
   }
 
   function statusBg(s: RepayStatus) {
-    if (s === "completed") return "bg-emerald-400/10 border-emerald-400/30 text-emerald-400";
+    if (s === "completed") return "bg-emerald-50 border-emerald-200 text-emerald-700";
     if (s === "current") return "bg-primary/10 border-primary/30 text-primary";
     if (s === "late") return "bg-destructive/10 border-destructive/30 text-destructive";
     return "bg-secondary border-border text-muted-foreground";
@@ -968,8 +968,8 @@ function PortfolioView({ onBrowse }: { onBrowse: () => void }) {
 
   function investmentStatusBadge(s: Investment["status"]) {
     if (s === "active") return "bg-primary/10 border-primary/30 text-primary";
-    if (s === "completed") return "bg-emerald-400/10 border-emerald-400/30 text-emerald-400";
-    return "bg-amber-400/10 border-amber-400/30 text-amber-400";
+    if (s === "completed") return "bg-emerald-50 border-emerald-200 text-emerald-700";
+    return "bg-amber-50 border-amber-200 text-amber-700";
   }
 
   return (
@@ -980,7 +980,7 @@ function PortfolioView({ onBrowse }: { onBrowse: () => void }) {
         <div className="text-xs text-muted-foreground mb-1">Total Portfolio Value</div>
         <div className="text-3xl font-black font-mono text-foreground">{currentValue.toLocaleString()} <span className="text-base text-muted-foreground">XAF</span></div>
         <div className="flex items-center gap-2 mt-1">
-          <span className="text-xs text-emerald-400 flex items-center gap-1 font-bold">
+          <span className="text-xs text-emerald-700 flex items-center gap-1 font-bold">
             <ArrowUpRight size={12} />+{growthPct}% this month
           </span>
           <span className="text-[10px] text-muted-foreground">vs last month</span>
@@ -991,7 +991,7 @@ function PortfolioView({ onBrowse }: { onBrowse: () => void }) {
       <div className="grid grid-cols-3 gap-3">
         {[
           { label: "Invested", value: `${(totalInvested / 1000).toFixed(0)}K`, icon: Wallet, color: "text-foreground" },
-          { label: "Repaid", value: `${(totalRepaid / 1000).toFixed(0)}K`, icon: ArrowUpRight, color: "text-emerald-400" },
+          { label: "Repaid", value: `${(totalRepaid / 1000).toFixed(0)}K`, icon: ArrowUpRight, color: "text-emerald-700" },
           { label: "Expected", value: `${(totalExpected / 1000).toFixed(0)}K`, icon: Trophy, color: "text-primary" },
         ].map(s => (
           <div key={s.label} className="bg-card border border-border rounded-2xl p-3 text-center">
@@ -1063,7 +1063,7 @@ function PortfolioView({ onBrowse }: { onBrowse: () => void }) {
                   <div className="text-[10px] text-muted-foreground flex items-center gap-2 mt-0.5">
                     <span>{fmt(inv.amountInvested, inv.currency)} invested</span>
                     <span>·</span>
-                    <span className={cn("font-bold", inv.status === "delayed" ? "text-amber-400" : "text-primary")}>{inv.returnPct}%/yr</span>
+                    <span className={cn("font-bold", inv.status === "delayed" ? "text-amber-700" : "text-primary")}>{inv.returnPct}%/yr</span>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -1116,7 +1116,7 @@ function PortfolioView({ onBrowse }: { onBrowse: () => void }) {
                     ))}
                     <div className="pt-2 border-t border-border flex justify-between text-xs">
                       <span className="text-muted-foreground">Total repaid</span>
-                      <span className="font-black font-mono text-emerald-400">{fmt(inv.totalRepaid, inv.currency)}</span>
+                      <span className="font-black font-mono text-emerald-700">{fmt(inv.totalRepaid, inv.currency)}</span>
                     </div>
                     <div className="flex justify-between text-xs">
                       <span className="text-muted-foreground">Total expected</span>
@@ -1145,7 +1145,7 @@ function PortfolioView({ onBrowse }: { onBrowse: () => void }) {
 
 function LeaderboardView() {
   const levelColor: Record<string, string> = {
-    "Anchor": "text-amber-400 bg-amber-400/10 border-amber-400/30",
+    "Anchor": "text-amber-700 bg-amber-50 border-amber-200",
     "Senior": "text-accent-foreground bg-accent/10 border-accent/30",
     "Growth": "text-primary bg-primary/10 border-primary/30",
     "Starter": "text-muted-foreground bg-muted border-border",
@@ -1164,13 +1164,13 @@ function LeaderboardView() {
   return (
     <div className="p-5 space-y-5">
       {/* Season header */}
-      <div className="bg-gradient-to-r from-amber-400/10 to-primary/10 border border-amber-400/20 rounded-2xl p-5">
+      <div className="bg-gradient-to-r from-amber-400/10 to-primary/10 border border-amber-200 rounded-2xl p-5">
         <div className="flex items-center justify-between mb-2">
           <div>
-            <div className="text-[10px] text-amber-400 font-black uppercase tracking-widest">Season 1 · Aug 2026</div>
+            <div className="text-[10px] text-amber-700 font-black uppercase tracking-widest">Season 1 · Aug 2026</div>
             <h2 className="font-black text-lg">Top PayRus Investors</h2>
           </div>
-          <Trophy size={28} className="text-amber-400" />
+          <Trophy size={28} className="text-amber-700" />
         </div>
         <p className="text-[11px] text-muted-foreground">Rankings based on total capital deployed, number of ventures backed, and portfolio return rate.</p>
       </div>
@@ -1182,7 +1182,7 @@ function LeaderboardView() {
             key={inv.rank}
             className={cn(
               "flex items-center gap-3 px-4 py-3 border-b border-border/50 last:border-b-0",
-              inv.name === "You" ? "bg-primary/5" : i < 3 ? "bg-amber-400/5" : ""
+              inv.name === "You" ? "bg-primary/5" : i < 3 ? "bg-amber-50" : ""
             )}
           >
             <div className="w-8 text-center text-sm font-black">{inv.badge}</div>
@@ -1216,10 +1216,10 @@ function LeaderboardView() {
       </div>
 
       {/* Platform impact */}
-      <div className="bg-emerald-400/5 border border-emerald-400/20 rounded-2xl p-5">
+      <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5">
         <div className="flex items-center gap-2 mb-3">
-          <Globe size={16} className="text-emerald-400" />
-          <h3 className="font-bold text-sm text-emerald-400">Collective Impact — All Investors</h3>
+          <Globe size={16} className="text-emerald-700" />
+          <h3 className="font-bold text-sm text-emerald-700">Collective Impact — All Investors</h3>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {[
@@ -1228,10 +1228,10 @@ function LeaderboardView() {
             { label: "Households", value: "42,750", icon: Heart },
             { label: "CO₂ saved", value: "1,805t/yr", icon: Leaf },
           ].map(s => (
-            <div key={s.label} className="bg-emerald-400/10 rounded-xl px-3 py-2.5">
-              <s.icon size={13} className="text-emerald-400 mb-1" />
-              <div className="font-black text-sm text-emerald-400 font-mono">{s.value}</div>
-              <div className="text-[10px] text-emerald-400/70">{s.label}</div>
+            <div key={s.label} className="bg-emerald-50 rounded-xl px-3 py-2.5">
+              <s.icon size={13} className="text-emerald-700 mb-1" />
+              <div className="font-black text-sm text-emerald-700 font-mono">{s.value}</div>
+              <div className="text-[10px] text-emerald-700/70">{s.label}</div>
             </div>
           ))}
         </div>
@@ -1245,7 +1245,7 @@ function LeaderboardView() {
             { level: "Starter", req: "< 500K XAF deployed", color: "text-muted-foreground" },
             { level: "Growth", req: "500K – 5M XAF deployed", color: "text-primary" },
             { level: "Senior", req: "5M – 10M XAF deployed", color: "text-accent-foreground" },
-            { level: "Anchor", req: "10M+ XAF deployed", color: "text-amber-400" },
+            { level: "Anchor", req: "10M+ XAF deployed", color: "text-amber-700" },
           ].map(l => (
             <div key={l.level} className="flex items-center justify-between text-xs">
               <span className={cn("font-bold", l.color)}>{l.level}</span>
@@ -1600,7 +1600,7 @@ export default function InvestPage() {
               {category === "all" && !search && (
                 <div>
                   <div className="flex items-center gap-1.5 mb-3">
-                    <Star size={13} className="text-amber-400" />
+                    <Star size={13} className="text-amber-700" />
                     <span className="text-xs font-black uppercase tracking-wider">Featured Ventures</span>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

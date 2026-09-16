@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { motion, AnimatePresence } from "motion/react";
 import PageHeader from "@/components/ui/page-header.tsx";
@@ -11,7 +11,11 @@ import {
 import { Button } from "@/components/ui/button.tsx";
 import { cn } from "@/lib/utils.ts";
 import { toast } from "sonner";
+import { useMutation, useQuery } from "convex/react";
 import { PayRusLogo } from "@/pages/layout/AppLayout.tsx";
+import { api } from "@/convex/_generated/api.js";
+import { commissionFor, convertWithMargin, midMarketConvert } from "@/convex/fx.ts";
+import { useCurrentAppUser } from "@/hooks/use-current-app-user.ts";
 
 /* ─── Types ───────────────────────────────────────────── */
 type Step = "search" | "amount" | "confirm" | "success";
@@ -32,21 +36,21 @@ type PayRusUser = {
 
 /* ─── Mock PayRus network users ────────────────────────── */
 const PAYRUS_USERS: PayRusUser[] = [
-  { id: "u1", name: "Amara Koné", username: "@amara.kone", country: "RDC", countryCode: "CD", flag: "🇨🇩", avatar: "AK", currency: "CDF", verified: true, online: true },
-  { id: "u2", name: "Jean Makoko", username: "@jean.makoko", country: "Congo-B", countryCode: "CG", flag: "🇨🇬", avatar: "JM", currency: "XAF", verified: true, online: false },
-  { id: "u3", name: "Alice Umuhu", username: "@alice.umuhu", country: "Rwanda", countryCode: "RW", flag: "🇷🇼", avatar: "AU", currency: "RWF", verified: true, online: true },
-  { id: "u4", name: "Paulo Damba", username: "@paulo.damba", country: "Angola", countryCode: "AO", flag: "🇦🇴", avatar: "PD", currency: "AOA", verified: false, online: true },
-  { id: "u5", name: "Fatou Diallo", username: "@fatou.diallo", country: "Sénégal", countryCode: "SN", flag: "🇸🇳", avatar: "FD", currency: "XOF", verified: true, online: false },
-  { id: "u6", name: "Chioma Obi", username: "@chioma.obi", country: "Nigeria", countryCode: "NG", flag: "🇳🇬", avatar: "CO", currency: "NGN", verified: true, online: true },
-  { id: "u7", name: "Kwame Asante", username: "@kwame.asante", country: "Ghana", countryCode: "GH", flag: "🇬🇭", avatar: "KA", currency: "GHS", verified: true, online: false },
-  { id: "u8", name: "Naledi Dlamini", username: "@naledi.dl", country: "Afrique du Sud", countryCode: "ZA", flag: "🇿🇦", avatar: "ND", currency: "ZAR", verified: true, online: false },
-  { id: "u9", name: "Yohannes Tesfaye", username: "@yohannes.t", country: "Éthiopie", countryCode: "ET", flag: "🇪🇹", avatar: "YT", currency: "ETB", verified: false, online: true },
-  { id: "u10", name: "Mariame Touré", username: "@mariame.toure", country: "France (Diaspora)", countryCode: "FR", flag: "🇫🇷", avatar: "MT", currency: "EUR", verified: true, online: true, role: "Diaspora" },
-  { id: "u11", name: "Samuel Mensah", username: "@samuel.gh", country: "Royaume-Uni", countryCode: "GB", flag: "🇬🇧", avatar: "SM", currency: "GBP", verified: true, online: false, role: "Diaspora" },
-  { id: "u12", name: "Aïcha Ndiaye", username: "@aicha.ndiaye", country: "Canada", countryCode: "CA", flag: "🇨🇦", avatar: "AN", currency: "CAD", verified: true, online: true, role: "Diaspora" },
-  { id: "u13", name: "Régis Nguimbi", username: "@regis.nguimbi", country: "Gabon", countryCode: "GA", flag: "🇬🇦", avatar: "RN", currency: "XAF", verified: true, online: true },
-  { id: "u14", name: "Solange Bekono", username: "@solange.bekono", country: "Cameroun", countryCode: "CM", flag: "🇨🇲", avatar: "SB", currency: "XAF", verified: true, online: false },
-  { id: "u15", name: "Ibrahim Adoum", username: "@ibrahim.adoum", country: "Tchad", countryCode: "TD", flag: "🇹🇩", avatar: "IA", currency: "XAF", verified: false, online: true },
+  { id: "u1", name: "Amara Koné", username: "@amara.kone", country: "p2p.country.cd", countryCode: "CD", flag: "🇨🇩", avatar: "AK", currency: "CDF", verified: true, online: true },
+  { id: "u2", name: "Jean Makoko", username: "@jean.makoko", country: "p2p.country.cg", countryCode: "CG", flag: "🇨🇬", avatar: "JM", currency: "XAF", verified: true, online: false },
+  { id: "u3", name: "Alice Umuhu", username: "@alice.umuhu", country: "p2p.country.rw", countryCode: "RW", flag: "🇷🇼", avatar: "AU", currency: "RWF", verified: true, online: true },
+  { id: "u4", name: "Paulo Damba", username: "@paulo.damba", country: "p2p.country.ao", countryCode: "AO", flag: "🇦🇴", avatar: "PD", currency: "AOA", verified: false, online: true },
+  { id: "u5", name: "Fatou Diallo", username: "@fatou.diallo", country: "p2p.country.sn", countryCode: "SN", flag: "🇸🇳", avatar: "FD", currency: "XOF", verified: true, online: false },
+  { id: "u6", name: "Chioma Obi", username: "@chioma.obi", country: "p2p.country.ng", countryCode: "NG", flag: "🇳🇬", avatar: "CO", currency: "NGN", verified: true, online: true },
+  { id: "u7", name: "Kwame Asante", username: "@kwame.asante", country: "p2p.country.gh", countryCode: "GH", flag: "🇬🇭", avatar: "KA", currency: "GHS", verified: true, online: false },
+  { id: "u8", name: "Naledi Dlamini", username: "@naledi.dl", country: "p2p.country.za", countryCode: "ZA", flag: "🇿🇦", avatar: "ND", currency: "ZAR", verified: true, online: false },
+  { id: "u9", name: "Yohannes Tesfaye", username: "@yohannes.t", country: "p2p.country.et", countryCode: "ET", flag: "🇪🇹", avatar: "YT", currency: "ETB", verified: false, online: true },
+  { id: "u10", name: "Mariame Touré", username: "@mariame.toure", country: "p2p.country.frDiaspora", countryCode: "FR", flag: "🇫🇷", avatar: "MT", currency: "EUR", verified: true, online: true, role: "Diaspora" },
+  { id: "u11", name: "Samuel Mensah", username: "@samuel.gh", country: "p2p.country.gb", countryCode: "GB", flag: "🇬🇧", avatar: "SM", currency: "GBP", verified: true, online: false, role: "Diaspora" },
+  { id: "u12", name: "Aïcha Ndiaye", username: "@aicha.ndiaye", country: "p2p.country.ca", countryCode: "CA", flag: "🇨🇦", avatar: "AN", currency: "CAD", verified: true, online: true, role: "Diaspora" },
+  { id: "u13", name: "Régis Nguimbi", username: "@regis.nguimbi", country: "p2p.country.ga", countryCode: "GA", flag: "🇬🇦", avatar: "RN", currency: "XAF", verified: true, online: true },
+  { id: "u14", name: "Solange Bekono", username: "@solange.bekono", country: "p2p.country.cm", countryCode: "CM", flag: "🇨🇲", avatar: "SB", currency: "XAF", verified: true, online: false },
+  { id: "u15", name: "Ibrahim Adoum", username: "@ibrahim.adoum", country: "p2p.country.td", countryCode: "TD", flag: "🇹🇩", avatar: "IA", currency: "XAF", verified: false, online: true },
 ];
 
 const RECENT_IDS = ["u1", "u2", "u13", "u14", "u5"];
@@ -62,10 +66,10 @@ const AVATAR_COLORS: Record<string, string> = {
 
 /* ─── Withdraw methods ─────────────────────────────────── */
 const WITHDRAW_METHODS = [
-  { id: "mm", label: "Mobile Money", icon: Smartphone, desc: "Orange, MTN, Airtel, M-Pesa", fee: "0%" },
-  { id: "bank", label: "Virement bancaire", icon: Building2, desc: "Rawbank, Ecobank, Equity", fee: "0.5%" },
-  { id: "cash", label: "Retrait en espèces", icon: Banknote, desc: "Agent PayRus · même jour", fee: "1%" },
-  { id: "card", label: "Carte PayRus", icon: BadgeCheck, desc: "Vers votre carte liée", fee: "0%" },
+  { id: "mm", labelKey: "p2p.methodMobileMoney", icon: Smartphone, descKey: "p2p.methodMobileMoneyDesc", fee: "0%" },
+  { id: "bank", labelKey: "p2p.methodBank", icon: Building2, descKey: "p2p.methodBankDesc", fee: "0.5%" },
+  { id: "cash", labelKey: "p2p.methodCash", icon: Banknote, descKey: "p2p.methodCashDesc", fee: "1%" },
+  { id: "card", labelKey: "p2p.methodCard", icon: BadgeCheck, descKey: "p2p.methodCardDesc", fee: "0%" },
 ];
 
 /* ─── Avatar ────────────────────────────────────────────── */
@@ -80,6 +84,7 @@ function Avatar({ initials, size = "md" }: { initials: string; size?: "sm" | "md
 
 /* ─── User Card ─────────────────────────────────────────── */
 function UserCard({ user, onSelect }: { user: PayRusUser; onSelect: () => void }) {
+  const { t } = useTranslation("common");
   return (
     <button
       onClick={onSelect}
@@ -94,7 +99,7 @@ function UserCard({ user, onSelect }: { user: PayRusUser; onSelect: () => void }
           <span className="text-sm font-semibold text-foreground truncate">{user.name}</span>
           {user.verified && <BadgeCheck size={12} className="text-accent shrink-0" />}
         </div>
-        <div className="text-xs text-muted-foreground">{user.username} · {user.flag} {user.country}</div>
+        <div className="text-xs text-muted-foreground">{user.username} · {user.flag} {t(user.country)}</div>
       </div>
       <div className="flex flex-col items-end gap-1 shrink-0">
         <span className="text-[10px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded">{user.currency}</span>
@@ -116,22 +121,41 @@ export default function P2PTransfer() {
   const [note, setNote] = useState("");
   const [withdrawMethod, setWithdrawMethod] = useState<string | null>(null);
   const [showCurrencyDrop, setShowCurrencyDrop] = useState(false);
+  const [sending, setSending] = useState(false);
+
+  const currentUser = useCurrentAppUser();
+  const realWallets = useQuery(api.wallets.listForUser, currentUser ? { userId: currentUser._id } : "skip");
+  const applyTransaction = useMutation(api.wallets.applyTransaction);
+
+  // Default a new transaction's currency to the one the user registered
+  // with (src/pages/register/page.tsx sets this from their country) rather
+  // than a fixed constant, once we know it.
+  useEffect(() => {
+    if (currentUser?.defaultCurrency) setCurrency(currentUser.defaultCurrency);
+  }, [currentUser?.defaultCurrency]);
 
   const filtered = query.trim().length > 0
     ? PAYRUS_USERS.filter(u =>
         u.name.toLowerCase().includes(query.toLowerCase()) ||
         u.username.toLowerCase().includes(query.toLowerCase()) ||
-        u.country.toLowerCase().includes(query.toLowerCase())
+        t(u.country).toLowerCase().includes(query.toLowerCase())
       )
     : PAYRUS_USERS.filter(u => RECENT_IDS.includes(u.id));
 
   const recentUsers = PAYRUS_USERS.filter(u => RECENT_IDS.includes(u.id));
 
-  const fxRate = currency === "CDF" ? 1 : currency === "XAF" ? 0.003 : currency === "USD" ? 0.00035 : currency === "EUR" ? 0.00033 : 1;
+  const withdrawMethodObj = WITHDRAW_METHODS.find(m => m.id === withdrawMethod);
+  const withdrawMethodLabel = withdrawMethodObj ? t(withdrawMethodObj.labelKey) : null;
+
   const numAmt = parseFloat(amount) || 0;
-  const payrusMargin = numAmt * 0.075; // 7.5% PayRus fee
-  const total = numAmt + payrusMargin;
-  const received = numAmt * 0.925; // after margin
+  const chargingWallet = realWallets?.find((w) => w.currency === currency) ?? realWallets?.[0];
+  const commission = commissionFor(numAmt); // flat 3.5% commission, paid by the sender
+  const isMulticurrency = !!chargingWallet && chargingWallet.currency !== currency;
+  const fxMarginAmount = isMulticurrency
+    ? convertWithMargin(numAmt + commission, currency, chargingWallet.currency).fxMargin
+    : 0; // 10% FX margin only when the wallet being charged is in a different currency
+  const total = numAmt + commission;
+  const received = numAmt; // the recipient gets the full stated amount; margin/commission are the sender's cost
 
   function handleSelectUser(user: PayRusUser) {
     setSelectedUser(user);
@@ -140,15 +164,29 @@ export default function P2PTransfer() {
 
   function handleSend() {
     if (!amount || parseFloat(amount) <= 0) {
-      toast.error("Entrez un montant valide");
+      toast.error(t("p2p.invalidAmount"));
       return;
     }
     setStep("confirm");
   }
 
-  function handleConfirm() {
-    setStep("success");
-    toast.success(`Envoi de ${currency} ${numAmt.toLocaleString()} confirmé !`);
+  async function handleConfirm() {
+    if (!currentUser) {
+      // Anonymous preview — no real wallet to debit, keep the existing demo flow.
+      setStep("success");
+      toast.success(t("p2p.sendConfirmedToast", { currency, amount: numAmt.toLocaleString() }));
+      return;
+    }
+    setSending(true);
+    try {
+      await applyTransaction({ userId: currentUser._id, amount: numAmt, currency, type: "transfer", note: note || undefined });
+      setStep("success");
+      toast.success(t("p2p.sendConfirmedToast", { currency, amount: numAmt.toLocaleString() }));
+    } catch {
+      toast.error(t("p2p.transferFailed"));
+    } finally {
+      setSending(false);
+    }
   }
 
   function reset() {
@@ -165,9 +203,7 @@ export default function P2PTransfer() {
 
       {/* ── Header */}
       <div className="flex items-center gap-3 mb-6">
-        <div className="rounded-lg bg-white px-2 py-1 shadow-md shadow-black/30">
-          <PayRusLogo className="h-5 w-auto" />
-        </div>
+        <PayRusLogo className="h-5 w-auto" />
         <div>
           <h1 className="text-xl font-bold text-foreground">{t("p2p.heading")}</h1>
           <p className="text-xs text-muted-foreground">{t("p2p.subtitle")}</p>
@@ -196,7 +232,7 @@ export default function P2PTransfer() {
                 type="text"
                 value={query}
                 onChange={e => setQuery(e.target.value)}
-                placeholder="Nom, @username, pays…"
+                placeholder={t("p2p.searchPlaceholder")}
                 className="w-full pl-9 pr-10 py-3 rounded-xl bg-secondary border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50 focus:bg-primary/5 transition-colors"
               />
               {query && (
@@ -208,11 +244,11 @@ export default function P2PTransfer() {
 
             {/* Quick actions */}
             <div className="flex gap-2 mb-5">
-              <button onClick={() => toast.info("QR Code — bientôt disponible")} className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-secondary border border-border text-xs font-medium text-muted-foreground hover:text-primary hover:border-primary/40 transition-colors cursor-pointer">
-                <QrCode size={14} /> Scanner QR
+              <button onClick={() => toast.info(t("p2p.scanQrSoonToast"))} className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-secondary border border-border text-xs font-medium text-muted-foreground hover:text-primary hover:border-primary/40 transition-colors cursor-pointer">
+                <QrCode size={14} /> {t("p2p.scanQr")}
               </button>
-              <button onClick={() => toast.info("Invite un ami — bientôt disponible")} className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-secondary border border-border text-xs font-medium text-muted-foreground hover:text-primary hover:border-primary/40 transition-colors cursor-pointer">
-                <UserPlus size={14} /> Inviter un ami
+              <button onClick={() => toast.info(t("p2p.inviteFriendSoonToast"))} className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-secondary border border-border text-xs font-medium text-muted-foreground hover:text-primary hover:border-primary/40 transition-colors cursor-pointer">
+                <UserPlus size={14} /> {t("p2p.inviteFriend")}
               </button>
             </div>
 
@@ -220,11 +256,11 @@ export default function P2PTransfer() {
             <div>
               <div className="flex items-center gap-2 mb-3">
                 {query ? (
-                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{filtered.length} résultat(s)</span>
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t("p2p.resultsCount", { count: filtered.length })}</span>
                 ) : (
                   <>
                     <Clock size={11} className="text-muted-foreground" />
-                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Récents</span>
+                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t("p2p.recent")}</span>
                   </>
                 )}
               </div>
@@ -234,7 +270,7 @@ export default function P2PTransfer() {
                 ))}
                 {filtered.length === 0 && (
                   <div className="py-8 text-center text-muted-foreground text-sm">
-                    Aucun utilisateur trouvé pour &quot;{query}&quot;
+                    {t("p2p.noUserFound", { query })}
                   </div>
                 )}
               </div>
@@ -245,7 +281,7 @@ export default function P2PTransfer() {
               <div className="mt-5">
                 <div className="flex items-center gap-2 mb-3">
                   <Globe size={11} className="text-accent" />
-                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Membres PayRus</span>
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t("p2p.allMembers")}</span>
                 </div>
                 <div className="space-y-2">
                   {PAYRUS_USERS.filter(u => !RECENT_IDS.includes(u.id)).map(user => (
@@ -273,7 +309,7 @@ export default function P2PTransfer() {
                   {selectedUser.verified && <BadgeCheck size={14} className="text-accent" />}
                 </div>
                 <div className="text-sm text-muted-foreground">{selectedUser.username}</div>
-                <div className="text-xs text-muted-foreground mt-0.5">{selectedUser.flag} {selectedUser.country} · {selectedUser.currency}</div>
+                <div className="text-xs text-muted-foreground mt-0.5">{selectedUser.flag} {t(selectedUser.country)} · {selectedUser.currency}</div>
               </div>
               <button onClick={() => setStep("search")} className="text-muted-foreground hover:text-foreground cursor-pointer p-1">
                 <X size={16} />
@@ -282,7 +318,7 @@ export default function P2PTransfer() {
 
             {/* Amount input */}
             <div className="rounded-2xl bg-card border border-border p-5 space-y-4">
-              <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Montant à envoyer</div>
+              <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t("p2p.amountToSend")}</div>
 
               <div className="flex gap-2">
                 {/* Currency selector */}
@@ -295,7 +331,7 @@ export default function P2PTransfer() {
                   </button>
                   {showCurrencyDrop && (
                     <div className="absolute top-full left-0 mt-1 z-30 bg-popover border border-border rounded-xl shadow-xl overflow-hidden w-28">
-                      {CURRENCIES.map(c => (
+                      {Array.from(new Set([...CURRENCIES, currency])).map(c => (
                         <button key={c} onClick={() => { setCurrency(c); setShowCurrencyDrop(false); }} className={cn("w-full px-3 py-2 text-sm font-medium text-left hover:bg-primary/10 transition-colors cursor-pointer", c === currency && "text-primary bg-primary/5")}>
                           {c}
                         </button>
@@ -316,16 +352,22 @@ export default function P2PTransfer() {
               {numAmt > 0 && (
                 <div className="space-y-2 text-xs text-muted-foreground">
                   <div className="flex justify-between">
-                    <span>Frais PayRus (7.5%)</span>
-                    <span className="text-foreground font-medium">{currency} {payrusMargin.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                    <span>{t("p2p.fee")}</span>
+                    <span className="text-foreground font-medium">{currency} {commission.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
                   </div>
+                  {isMulticurrency && (
+                    <div className="flex justify-between">
+                      <span>{t("p2p.fxMargin")}</span>
+                      <span className="text-foreground font-medium">{chargingWallet!.currency} {fxMarginAmount.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between">
-                    <span>Total débité</span>
+                    <span>{t("p2p.totalDebited")}</span>
                     <span className="text-foreground font-semibold">{currency} {total.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
                   </div>
                   <div className="flex justify-between border-t border-border pt-2">
-                    <span className="text-primary font-semibold">Reçu par {selectedUser.name.split(" ")[0]}</span>
-                    <span className="text-primary font-bold">{selectedUser.currency} {(received / fxRate / 3000).toLocaleString(undefined, { maximumFractionDigits: 0 })} ≈</span>
+                    <span className="text-primary font-semibold">{t("p2p.receivedBy", { name: selectedUser.name.split(" ")[0] })}</span>
+                    <span className="text-primary font-bold">{selectedUser.currency} {midMarketConvert(received, currency, selectedUser.currency).toLocaleString(undefined, { maximumFractionDigits: 0 })} ≈</span>
                   </div>
                 </div>
               )}
@@ -335,7 +377,7 @@ export default function P2PTransfer() {
                 type="text"
                 value={note}
                 onChange={e => setNote(e.target.value)}
-                placeholder="Note (optionnel) — ex: Loyer mars"
+                placeholder={t("p2p.notePlaceholder")}
                 className="w-full px-3 py-2.5 rounded-xl bg-secondary border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50 transition-colors"
               />
             </div>
@@ -343,7 +385,7 @@ export default function P2PTransfer() {
             {/* Withdraw method for recipient */}
             <div>
               <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                <Banknote size={11} /> Mode de retrait du destinataire
+                <Banknote size={11} /> {t("p2p.withdrawMethodLabel")}
               </div>
               <div className="grid grid-cols-2 gap-2">
                 {WITHDRAW_METHODS.map(m => (
@@ -359,15 +401,15 @@ export default function P2PTransfer() {
                       <m.icon size={14} />
                       <span className="text-[9px] font-bold bg-primary/10 text-primary px-1 rounded">{m.fee}</span>
                     </div>
-                    <div className="text-xs font-semibold text-foreground">{m.label}</div>
-                    <div className="text-[10px] text-muted-foreground">{m.desc}</div>
+                    <div className="text-xs font-semibold text-foreground">{t(m.labelKey)}</div>
+                    <div className="text-[10px] text-muted-foreground">{t(m.descKey)}</div>
                   </button>
                 ))}
               </div>
             </div>
 
             <Button className="w-full gap-2 py-3 font-bold cursor-pointer" onClick={handleSend}>
-              <Send size={16} /> Continuer → Confirmer
+              <Send size={16} /> {t("p2p.continueToConfirm")}
             </Button>
           </motion.div>
         )}
@@ -381,18 +423,19 @@ export default function P2PTransfer() {
                 <div className="rounded-md bg-white px-2 py-0.5">
                   <PayRusLogo className="h-4 w-auto" />
                 </div>
-                <span className="text-sm font-bold text-foreground">Confirmation du transfert</span>
+                <span className="text-sm font-bold text-foreground">{t("p2p.confirmTransferTitle")}</span>
               </div>
               <div className="p-5 space-y-3">
                 {[
-                  ["De", "Jean Dupont · PayRus Wallet"],
-                  ["Vers", `${selectedUser.name} (${selectedUser.username})`],
-                  ["Pays", `${selectedUser.flag} ${selectedUser.country}`],
-                  ["Montant envoyé", `${currency} ${numAmt.toLocaleString()}`],
-                  ["Frais PayRus (7.5%)", `${currency} ${payrusMargin.toLocaleString(undefined, { maximumFractionDigits: 0 })}`],
-                  ["Total débité", `${currency} ${total.toLocaleString(undefined, { maximumFractionDigits: 0 })}`],
-                  ["Mode de retrait", withdrawMethod ? WITHDRAW_METHODS.find(m => m.id === withdrawMethod)?.label ?? "—" : "Non sélectionné"],
-                  ...(note ? [["Note", note] as [string, string]] : []),
+                  [t("p2p.confirmFrom"), "Jean Dupont · PayRus Wallet"],
+                  [t("p2p.confirmTo"), `${selectedUser.name} (${selectedUser.username})`],
+                  [t("p2p.confirmCountry"), `${selectedUser.flag} ${t(selectedUser.country)}`],
+                  [t("p2p.amountSent"), `${currency} ${numAmt.toLocaleString()}`],
+                  [t("p2p.fee"), `${currency} ${commission.toLocaleString(undefined, { maximumFractionDigits: 0 })}`],
+                  ...(isMulticurrency ? [[t("p2p.fxMargin"), `${chargingWallet!.currency} ${fxMarginAmount.toLocaleString(undefined, { maximumFractionDigits: 0 })}`] as [string, string]] : []),
+                  [t("p2p.totalDebited"), `${currency} ${total.toLocaleString(undefined, { maximumFractionDigits: 0 })}`],
+                  [t("p2p.withdrawMethod"), withdrawMethod ? (withdrawMethodLabel ?? "—") : t("p2p.noneSelected")],
+                  ...(note ? [[t("p2p.note"), note] as [string, string]] : []),
                 ].map(([label, value]) => (
                   <div key={label} className="flex justify-between text-sm">
                     <span className="text-muted-foreground">{label}</span>
@@ -400,8 +443,8 @@ export default function P2PTransfer() {
                   </div>
                 ))}
                 <div className="flex justify-between text-sm pt-2 border-t border-border">
-                  <span className="text-primary font-bold">Arrivée estimée</span>
-                  <span className="text-primary font-bold">Instantané</span>
+                  <span className="text-primary font-bold">{t("p2p.estimatedArrival")}</span>
+                  <span className="text-primary font-bold">{t("p2p.instant")}</span>
                 </div>
               </div>
             </div>
@@ -409,14 +452,14 @@ export default function P2PTransfer() {
             <div className="flex items-start gap-2 p-3 rounded-xl bg-secondary border border-border">
               <Shield size={14} className="text-primary shrink-0 mt-0.5" />
               <p className="text-xs text-muted-foreground">
-                Transaction sécurisée · Cryptage 256-bit · Les frais PayRus (7.5%) permettent de maintenir le réseau de paiement panafricain.
+                {t("p2p.securityDisclaimer")}
               </p>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              <Button variant="secondary" className="cursor-pointer" onClick={() => setStep("amount")}>Modifier</Button>
-              <Button className="gap-2 cursor-pointer font-bold" onClick={handleConfirm}>
-                <CheckCircle size={15} /> Confirmer l'envoi
+              <Button variant="secondary" className="cursor-pointer" onClick={reset}>{t("common.cancel")}</Button>
+              <Button className="gap-2 cursor-pointer font-bold" disabled={sending} onClick={() => void handleConfirm()}>
+                <CheckCircle size={15} /> {sending ? t("signin.checking") : t("p2p.confirmSend")}
               </Button>
             </div>
           </motion.div>
@@ -437,9 +480,9 @@ export default function P2PTransfer() {
               </motion.div>
 
               <div>
-                <div className="text-2xl font-bold text-foreground">Envoi réussi !</div>
+                <div className="text-2xl font-bold text-foreground">{t("p2p.sentSuccess")}</div>
                 <div className="text-sm text-muted-foreground mt-1">
-                  {currency} {numAmt.toLocaleString()} envoyé à {selectedUser.name}
+                  {t("p2p.sentTo", { amount: `${currency} ${numAmt.toLocaleString()}`, name: selectedUser.name })}
                 </div>
               </div>
 
@@ -449,20 +492,20 @@ export default function P2PTransfer() {
 
               <div className="flex items-center gap-2 text-xs text-primary">
                 <Wifi size={12} />
-                <span>Instantané · {selectedUser.flag} {selectedUser.country}</span>
+                <span>{t("p2p.instant")} · {selectedUser.flag} {t(selectedUser.country)}</span>
               </div>
             </div>
 
             <div className="rounded-xl bg-secondary border border-border p-4 text-xs space-y-2">
-              <div className="font-semibold text-foreground text-sm mb-1">Référence de transaction</div>
+              <div className="font-semibold text-foreground text-sm mb-1">{t("p2p.transactionReference")}</div>
               <div className="font-mono text-muted-foreground">PR-{Date.now().toString(36).toUpperCase()}</div>
               <div className="text-muted-foreground">
-                {selectedUser.name} peut retirer via {withdrawMethod ? WITHDRAW_METHODS.find(m => m.id === withdrawMethod)?.label : "Mobile Money"} dans les prochaines minutes.
+                {t("p2p.withdrawInfo", { name: selectedUser.name, method: withdrawMethod ? withdrawMethodLabel : t("p2p.methodMobileMoney") })}
               </div>
             </div>
 
             <Button className="w-full gap-2 cursor-pointer" onClick={reset}>
-              <ArrowRight size={15} /> Nouveau transfert
+              <ArrowRight size={15} /> {t("p2p.newTransfer")}
             </Button>
           </motion.div>
         )}

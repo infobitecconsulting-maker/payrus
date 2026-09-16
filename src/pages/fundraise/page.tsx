@@ -115,10 +115,10 @@ const CAMPAIGNS: Campaign[] = [
 
 const CATEGORIES: { key: Category; label: string; icon: React.ElementType; color: string }[] = [
   { key: "all", label: "All", icon: TrendingUp, color: "text-foreground" },
-  { key: "agriculture", label: "Agriculture", icon: Leaf, color: "text-emerald-400" },
-  { key: "education", label: "Education", icon: BookOpen, color: "text-blue-400" },
-  { key: "health", label: "Health", icon: Stethoscope, color: "text-rose-400" },
-  { key: "business", label: "Business", icon: Briefcase, color: "text-amber-400" },
+  { key: "agriculture", label: "Agriculture", icon: Leaf, color: "text-emerald-700" },
+  { key: "education", label: "Education", icon: BookOpen, color: "text-blue-700" },
+  { key: "health", label: "Health", icon: Stethoscope, color: "text-rose-700" },
+  { key: "business", label: "Business", icon: Briefcase, color: "text-amber-700" },
 ];
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
@@ -375,7 +375,7 @@ function CampaignDetail({ campaign, onBack, onDonate }: {
               <div className="text-[10px] text-muted-foreground">donors</div>
             </div>
             <div>
-              <div className="text-lg font-black font-mono text-amber-400">{campaign.daysLeft}</div>
+              <div className="text-lg font-black font-mono text-amber-700">{campaign.daysLeft}</div>
               <div className="text-[10px] text-muted-foreground">days left</div>
             </div>
           </div>
@@ -750,7 +750,7 @@ export default function Fundraise() {
               {category === "all" && !search && (
                 <div>
                   <div className="flex items-center gap-1.5 mb-3">
-                    <Star size={13} className="text-amber-400" />
+                    <Star size={13} className="text-amber-700" />
                     <span className="text-xs font-black uppercase tracking-wider">Featured</span>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -763,7 +763,7 @@ export default function Fundraise() {
               {category === "all" && !search && (
                 <div>
                   <div className="flex items-center gap-1.5 mb-3">
-                    <Flame size={13} className="text-rose-400" />
+                    <Flame size={13} className="text-rose-700" />
                     <span className="text-xs font-black uppercase tracking-wider">Trending</span>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

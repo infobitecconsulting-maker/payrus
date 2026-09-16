@@ -34,8 +34,8 @@ export default defineConfig({
         test: {
           name: "frontend",
           environment: "jsdom",
+          globals: true,
           include: ["src/**/*.test.{ts,tsx}"],
-          setupFiles: ["./src/vitest.setup.ts"],
         },
       },
     ],

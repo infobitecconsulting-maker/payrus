@@ -8,7 +8,24 @@
  * @module
  */
 
+import type * as addressRegister from "../addressRegister.js";
+import type * as addresses from "../addresses.js";
+import type * as admin from "../admin.js";
+import type * as cards from "../cards.js";
+import type * as financialData from "../financialData.js";
+import type * as fx from "../fx.js";
+import type * as geo from "../geo.js";
+import type * as linkedPaymentMethods from "../linkedPaymentMethods.js";
+import type * as localAuth from "../localAuth.js";
+import type * as marketplacePartners from "../marketplacePartners.js";
+import type * as shopOrders from "../shopOrders.js";
+import type * as supabaseAdmin from "../supabaseAdmin.js";
+import type * as supabaseAuth from "../supabaseAuth.js";
+import type * as testUsers from "../testUsers.js";
+import type * as transactions from "../transactions.js";
+import type * as userRoles from "../userRoles.js";
 import type * as users from "../users.js";
+import type * as wallets from "../wallets.js";
 
 import type {
   ApiFromModules,
@@ -17,7 +34,24 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  addressRegister: typeof addressRegister;
+  addresses: typeof addresses;
+  admin: typeof admin;
+  cards: typeof cards;
+  financialData: typeof financialData;
+  fx: typeof fx;
+  geo: typeof geo;
+  linkedPaymentMethods: typeof linkedPaymentMethods;
+  localAuth: typeof localAuth;
+  marketplacePartners: typeof marketplacePartners;
+  shopOrders: typeof shopOrders;
+  supabaseAdmin: typeof supabaseAdmin;
+  supabaseAuth: typeof supabaseAuth;
+  testUsers: typeof testUsers;
+  transactions: typeof transactions;
+  userRoles: typeof userRoles;
   users: typeof users;
+  wallets: typeof wallets;
 }>;
 
 /**

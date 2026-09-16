@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
-  Wallet, Building2, Users, Bitcoin, CreditCard, Smartphone,
+  Wallet, Building2, Users, Bitcoin, CreditCard, Smartphone, Nfc,
   ChevronRight, ArrowLeft, CheckCircle, Copy, AlertCircle, Shield
 } from "lucide-react";
 import { cn } from "@/lib/utils.ts";
@@ -12,7 +12,7 @@ import { useTranslation } from "react-i18next";
 import PageHeader from "@/components/ui/page-header.tsx";
 import TransactionReceipt from "@/components/ui/transaction-receipt.tsx";
 
-type TopUpMethod = "bank" | "agent" | "crypto" | "card" | "mobile";
+type TopUpMethod = "bank" | "agent" | "crypto" | "card" | "mobile" | "apple_pay" | "google_pay";
 type Step = "balance" | "method" | "details" | "confirm" | "success";
 
 export default function WalletPage() {
@@ -77,6 +77,24 @@ export default function WalletPage() {
       icon: Smartphone,
       color: "bg-orange-100 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-200 dark:border-orange-500/30",
       fee: "1.5%",
+      time: t("wallet.timeInstant"),
+    },
+    {
+      id: "apple_pay",
+      label: t("wallet.methodApplePay"),
+      sub: t("wallet.methodApplePaySub"),
+      icon: Nfc,
+      color: "bg-slate-100 dark:bg-slate-500/10 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-500/30",
+      fee: "1%",
+      time: t("wallet.timeInstant"),
+    },
+    {
+      id: "google_pay",
+      label: t("wallet.methodGooglePay"),
+      sub: t("wallet.methodGooglePaySub"),
+      icon: Wallet,
+      color: "bg-green-100 dark:bg-green-500/10 text-green-600 dark:text-green-400 border-green-200 dark:border-green-500/30",
+      fee: "1%",
       time: t("wallet.timeInstant"),
     },
   ];
@@ -343,6 +361,16 @@ export default function WalletPage() {
               </div>
             )}
 
+            {(method === "apple_pay" || method === "google_pay") && (
+              <div className="rounded-2xl bg-card border border-border p-4 space-y-3">
+                <h3 className="font-semibold text-sm text-foreground flex items-center gap-2">
+                  {method === "apple_pay" ? <Nfc size={14} className="text-slate-500" /> : <Wallet size={14} className="text-green-500" />}
+                  {t("wallet.walletPayInstructions", { provider: method === "apple_pay" ? t("paymentMethods.applePay") : t("paymentMethods.googlePay") })}
+                </h3>
+                <p className="text-xs text-muted-foreground">{t("wallet.walletPayDesc")}</p>
+              </div>
+            )}
+
             <Button
               onClick={() => { if (!amount || parseFloat(amount) <= 0) { toast.error(t("wallet.enterValidAmount")); return; } setStep("confirm"); }}
               className="w-full h-12 text-base font-bold cursor-pointer"
@@ -385,9 +413,12 @@ export default function WalletPage() {
                 </div>
               </div>
             </div>
-            <Button onClick={handleConfirm} className="w-full h-12 text-base font-bold cursor-pointer">
-              {t("wallet.confirmAndTopUp")}
-            </Button>
+            <div className="flex gap-3">
+              <Button variant="secondary" onClick={reset} className="flex-1 h-12 rounded-xl cursor-pointer">{t("common.cancel")}</Button>
+              <Button onClick={handleConfirm} className="flex-1 h-12 text-base font-bold cursor-pointer">
+                {t("wallet.confirmAndTopUp")}
+              </Button>
+            </div>
           </motion.div>
         )}
 

@@ -7,11 +7,12 @@ import {
   ChevronRight, BarChart3, Users, Wifi, AlertTriangle,
   CheckCircle2, Clock, Layers, PieChart, Flag, Star,
   MonitorPlay, Building, Landmark, PiggyBank, Send, Plane,
-  HandHeart, CreditCard, History, Settings, Wallet, PlugZap, FileDown
+  HandHeart, CreditCard, History, Settings, Wallet, PlugZap, FileDown, UserCog
 } from "lucide-react";
 import { cn } from "@/lib/utils.ts";
 import { useNavigate, useParams } from "react-router-dom";
 import { generateTechAnalysisPDF } from "./_components/tech-analysis-pdf.ts";
+import UsersPanel from "./_components/users-panel.tsx";
 import { useProfile, getDefaultProfile } from "@/contexts/profile-context.tsx";
 import type { ProfileType } from "@/contexts/profile-context.tsx";
 import {
@@ -139,9 +140,9 @@ const PILOT_COUNTRIES = [
     features: ["Mobile Money", "P2P Transfers", "Remittance", "Savings Groups"],
     metrics: { users: "12,400", volume: "XAF 1.8B", txMonth: "34,200" },
     color: "from-blue-900/60 to-blue-700/20",
-    accent: "text-blue-400",
-    borderAccent: "border-blue-400/30",
-    bgAccent: "bg-blue-400/10",
+    accent: "text-blue-700",
+    borderAccent: "border-blue-200",
+    bgAccent: "bg-blue-50",
   },
   {
     flag: "🇨🇬",
@@ -155,19 +156,21 @@ const PILOT_COUNTRIES = [
     features: ["Mobile Money", "Business Payments", "Fundraising", "Gov Collections"],
     metrics: { users: "18,750", volume: "XAF 3.1B", txMonth: "51,800" },
     color: "from-emerald-900/60 to-emerald-700/20",
-    accent: "text-emerald-400",
-    borderAccent: "border-emerald-400/30",
-    bgAccent: "bg-emerald-400/10",
+    accent: "text-emerald-700",
+    borderAccent: "border-emerald-200",
+    bgAccent: "bg-emerald-50",
   },
 ];
 
 const DEMO_PROFILES: { type: ProfileType; label: string; desc: string; icon: React.ComponentType<{ size?: number; className?: string }>; color: string }[] = [
-  { type: "individual", label: "Individual", desc: "Personal wallet & transfers", icon: Users, color: "text-emerald-400" },
-  { type: "business", label: "Business / SME", desc: "Payroll, invoicing, bulk pay", icon: Building, color: "text-blue-400" },
-  { type: "government", label: "Government", desc: "Tax, payroll, sovereign ops", icon: Landmark, color: "text-amber-400" },
-  { type: "microfinance", label: "Microfinance", desc: "Loans, savings, agent banking", icon: PiggyBank, color: "text-violet-400" },
-  { type: "investment_fund", label: "Investment Fund", desc: "Portfolio, yields, PayRus Invest", icon: TrendingUp, color: "text-primary" },
-  { type: "ngo", label: "NGO", desc: "Donor collection, grants", icon: HandHeart, color: "text-rose-400" },
+  { type: "personal", label: "Personal", desc: "Personal wallet & transfers", icon: Users, color: "text-emerald-700" },
+  { type: "merchant", label: "Merchant", desc: "POS keypad, payment links, invoicing", icon: Building, color: "text-blue-700" },
+  { type: "agent", label: "Agent", desc: "Cash-in/out, float, agent network", icon: Wifi, color: "text-orange-700" },
+  { type: "treasury", label: "Treasury", desc: "Analytics, mandates, two-sig approvals", icon: TrendingUp, color: "text-primary" },
+  { type: "public_institution", label: "Public Institution", desc: "Tax, payroll, sovereign ops", icon: Landmark, color: "text-amber-700" },
+  { type: "ngo", label: "NGO / Civil Society", desc: "Donor collection, grants, payouts", icon: HandHeart, color: "text-rose-700" },
+  { type: "group", label: "Group", desc: "Group pot, member accounts", icon: PiggyBank, color: "text-violet-700" },
+  { type: "starter", label: "Starter", desc: "Quick setup, basic wallet", icon: Star, color: "text-cyan-700" },
 ];
 
 const DEMO_PAGES = [
@@ -231,7 +234,7 @@ function KpiCard({
         <div className="flex items-center justify-between mb-3">
           <span className="text-[10px] text-muted-foreground uppercase tracking-widest">{label}</span>
           <div className={cn("w-8 h-8 rounded-xl flex items-center justify-center", color.replace("from-", "bg-").split(" ")[0] + "/15")}>
-            <Icon size={15} className={color.includes("primary") ? "text-primary" : color.includes("accent") ? "text-accent" : color.includes("amber") ? "text-amber-400" : color.includes("violet") ? "text-violet-400" : "text-primary"} />
+            <Icon size={15} className={color.includes("primary") ? "text-primary" : color.includes("accent") ? "text-accent" : color.includes("amber") ? "text-amber-700" : color.includes("violet") ? "text-violet-700" : "text-primary"} />
           </div>
         </div>
         <div className="text-2xl font-black font-mono tracking-tight text-foreground">{value}</div>
@@ -256,7 +259,7 @@ export default function AdminDashboard() {
   const [txCount, setTxCount] = useState(2648);
   const [avgMargin, setAvgMargin] = useState(7.3);
   const [newTxId, setNewTxId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"overview" | "transactions" | "fx" | "corridors" | "pilot" | "demo">("pilot");
+  const [activeTab, setActiveTab] = useState<"overview" | "transactions" | "fx" | "corridors" | "pilot" | "demo" | "users">("users");
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const navigate = useNavigate();
   const { lng } = useParams<{ lng: string }>();
@@ -286,6 +289,7 @@ export default function AdminDashboard() {
   };
 
   const tabs = [
+    { id: "users", label: "Manage Profiles", icon: UserCog },
     { id: "pilot", label: "Pilot Countries", icon: Flag },
     { id: "demo", label: "Demo Access", icon: MonitorPlay },
     { id: "overview", label: "Overview", icon: BarChart3 },
@@ -315,7 +319,7 @@ export default function AdminDashboard() {
           </div>
           <button
             onClick={() => generateTechAnalysisPDF()}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-violet-500/10 border border-violet-500/25 text-[11px] font-semibold text-violet-400 cursor-pointer hover:bg-violet-500/15 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-violet-50 border border-violet-200 text-[11px] font-semibold text-violet-700 cursor-pointer hover:bg-violet-100 transition-colors"
           >
             <FileDown size={13} /> Tech Analysis PDF
           </button>
@@ -361,6 +365,13 @@ export default function AdminDashboard() {
       {/* Tab content */}
       <AnimatePresence mode="wait">
 
+        {/* ── MANAGE PROFILES ── */}
+        {activeTab === "users" && (
+          <motion.div key="users" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
+            <UsersPanel />
+          </motion.div>
+        )}
+
         {/* ── PILOT COUNTRIES ── */}
         {activeTab === "pilot" && (
           <motion.div key="pilot" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className="space-y-5">
@@ -377,7 +388,7 @@ export default function AdminDashboard() {
                 </div>
               </div>
               <div className="ml-auto shrink-0">
-                <span className="flex items-center gap-1.5 text-[10px] font-black bg-emerald-400/10 border border-emerald-400/30 text-emerald-400 px-3 py-1.5 rounded-full">
+                <span className="flex items-center gap-1.5 text-[10px] font-black bg-emerald-50 border border-emerald-200 text-emerald-700 px-3 py-1.5 rounded-full">
                   <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                   2 Countries Active
                 </span>
@@ -460,8 +471,8 @@ export default function AdminDashboard() {
         {activeTab === "demo" && (
           <motion.div key="demo" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className="space-y-5">
 
-            <div className="flex items-center gap-3 p-4 bg-amber-400/5 border border-amber-400/20 rounded-2xl">
-              <Star size={16} className="text-amber-400 shrink-0" />
+            <div className="flex items-center gap-3 p-4 bg-amber-50 border border-amber-200 rounded-2xl">
+              <Star size={16} className="text-amber-700 shrink-0" />
               <div className="text-xs text-muted-foreground leading-relaxed">
                 <span className="text-foreground font-semibold">System Administrator demo mode.</span> Switch to any profile to preview every feature exactly as an end user would see it. You will be redirected to that profile's dashboard.
               </div>
@@ -618,8 +629,8 @@ export default function AdminDashboard() {
                         <div className="flex items-center gap-1.5">
                           {tx.type === "remittance" && <ArrowUpRight size={11} className="text-primary shrink-0" />}
                           {tx.type === "p2p" && <Wifi size={11} className="text-accent shrink-0" />}
-                          {tx.type === "payment" && <DollarSign size={11} className="text-amber-400 shrink-0" />}
-                          {tx.type === "group" && <Users size={11} className="text-violet-400 shrink-0" />}
+                          {tx.type === "payment" && <DollarSign size={11} className="text-amber-700 shrink-0" />}
+                          {tx.type === "group" && <Users size={11} className="text-violet-700 shrink-0" />}
                           <span className="text-xs font-mono text-foreground font-semibold truncate">{tx.id}</span>
                         </div>
                         <div className="text-[10px] text-muted-foreground mt-0.5 truncate">{tx.from} → {tx.to}</div>
@@ -638,7 +649,7 @@ export default function AdminDashboard() {
                       </div>
                       {/* Margin */}
                       <div>
-                        <div className={cn("text-xs font-bold font-mono", tx.marginPct >= 8 ? "text-primary" : tx.marginPct >= 6 ? "text-amber-400" : "text-muted-foreground")}>
+                        <div className={cn("text-xs font-bold font-mono", tx.marginPct >= 8 ? "text-primary" : tx.marginPct >= 6 ? "text-amber-700" : "text-muted-foreground")}>
                           {tx.marginPct}%
                         </div>
                         <div className="text-[9px] text-muted-foreground">5–10% target</div>
@@ -779,7 +790,7 @@ export default function AdminDashboard() {
                         <div className="h-full bg-accent rounded-full" style={{ width: `${(c.volume / 284000) * 100}%` }} />
                       </div>
                     </div>
-                    <div className={cn("text-xs font-bold font-mono", c.margin >= 8.5 ? "text-primary" : c.margin >= 7 ? "text-amber-400" : "text-muted-foreground")}>
+                    <div className={cn("text-xs font-bold font-mono", c.margin >= 8.5 ? "text-primary" : c.margin >= 7 ? "text-amber-700" : "text-muted-foreground")}>
                       {c.margin}%
                       <div className="text-[9px] font-normal text-muted-foreground">of volume</div>
                     </div>

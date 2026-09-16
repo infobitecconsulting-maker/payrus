@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Outlet, NavLink, useLocation, useParams, Navigate, useNavigate } from "react-router-dom";
-import { LayoutDashboard, CreditCard, ArrowLeftRight, History, Wallet, Bell, Settings, Users, Send, Landmark, PresentationIcon, ShieldCheck, PlugZap, PiggyBank, Plane, Heart, HandHeart, TrendingUp, Gamepad2, Menu, LogOut, User, CircleDollarSign, ScanLine, Receipt, LifeBuoy, Store, Link2, BarChart3, Banknote } from "lucide-react";
+import { LayoutDashboard, CreditCard, ArrowLeftRight, History, Wallet, Bell, Settings, Users, Send, Landmark, PresentationIcon, ShieldCheck, PlugZap, PiggyBank, Plane, Heart, HandHeart, TrendingUp, Gamepad2, Menu, LogOut, LogIn, User, CircleDollarSign, ScanLine, Receipt, LifeBuoy, Store, Link2, BarChart3, Banknote, ShoppingBag } from "lucide-react";
 import { cn } from "@/lib/utils.ts";
 import { motion } from "motion/react";
 import { useTranslation } from "react-i18next";
@@ -8,17 +8,25 @@ import LocaleSwitcher from "@/components/ui/locale-switcher.tsx";
 import ProfileSwitcher from "@/components/ui/profile-switcher.tsx";
 import { useProfile } from "@/contexts/profile-context.tsx";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet.tsx";
-import { SignInButton } from "@/components/ui/signin.tsx";
-import { Authenticated, Unauthenticated } from "convex/react";
-import { useAuth } from "@/hooks/use-auth.ts";
-
-const PAYRUS_LOGO = "/payrus-logo.png";
+import { useCurrentAppUser } from "@/hooks/use-current-app-user.ts";
+import { clearLocalUserId } from "@/lib/local-user.ts";
 
 export function PayRusLogo({ className }: { className?: string }) {
   return (
     <img
-      src={PAYRUS_LOGO}
+      src="/payrus-logo-lockup.png"
       alt="PayRus — Payment Solutions & Services"
+      className={cn("object-contain select-none", className)}
+      draggable={false}
+    />
+  );
+}
+
+export function PayRusMark({ className }: { className?: string }) {
+  return (
+    <img
+      src="/payrus-icon.png"
+      alt=""
       className={cn("object-contain select-none", className)}
       draggable={false}
     />
@@ -29,25 +37,32 @@ export default function AppLayout() {
   const location = useLocation();
   const { lng } = useParams<{ lng: string }>();
   const { t } = useTranslation("common");
-  const { profile } = useProfile();
+  const { profile, clearProfile } = useProfile();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const currentUser = useCurrentAppUser();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const base = `/${lng ?? "en"}`;
+  // "Logged in" for navigation purposes means having an active profile.
+  const goHome = () => navigate(profile ? base : `${base}/signin`);
+  const handleLogout = () => {
+    clearProfile();
+    clearLocalUserId();
+    navigate(`${base}/welcome`);
+  };
 
-  // Guard: redirect to profile selection if no profile chosen
-  const publicPaths = ["/profile", "/investor", "/fundraise", "/savings", "/wallet", "/payments"];
+  // Guard: send anonymous/no-profile visitors to the welcome screen first
+  const publicPaths = ["/welcome", "/profile", "/investor", "/fundraise", "/savings", "/wallet", "/payments"];
   const isPublicPath = publicPaths.some(p => location.pathname.endsWith(p));
   const isAdmin = profile?.type === "admin";
   if (profile === null && !isPublicPath) {
-    return <Navigate to={`${base}/profile`} replace />;
+    return <Navigate to={`${base}/welcome`} replace />;
   }
 
   // Profile-based access logic
-  const isIndividual = profile?.type === "individual";
+  const isIndividual = profile?.type === "personal" || profile?.type === "starter";
   const isOrganisation = !isIndividual && profile !== null;
-  const isGovProfile = isAdmin || profile?.type === "government" || profile?.type === "state_entity";
-  const isFiProfile = isAdmin || ["business", "corporate", "pension_fund", "microfinance", "cooperative", "insurance", "investment_fund", "development_bank"].includes(profile?.type ?? "");
+  const isGovProfile = isAdmin || profile?.type === "public_institution";
+  const isFiProfile = isAdmin || ["merchant", "agent", "treasury"].includes(profile?.type ?? "");
 
   // Build navigation based on profile type
   const navItems = [
@@ -68,6 +83,7 @@ export default function AppLayout() {
       { to: `${base}/p2p`, icon: Send, label: t("nav.p2p") },
       { to: `${base}/games`, icon: Gamepad2, label: t("nav.games") },
       { to: `${base}/travel`, icon: Plane, label: t("nav.travel") },
+      { to: `${base}/shop`, icon: ShoppingBag, label: t("nav.shop") },
       { to: `${base}/fundraise`, icon: HandHeart, label: t("nav.fundraise") },
       { to: `${base}/invest`, icon: TrendingUp, label: t("nav.invest") },
     ] : []),
@@ -116,13 +132,17 @@ export default function AppLayout() {
   return (
     <div className="flex h-screen bg-background overflow-hidden">
       {/* Desktop sidebar */}
-      <aside className="hidden md:flex flex-col w-64 border-r border-border bg-sidebar shrink-0">
+      <aside className="hidden md:flex flex-col w-64 border-r border-border bg-[linear-gradient(180deg,#f7fafd_0%,#eef4f9_100%)] shadow-[inset_-1px_0_0_rgba(15,23,42,0.04)] shrink-0">
 
         {/* Logo section */}
-        <div className="px-4 py-4 border-b border-border">
-          <div className="flex items-center justify-center rounded-xl bg-white px-3 py-2.5 shadow-sm border border-border">
+        <div className="px-4 py-4 border-b border-border bg-[radial-gradient(circle_at_top,_rgba(10,47,92,0.04),transparent_60%)]">
+          <button
+            onClick={goHome}
+            className="flex items-center px-1 py-1 cursor-pointer hover:opacity-80 transition-opacity"
+            aria-label={t("nav.dashboard")}
+          >
             <PayRusLogo className="h-9 w-auto" />
-          </div>
+          </button>
 
           <div className="mt-3 grid grid-cols-2 gap-1.5">
             <div className="flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-50 dark:bg-amber-400/10 border border-amber-200 dark:border-amber-400/25">
@@ -141,7 +161,7 @@ export default function AppLayout() {
         </div>
 
         {/* Nav */}
-        <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
+        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
           {navItems.map((item) => {
             const active = isActive(item.to);
             const isHighlight = "highlight" in item && item.highlight === true;
@@ -149,14 +169,14 @@ export default function AppLayout() {
             return (
               <NavLink key={item.to} to={item.to} end={item.to === base}>
                 <div className={cn(
-                  "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all",
+                  "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200",
                   active
-                    ? "bg-primary/10 text-primary"
+                    ? "bg-[linear-gradient(135deg,rgba(10,47,92,0.10),rgba(14,127,176,0.06))] text-primary shadow-[inset_0_0_0_1px_rgba(10,47,92,0.08)]"
                     : isHighlight
                     ? "text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-400/10 border border-amber-200 dark:border-amber-400/20"
                     : isFiHighlight
                     ? "text-primary hover:bg-primary/5 border border-primary/20"
-                    : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+                    : "text-muted-foreground hover:text-foreground hover:bg-white/80"
                 )}>
                   <item.icon size={17} className={active ? "text-primary" : isHighlight ? "text-amber-600 dark:text-amber-400" : isFiHighlight ? "text-primary" : ""} />
                   {item.label}
@@ -168,7 +188,7 @@ export default function AppLayout() {
         </nav>
 
         {/* Bottom tools */}
-        <div className="px-3 pb-3 space-y-1 border-t border-border pt-3">
+        <div className="px-3 pb-3 space-y-1 border-t border-border pt-3 bg-[radial-gradient(circle_at_top,_rgba(14,127,176,0.03),transparent_55%)]">
           <button
             onClick={() => navigate(`${base}/notifications`)}
             className={cn(
@@ -197,18 +217,29 @@ export default function AppLayout() {
         {/* Profile switcher + auth */}
         <div className="px-3 py-3 border-t border-border space-y-2">
           <ProfileSwitcher />
-          <Authenticated>
+          {currentUser ? (
             <div className="flex items-center gap-2 px-2">
               <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center">
                 <User size={12} className="text-primary" />
               </div>
-              <span className="text-xs text-muted-foreground truncate flex-1">{user?.profile?.email ?? user?.profile?.name ?? ""}</span>
-              <SignInButton variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground" showIcon={true} signOutText="" />
+              <span className="text-xs text-muted-foreground truncate flex-1">{currentUser.email ?? currentUser.name ?? ""}</span>
+              <button
+                onClick={handleLogout}
+                aria-label={t("profile.logout")}
+                className="h-7 px-2 rounded-lg text-xs text-muted-foreground hover:text-foreground hover:bg-secondary flex items-center justify-center cursor-pointer transition-colors"
+              >
+                <LogOut size={14} />
+              </button>
             </div>
-          </Authenticated>
-          <Unauthenticated>
-            <SignInButton className="w-full h-9 text-sm" />
-          </Unauthenticated>
+          ) : (
+            <button
+              onClick={() => navigate(`${base}/signin`)}
+              className="w-full h-9 text-sm flex items-center justify-center gap-2 rounded-lg bg-primary text-primary-foreground font-medium cursor-pointer hover:opacity-90 transition-opacity"
+            >
+              <LogIn size={15} />
+              {t("signin.signIn")}
+            </button>
+          )}
         </div>
       </aside>
 
@@ -216,13 +247,15 @@ export default function AppLayout() {
       <div className="flex-1 flex flex-col min-h-0">
         {/* Mobile top bar */}
         <header className="flex md:hidden items-center justify-between px-4 py-3 border-b border-border bg-background shrink-0 safe-area-top">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center rounded-lg bg-white px-2 py-1 border border-border shadow-sm">
-              <PayRusLogo className="h-6 w-auto" />
-            </div>
-          </div>
+          <button
+            onClick={goHome}
+            className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity"
+            aria-label={t("nav.dashboard")}
+          >
+            <PayRusLogo className="h-6 w-auto" />
+          </button>
           <div className="flex items-center gap-2">
-            <Authenticated>
+            {currentUser && (
               <button
                 onClick={() => navigate(`${base}/notifications`)}
                 className="relative w-9 h-9 rounded-lg bg-secondary flex items-center justify-center cursor-pointer"
@@ -230,7 +263,7 @@ export default function AppLayout() {
                 <Bell size={16} className="text-foreground" />
                 <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-destructive rounded-full text-[9px] text-white font-bold flex items-center justify-center">3</span>
               </button>
-            </Authenticated>
+            )}
             <button
               onClick={() => setMobileMenuOpen(true)}
               className="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center cursor-pointer"
@@ -241,7 +274,7 @@ export default function AppLayout() {
         </header>
 
         {/* Desktop top bar */}
-        <header className="hidden md:flex items-center justify-between px-6 py-2.5 border-b border-border bg-background shrink-0">
+        <header className="hidden md:flex items-center justify-between px-6 py-2.5 border-b border-border bg-background/80 backdrop-blur-md shrink-0">
           <div className="flex items-center gap-3">
             <div className="text-sm text-muted-foreground">
               {new Date().toLocaleDateString(lng ?? "en", { weekday: "long", month: "long", day: "numeric" })}
@@ -274,16 +307,16 @@ export default function AppLayout() {
         </main>
 
         {/* Mobile bottom nav — 5 items only */}
-        <nav className="fixed bottom-0 left-0 right-0 flex justify-around border-t border-border bg-background/95 backdrop-blur-md md:hidden z-50 safe-area-bottom">
+        <nav className="fixed bottom-0 left-0 right-0 flex justify-around items-center gap-2 border-t border-border/80 bg-white/90 backdrop-blur-xl px-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2 md:hidden z-50 shadow-[0_-12px_30px_rgba(15,23,42,0.06)]">
           {mobileNavItems.map((item) => {
             const active = isActive(item.to);
             return (
               <NavLink key={item.to} to={item.to} end={item.to === base} className="flex-1">
                 <div className={cn(
-                  "flex flex-col items-center gap-0.5 py-2.5 text-[10px] font-medium transition-colors",
-                  active ? "text-primary" : "text-muted-foreground"
+                  "flex flex-col items-center justify-center gap-0.5 rounded-2xl px-1 py-1.5 text-[10px] font-medium transition-all duration-200",
+                  active ? "bg-primary/8 text-primary shadow-[inset_0_0_0_1px_rgba(10,47,92,0.08)]" : "text-muted-foreground"
                 )}>
-                  <item.icon size={20} />
+                  <item.icon size={18} className={active ? "text-primary" : "text-muted-foreground"} />
                   <span>{item.label}</span>
                 </div>
               </NavLink>
@@ -292,9 +325,9 @@ export default function AppLayout() {
           {/* More button to open full menu */}
           <button
             onClick={() => setMobileMenuOpen(true)}
-            className="flex-1 flex flex-col items-center gap-0.5 py-2.5 text-[10px] font-medium text-muted-foreground cursor-pointer"
+            className="flex-1 flex flex-col items-center justify-center gap-0.5 rounded-2xl px-1 py-1.5 text-[10px] font-medium text-muted-foreground cursor-pointer transition-all duration-200 hover:bg-secondary"
           >
-            <Menu size={20} />
+            <Menu size={18} />
             <span>{t("nav.more")}</span>
           </button>
         </nav>
@@ -310,31 +343,31 @@ export default function AppLayout() {
           </SheetHeader>
 
           {/* User/Auth section */}
-          <div className="px-4 py-3 border-b border-border">
-            <Authenticated>
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                  <User size={18} className="text-primary" />
+          <div className="px-4 py-3 border-b border-border space-y-2">
+            <ProfileSwitcher />
+            {currentUser ? (
+              <div className="flex items-center gap-2 px-2">
+                <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center">
+                  <User size={12} className="text-primary" />
                 </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-semibold text-foreground truncate">{user?.profile?.name ?? profile?.name ?? "User"}</div>
-                  <div className="text-xs text-muted-foreground truncate">{user?.profile?.email ?? ""}</div>
-                </div>
-              </div>
-              <div className="mt-3 flex gap-2">
+                <span className="text-xs text-muted-foreground truncate flex-1">{currentUser.email ?? currentUser.name ?? ""}</span>
                 <button
-                  onClick={() => { navigate(`${base}/profile`); setMobileMenuOpen(false); }}
-                  className="flex-1 h-8 rounded-lg bg-secondary text-xs font-medium text-foreground flex items-center justify-center gap-1.5 cursor-pointer"
+                  onClick={() => { handleLogout(); setMobileMenuOpen(false); }}
+                  className="h-7 px-2 rounded-lg text-xs text-muted-foreground hover:text-foreground hover:bg-secondary flex items-center gap-1 cursor-pointer transition-colors"
                 >
-                  <User size={13} />
-                  {t("profile.switchAccount")}
+                  <LogOut size={14} />
+                  {t("profile.logout")}
                 </button>
-                <SignInButton variant="ghost" size="sm" className="h-8 px-3 text-xs text-destructive" showIcon={true} signOutText={t("profile.logout")} signInText="" />
               </div>
-            </Authenticated>
-            <Unauthenticated>
-              <SignInButton className="w-full h-10 text-sm" />
-            </Unauthenticated>
+            ) : (
+              <button
+                onClick={() => { navigate(`${base}/signin`); setMobileMenuOpen(false); }}
+                className="w-full h-10 text-sm flex items-center justify-center gap-2 rounded-lg bg-primary text-primary-foreground font-medium cursor-pointer hover:opacity-90 transition-opacity"
+              >
+                <LogIn size={16} />
+                {t("signin.signIn")}
+              </button>
+            )}
           </div>
 
           {/* Navigation list */}

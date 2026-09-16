@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
+import { useMutation, useQuery } from "convex/react";
 import PageHeader from "@/components/ui/page-header.tsx";
 import {
   User, Shield, Bell, Globe, CreditCard, Smartphone, Key,
@@ -15,6 +16,9 @@ import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { changeLocale, setLocaleInPath, SUPPORTED_LOCALES, SUPPORTED_LOCALES_ARRAY, type SupportedLocale } from "@/i18n.ts";
+import { api } from "@/convex/_generated/api.js";
+import { getAnonId } from "@/lib/anon-id.ts";
+import AddPaymentMethodSheet, { PAYMENT_PROVIDERS, type LinkedMethodProvider } from "@/components/ui/add-payment-method-sheet.tsx";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type SettingsSection = "profile" | "security" | "notifications" | "appearance" | "payments" | "privacy" | "about";
@@ -174,7 +178,7 @@ function ProfileSection() {
       <div className="bg-card border border-border rounded-2xl overflow-hidden divide-y divide-border">
         <SettingRow icon={Shield} label={t("settings.profile.kyc")}
           description={t("settings.profile.kycStatus")}
-          right={<span className="text-[10px] font-bold text-emerald-400 bg-emerald-400/10 border border-emerald-400/20 px-2 py-0.5 rounded-full">{t("settings.status.verified")}</span>} />
+          right={<span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">{t("settings.status.verified")}</span>} />
         <SettingRow icon={Download} label={t("settings.profile.downloadStatement")}
           description={t("settings.profile.downloadStatementDesc")}
           onClick={() => toast.success(t("settings.profile.generatingStatement"))} />
@@ -268,7 +272,7 @@ function NotifSettingsSection() {
           right={<ToggleSwitch value={true} onChange={() => toast.success(t("settings.notif.soundsChanged"))} />} />
         <SettingRow icon={Smartphone} label={t("settings.notif.push")}
           description={t("settings.notif.pushDesc")}
-          right={<span className="text-[10px] font-bold text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded-full border border-emerald-400/20">{t("settings.status.active")}</span>} />
+          right={<span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">{t("settings.status.active")}</span>} />
       </div>
     </div>
   );
@@ -354,12 +358,22 @@ function PaymentsSection() {
   const { t } = useTranslation("common");
   const [autoConvert, setAutoConvert] = useState(true);
   const [saveCards, setSaveCards] = useState(true);
+  const [addMethodOpen, setAddMethodOpen] = useState(false);
+  const ownerKey = useState(getAnonId)[0];
+  const linkedMethods = useQuery(api.linkedPaymentMethods.list, { ownerKey });
+  const addLinkedMethodMutation = useMutation(api.linkedPaymentMethods.add);
+  const seedDefaults = useMutation(api.linkedPaymentMethods.seedDefaults);
 
-  const linkedMethods = [
-    { name: "Orange Money", number: "+243 81 ••• 5678", flag: "🟠", status: "active" },
-    { name: "MTN MoMo", number: "+243 89 ••• 1234", flag: "🟡", status: "active" },
-    { name: "Visa •••• 4821", number: "PayRus Prime Card", flag: "💳", status: "primary" },
-  ];
+  useEffect(() => {
+    if (linkedMethods?.length === 0) void seedDefaults({ ownerKey });
+  }, [linkedMethods, ownerKey, seedDefaults]);
+
+  const addLinkedMethod = (provider: LinkedMethodProvider) => {
+    const providerMeta = PAYMENT_PROVIDERS.find(p => p.id === provider)!;
+    const label = t(providerMeta.labelKey);
+    void addLinkedMethodMutation({ ownerKey, provider, label });
+    toast.success(t("settings.payments.methodLinkedToast", { name: label }));
+  };
 
   return (
     <div className="space-y-4">
@@ -367,23 +381,33 @@ function PaymentsSection() {
       <div>
         <div className="text-xs font-bold text-muted-foreground uppercase tracking-wide mb-2 px-1">{t("settings.payments.linkedMethods")}</div>
         <div className="bg-card border border-border rounded-2xl overflow-hidden divide-y divide-border">
-          {linkedMethods.map(acc => (
-            <div key={acc.name} className="flex items-center gap-3 px-4 py-3.5">
-              <span className="text-xl">{acc.flag}</span>
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium text-foreground">{acc.name}</div>
-                <div className="text-[11px] text-muted-foreground">{acc.number}</div>
-              </div>
-              <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full border",
-                acc.status === "primary" ? "text-primary bg-primary/10 border-primary/25" : "text-emerald-400 bg-emerald-400/10 border-emerald-400/25")}>
-                {acc.status === "primary" ? t("settings.status.primary") : t("settings.status.active")}
-              </span>
-            </div>
-          ))}
+          {linkedMethods === undefined ? (
+            <div className="py-6 text-center text-xs text-muted-foreground">{t("common.loading")}</div>
+          ) : (
+            linkedMethods.map(acc => {
+              const Icon = PAYMENT_PROVIDERS.find(p => p.id === acc.provider)?.icon ?? CreditCard;
+              return (
+                <div key={acc._id} className="flex items-center gap-3 px-4 py-3.5">
+                  <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center shrink-0">
+                    <Icon size={15} className="text-foreground" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium text-foreground">{acc.label}</div>
+                  </div>
+                  <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full border",
+                    acc.status === "primary" ? "text-primary bg-primary/10 border-primary/25" : "text-emerald-700 bg-emerald-50 border-emerald-200")}>
+                    {acc.status === "primary" ? t("settings.status.primary") : t("settings.status.active")}
+                  </span>
+                </div>
+              );
+            })
+          )}
           <SettingRow icon={CreditCard} label={t("settings.payments.addMethod")}
-            onClick={() => toast.success(t("settings.payments.addMethodToast"))} />
+            onClick={() => setAddMethodOpen(true)} />
         </div>
       </div>
+
+      <AddPaymentMethodSheet open={addMethodOpen} onOpenChange={setAddMethodOpen} onAdd={addLinkedMethod} />
 
       {/* Prefs */}
       <div className="bg-card border border-border rounded-2xl overflow-hidden divide-y divide-border">
@@ -434,7 +458,7 @@ function AboutSection() {
 
   const infoRows = [
     { label: t("settings.about.appVersion"), value: "2.1.4 (build 241101)" },
-    { label: t("settings.about.environment"), value: "Production · Hercules Cloud" },
+    { label: t("settings.about.environment"), value: "Production · PayRus Cloud" },
     { label: t("settings.about.region"), value: "Africa — af-central-1" },
     { label: t("settings.about.compliance"), value: "BCC · BEAC · BCEAO · ISO 27001" },
     { label: t("settings.about.encryption"), value: "TLS 1.3 · AES-256" },
@@ -443,9 +467,7 @@ function AboutSection() {
   return (
     <div className="space-y-4">
       <div className="flex flex-col items-center py-6 gap-3">
-        <div className="rounded-2xl bg-white px-6 py-3 shadow-md shadow-black/20">
-          <PayRusLogo className="h-12 w-auto" />
-        </div>
+        <PayRusLogo className="h-12 w-auto" />
         <div className="text-center">
           <div className="text-base font-black text-foreground">PayRus</div>
           <div className="text-xs text-muted-foreground">{t("settings.about.tagline")}</div>
@@ -479,10 +501,13 @@ function AboutSection() {
 
 export default function SettingsPage() {
   const { t } = useTranslation("common");
-  const [activeSection, setActiveSection] = useState<SettingsSection>("profile");
+  const location = useLocation();
+  const initialSection = (location.state as { section?: SettingsSection } | null)?.section;
+  const [activeSection, setActiveSection] = useState<SettingsSection>(initialSection ?? "profile");
   const { clearProfile } = useProfile();
   const navigate = useNavigate();
   const { lng } = useParams<{ lng: string }>();
+  const base = `/${lng ?? "en"}`;
 
   const SECTIONS: { id: SettingsSection; label: string; icon: React.ComponentType<{ size?: number; className?: string }>; description: string }[] = [
     { id: "profile", label: t("settings.section.profile.label"), icon: User, description: t("settings.section.profile.desc") },
@@ -496,7 +521,7 @@ export default function SettingsPage() {
 
   const handleLogout = () => {
     clearProfile();
-    navigate(`/${lng ?? "en"}/profile`);
+    navigate(`${base}/profile`);
     toast.success(t("settings.loggedOut"));
   };
 

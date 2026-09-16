@@ -125,7 +125,7 @@ function LottoSection({ gameBalance, onDeduct, onCredit }: {
   }
 
   const PRIZE_TABLE = [
-    { match: 6, prize: "Jackpot", amount: jackpot, color: "text-amber-400" },
+    { match: 6, prize: "Jackpot", amount: jackpot, color: "text-amber-700" },
     { match: 5, prize: "2nd Prize", amount: 500000, color: "text-primary" },
     { match: 4, prize: "3rd Prize", amount: 25000, color: "text-accent" },
     { match: 3, prize: "4th Prize", amount: 2000, color: "text-muted-foreground" },
@@ -134,8 +134,8 @@ function LottoSection({ gameBalance, onDeduct, onCredit }: {
   return (
     <div className="space-y-4">
       {/* Prize pool banner */}
-      <div className="bg-gradient-to-br from-amber-900/40 to-amber-700/10 border border-amber-400/20 rounded-2xl p-5 text-center space-y-1">
-        <div className="text-[11px] font-bold text-amber-400 uppercase tracking-widest">Current Jackpot</div>
+      <div className="bg-gradient-to-br from-amber-900/40 to-amber-700/10 border border-amber-200 rounded-2xl p-5 text-center space-y-1">
+        <div className="text-[11px] font-bold text-amber-700 uppercase tracking-widest">Current Jackpot</div>
         <div className="text-4xl font-black font-mono text-amber-300">{fmt(jackpot)}</div>
         <div className="text-xs text-muted-foreground">Prize pool: {fmt(prizePool)} · Next draw: {nextDraw}</div>
         <div className="flex items-center justify-center gap-3 mt-2 text-[11px] text-muted-foreground">
@@ -167,7 +167,7 @@ function LottoSection({ gameBalance, onDeduct, onCredit }: {
                   "aspect-square rounded-xl text-sm font-black transition-all cursor-pointer border",
                   isMatch ? "bg-primary text-primary-foreground border-primary shadow-lg shadow-primary/30 scale-110" :
                     isPicked ? "bg-primary/20 text-primary border-primary/50" :
-                      isResult ? "bg-amber-400/20 text-amber-300 border-amber-400/40" :
+                      isResult ? "bg-amber-50 text-amber-700 border-amber-200" :
                         "bg-secondary border-border text-muted-foreground hover:border-primary/30 hover:text-foreground"
                 )}
               >
@@ -201,7 +201,7 @@ function LottoSection({ gameBalance, onDeduct, onCredit }: {
                       transition={{ delay: i * 0.1, type: "spring" as const, stiffness: 260 }}
                       className={cn(
                         "w-10 h-10 rounded-full flex items-center justify-center text-sm font-black border",
-                        picked.includes(n) ? "bg-primary text-primary-foreground border-primary shadow-lg shadow-primary/30" : "bg-amber-400/20 text-amber-300 border-amber-400/40"
+                        picked.includes(n) ? "bg-primary text-primary-foreground border-primary shadow-lg shadow-primary/30" : "bg-amber-50 text-amber-700 border-amber-200"
                       )}>
                       {n}
                     </motion.div>
@@ -463,12 +463,12 @@ function ScratchSection({ gameBalance, onDeduct, onCredit }: {
   return (
     <div className="space-y-4">
       {/* Jackpot accumulator */}
-      <div className="bg-gradient-to-br from-violet-900/40 to-violet-700/10 border border-violet-400/20 rounded-2xl p-4 flex items-center gap-4">
-        <div className="w-12 h-12 rounded-2xl bg-violet-400/15 flex items-center justify-center shrink-0">
-          <Trophy size={22} className="text-violet-400" />
+      <div className="bg-gradient-to-br from-violet-900/40 to-violet-700/10 border border-violet-200 rounded-2xl p-4 flex items-center gap-4">
+        <div className="w-12 h-12 rounded-2xl bg-violet-50 flex items-center justify-center shrink-0">
+          <Trophy size={22} className="text-violet-700" />
         </div>
         <div>
-          <div className="text-[10px] font-bold text-violet-400 uppercase tracking-widest">Jackpot Accumulator</div>
+          <div className="text-[10px] font-bold text-violet-700 uppercase tracking-widest">Jackpot Accumulator</div>
           <div className="text-2xl font-black font-mono text-violet-300">{fmt(jackpotPot)}</div>
           <div className="text-[10px] text-muted-foreground">Grows with every card sold</div>
         </div>
@@ -518,7 +518,7 @@ function ScratchSection({ gameBalance, onDeduct, onCredit }: {
                     ? cell.prize > 0
                       ? "bg-primary/15 border-primary text-primary"
                       : "bg-secondary border-border text-muted-foreground"
-                    : "bg-gradient-to-br from-violet-800/40 to-violet-600/20 border-violet-500/40 hover:border-violet-400/60"
+                    : "bg-gradient-to-br from-violet-800/40 to-violet-600/20 border-violet-200 hover:border-violet-200"
                 )}
               >
                 {cell.revealed ? (
@@ -714,7 +714,7 @@ function ResponsibleGaming() {
       {/* Self-exclusion */}
       <div className="bg-card border border-border rounded-2xl p-4 space-y-3">
         <div className="flex items-center gap-2">
-          <Heart size={15} className="text-rose-400" />
+          <Heart size={15} className="text-rose-700" />
           <span className="font-bold text-sm">Self-Exclusion</span>
         </div>
         <p className="text-xs text-muted-foreground leading-relaxed">
@@ -755,8 +755,8 @@ function ResponsibleGaming() {
       </div>
 
       {/* Help */}
-      <div className="flex items-start gap-3 p-4 bg-amber-400/5 border border-amber-400/20 rounded-2xl">
-        <AlertTriangle size={15} className="text-amber-400 shrink-0 mt-0.5" />
+      <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-2xl">
+        <AlertTriangle size={15} className="text-amber-700 shrink-0 mt-0.5" />
         <div className="text-xs text-muted-foreground leading-relaxed">
           Need help? Contact PayRus support or call the <span className="text-foreground font-semibold">free problem gambling helpline: 800-JEU-AIDE</span> (available 24/7 in French, English, and Lingala).
         </div>

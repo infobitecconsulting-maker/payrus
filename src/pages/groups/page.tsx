@@ -38,91 +38,91 @@ const GROUP_ICONS: Record<GroupType, React.ComponentType<{ size?: number; classN
   vip: Crown,
 };
 
-const GROUP_LABELS: Record<GroupType, string> = {
-  employees: "Employés",
-  friends: "Amis",
-  volunteers: "Bénévoles",
-  officials: "Officiels",
-  private: "Privé",
-  vip: "VIP · Personnalités",
+const GROUP_LABEL_KEYS: Record<GroupType, string> = {
+  employees: "groups.type.employees",
+  friends: "groups.type.friends",
+  volunteers: "groups.type.volunteers",
+  officials: "groups.type.officials",
+  private: "groups.type.private",
+  vip: "groups.type.vip",
 };
 
 const GROUP_COLORS: Record<GroupType, string> = {
-  employees: "text-blue-400 bg-blue-400/10 border-blue-400/30",
-  friends: "text-pink-400 bg-pink-400/10 border-pink-400/30",
-  volunteers: "text-green-400 bg-green-400/10 border-green-400/30",
-  officials: "text-amber-400 bg-amber-400/10 border-amber-400/30",
-  private: "text-purple-400 bg-purple-400/10 border-purple-400/30",
-  vip: "text-yellow-400 bg-yellow-400/10 border-yellow-400/30",
+  employees: "text-blue-700 bg-blue-50 border-blue-200",
+  friends: "text-pink-700 bg-pink-50 border-pink-200",
+  volunteers: "text-green-700 bg-green-50 border-green-200",
+  officials: "text-amber-700 bg-amber-50 border-amber-200",
+  private: "text-purple-700 bg-purple-50 border-purple-200",
+  vip: "text-yellow-700 bg-yellow-50 border-yellow-200",
 };
 
-const PAYMENT_TYPES: { id: PaymentType; label: string; icon: React.ComponentType<{ size?: number }> }[] = [
-  { id: "salary", label: "Salaire", icon: Banknote },
-  { id: "bonus", label: "Prime / Bonus", icon: Star },
-  { id: "voucher", label: "Bon d'achat", icon: FileText },
-  { id: "gift", label: "Cadeau", icon: Gift },
-  { id: "allowance", label: "Allocation", icon: Shield },
-  { id: "incentive", label: "Incentive", icon: BadgeCheck },
+const PAYMENT_TYPES: { id: PaymentType; labelKey: string; icon: React.ComponentType<{ size?: number }> }[] = [
+  { id: "salary", labelKey: "groups.paymentType.salary", icon: Banknote },
+  { id: "bonus", labelKey: "groups.paymentType.bonus", icon: Star },
+  { id: "voucher", labelKey: "groups.paymentType.voucher", icon: FileText },
+  { id: "gift", labelKey: "groups.paymentType.gift", icon: Gift },
+  { id: "allowance", labelKey: "groups.paymentType.allowance", icon: Shield },
+  { id: "incentive", labelKey: "groups.paymentType.incentive", icon: BadgeCheck },
 ];
 
 const MOCK_GROUPS = [
   {
     id: "g1",
-    name: "Équipe Kinshasa",
+    name: "groups.group.kinshasaTeam",
     type: "employees" as GroupType,
     memberCount: 24,
     currency: "CDF",
-    lastPayment: "15 juil 2026",
+    lastPayment: "Jul 15, 2026",
   },
   {
     id: "g2",
-    name: "Conseil d'administration",
+    name: "groups.group.boardOfDirectors",
     type: "officials" as GroupType,
     memberCount: 7,
     currency: "USD",
-    lastPayment: "01 août 2026",
+    lastPayment: "Aug 1, 2026",
   },
   {
     id: "g3",
-    name: "Équipe commerciale",
+    name: "groups.group.salesTeam",
     type: "employees" as GroupType,
     memberCount: 12,
     currency: "XAF",
-    lastPayment: "15 juil 2026",
+    lastPayment: "Jul 15, 2026",
   },
   {
     id: "g4",
-    name: "Partenaires ONG",
+    name: "groups.group.ngoPartners",
     type: "volunteers" as GroupType,
     memberCount: 18,
     currency: "USD",
-    lastPayment: "01 juil 2026",
+    lastPayment: "Jul 1, 2026",
   },
   {
     id: "g5",
-    name: "Ambassadeurs VIP",
+    name: "groups.group.vipAmbassadors",
     type: "vip" as GroupType,
     memberCount: 5,
     currency: "EUR",
-    lastPayment: "10 août 2026",
+    lastPayment: "Aug 10, 2026",
   },
   {
     id: "g6",
-    name: "Famille & Proches",
+    name: "groups.group.familyAndFriends",
     type: "private" as GroupType,
     memberCount: 9,
     currency: "CDF",
-    lastPayment: "05 août 2026",
+    lastPayment: "Aug 5, 2026",
   },
 ];
 
 const MOCK_MEMBERS: GroupMember[] = [
-  { id: "m1", name: "Amara Koné", avatar: "AK", role: "Directeur RH", country: "RDC", flag: "🇨🇩", currency: "CDF", customAmount: 1500000, selected: true },
-  { id: "m2", name: "Jean Makoko", avatar: "JM", role: "Chef de projet", country: "Congo-B", flag: "🇨🇬", currency: "XAF", customAmount: 900000, selected: true },
-  { id: "m3", name: "Alice Umuhu", avatar: "AU", role: "Comptable", country: "Rwanda", flag: "🇷🇼", currency: "RWF", customAmount: 500000, selected: true },
-  { id: "m4", name: "Paulo Damba", avatar: "PD", role: "Technicien", country: "Angola", flag: "🇦🇴", currency: "AOA", customAmount: 400000, selected: false },
-  { id: "m5", name: "Fatou Diallo", avatar: "FD", role: "Commercial", country: "Sénégal", flag: "🇸🇳", currency: "XOF", customAmount: 600000, selected: true },
-  { id: "m6", name: "Chioma Obi", avatar: "CO", role: "Développeur", country: "Nigeria", flag: "🇳🇬", currency: "NGN", customAmount: 800000, selected: false },
+  { id: "m1", name: "Amara Koné", avatar: "AK", role: "groups.role.hrDirector", country: "p2p.country.cd", flag: "🇨🇩", currency: "CDF", customAmount: 1500000, selected: true },
+  { id: "m2", name: "Jean Makoko", avatar: "JM", role: "groups.role.projectManager", country: "p2p.country.cg", flag: "🇨🇬", currency: "XAF", customAmount: 900000, selected: true },
+  { id: "m3", name: "Alice Umuhu", avatar: "AU", role: "groups.role.accountant", country: "p2p.country.rw", flag: "🇷🇼", currency: "RWF", customAmount: 500000, selected: true },
+  { id: "m4", name: "Paulo Damba", avatar: "PD", role: "groups.role.technician", country: "p2p.country.ao", flag: "🇦🇴", currency: "AOA", customAmount: 400000, selected: false },
+  { id: "m5", name: "Fatou Diallo", avatar: "FD", role: "groups.role.salesRep", country: "p2p.country.sn", flag: "🇸🇳", currency: "XOF", customAmount: 600000, selected: true },
+  { id: "m6", name: "Chioma Obi", avatar: "CO", role: "groups.role.developer", country: "p2p.country.ng", flag: "🇳🇬", currency: "NGN", customAmount: 800000, selected: false },
 ];
 
 const AVATAR_COLORS: Record<string, string> = {
@@ -154,6 +154,8 @@ export default function GroupTransfers() {
   const totalAmount = selectedMembers.reduce((sum, m) => sum + (m.customAmount ?? (parseFloat(baseAmount) || 0)), 0);
   const payrusMargin = totalAmount * 0.075;
   const grandTotal = totalAmount + payrusMargin;
+  const paymentTypeObj = PAYMENT_TYPES.find(p => p.id === paymentType);
+  const paymentTypeLabel = paymentTypeObj ? t(paymentTypeObj.labelKey) : "—";
 
   function toggleMember(id: string) {
     setMembers(prev => prev.map(m => m.id === id ? { ...m, selected: !m.selected } : m));
@@ -165,7 +167,7 @@ export default function GroupTransfers() {
   }
 
   const filteredMembers = query.trim()
-    ? members.filter(m => m.name.toLowerCase().includes(query.toLowerCase()) || m.role.toLowerCase().includes(query.toLowerCase()))
+    ? members.filter(m => m.name.toLowerCase().includes(query.toLowerCase()) || t(m.role).toLowerCase().includes(query.toLowerCase()))
     : members;
 
   return (
@@ -174,15 +176,13 @@ export default function GroupTransfers() {
 
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
-        <div className="rounded-lg bg-white px-2 py-1 shadow-md shadow-black/30">
-          <PayRusLogo className="h-5 w-auto" />
-        </div>
+        <PayRusLogo className="h-5 w-auto" />
         <div>
           <h1 className="text-xl font-bold text-foreground">{t("groups.heading")}</h1>
           <p className="text-xs text-muted-foreground">{t("groups.subtitle")}</p>
         </div>
         <button
-          onClick={() => toast.info("Créer un groupe — bientôt disponible")}
+          onClick={() => toast.info(t("groups.createGroupSoonToast"))}
           className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary/10 border border-primary/30 text-primary text-xs font-semibold hover:bg-primary/20 transition-colors cursor-pointer"
         >
           <Plus size={13} /> {t("groups.newGroup")}
@@ -198,9 +198,9 @@ export default function GroupTransfers() {
             {/* Stats row */}
             <div className="grid grid-cols-3 gap-3 mb-5">
               {[
-                { label: t("groups.activeGroups"), value: "6", sub: "+2 ce mois" },
-                { label: t("groups.totalMembers"), value: "75", sub: "54 pays" },
-                { label: t("groups.lastSent"), value: "XAF 8.5M", sub: "15 juil" },
+                { label: t("groups.activeGroups"), value: "6", sub: t("groups.statActiveSub") },
+                { label: t("groups.totalMembers"), value: "75", sub: t("groups.statMembersSub") },
+                { label: t("groups.lastSent"), value: "XAF 8.5M", sub: t("groups.statLastSentSub") },
               ].map(s => (
                 <div key={s.label} className="rounded-xl bg-card border border-border p-3 text-center">
                   <div className="text-lg font-bold font-mono text-foreground">{s.value}</div>
@@ -225,20 +225,20 @@ export default function GroupTransfers() {
                     <div className="flex items-start justify-between mb-3">
                       <div className={cn("flex items-center gap-1.5 px-2 py-1 rounded-lg border text-xs font-semibold", colorClass)}>
                         <Icon size={12} />
-                        {GROUP_LABELS[group.type]}
+                        {t(GROUP_LABEL_KEYS[group.type])}
                       </div>
                       <ChevronRight size={14} className="text-muted-foreground group-hover:text-primary" />
                     </div>
-                    <div className="font-bold text-foreground mb-1">{group.name}</div>
+                    <div className="font-bold text-foreground mb-1">{t(group.name)}</div>
                     <div className="flex items-center justify-between text-xs text-muted-foreground">
                       <div className="flex items-center gap-1">
                         <Users size={11} />
-                        {group.memberCount} membres
+                        {t("groups.membersCount", { count: group.memberCount })}
                       </div>
                       <span>{group.currency}</span>
                     </div>
                     <div className="text-[10px] text-muted-foreground mt-1">
-                      Dernier paiement: {group.lastPayment}
+                      {t("groups.lastPaymentLabel", { date: group.lastPayment })}
                     </div>
                   </motion.button>
                 );
@@ -246,13 +246,13 @@ export default function GroupTransfers() {
 
               {/* Add group button */}
               <button
-                onClick={() => toast.info("Créer un groupe — bientôt disponible")}
+                onClick={() => toast.info(t("groups.createGroupSoonToast"))}
                 className="text-left p-4 rounded-2xl border-2 border-dashed border-border hover:border-primary/40 hover:bg-primary/5 transition-all cursor-pointer flex flex-col items-center justify-center gap-2 min-h-[120px]"
               >
                 <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center">
                   <Plus size={18} className="text-muted-foreground" />
                 </div>
-                <span className="text-xs font-medium text-muted-foreground text-center">Créer un nouveau groupe</span>
+                <span className="text-xs font-medium text-muted-foreground text-center">{t("groups.createNewGroup")}</span>
               </button>
             </div>
           </motion.div>
@@ -271,12 +271,12 @@ export default function GroupTransfers() {
                 {(() => { const Icon = GROUP_ICONS[selectedGroup.type]; return <Icon size={12} />; })()}
                 {selectedGroup.name}
               </div>
-              <span className="text-xs text-muted-foreground">{selectedGroup.memberCount} membres</span>
+              <span className="text-xs text-muted-foreground">{t("groups.membersCount", { count: selectedGroup.memberCount })}</span>
             </div>
 
             {/* Payment type */}
             <div>
-              <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Type de paiement</div>
+              <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">{t("groups.paymentTypeLabel")}</div>
               <div className="grid grid-cols-3 gap-2">
                 {PAYMENT_TYPES.map(pt => (
                   <button
@@ -288,7 +288,7 @@ export default function GroupTransfers() {
                     )}
                   >
                     <pt.icon size={15} />
-                    {pt.label}
+                    {t(pt.labelKey)}
                   </button>
                 ))}
               </div>
@@ -296,7 +296,7 @@ export default function GroupTransfers() {
 
             {/* Amount + currency */}
             <div className="rounded-2xl bg-card border border-border p-4 space-y-3">
-              <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Montant de base</div>
+              <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t("groups.baseAmount")}</div>
               <div className="flex gap-2">
                 <div className="relative">
                   <button
@@ -319,21 +319,21 @@ export default function GroupTransfers() {
                   type="number"
                   value={baseAmount}
                   onChange={e => setBaseAmount(e.target.value)}
-                  placeholder="Montant par défaut"
+                  placeholder={t("groups.baseAmountPlaceholder")}
                   className="flex-1 px-3 py-2.5 rounded-xl bg-secondary border border-border text-sm font-mono text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-primary/50"
                 />
               </div>
-              <p className="text-[10px] text-muted-foreground">Ce montant sera appliqué aux membres sans montant personnalisé.</p>
+              <p className="text-[10px] text-muted-foreground">{t("groups.baseAmountNote")}</p>
             </div>
 
             {/* Member list */}
             <div>
               <div className="flex items-center justify-between mb-2">
                 <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                  Destinataires ({selectedMembers.length} sélectionnés)
+                  {t("groups.recipientsSelected", { count: selectedMembers.length })}
                 </div>
                 <button onClick={() => setMembers(prev => prev.map(m => ({ ...m, selected: !selectedMembers.length || selectedMembers.length < members.length })))} className="text-[10px] text-primary cursor-pointer hover:underline">
-                  {selectedMembers.length === members.length ? "Tout désélectionner" : "Tout sélectionner"}
+                  {selectedMembers.length === members.length ? t("groups.deselectAll") : t("groups.selectAll")}
                 </button>
               </div>
 
@@ -344,7 +344,7 @@ export default function GroupTransfers() {
                   type="text"
                   value={query}
                   onChange={e => setQuery(e.target.value)}
-                  placeholder="Rechercher un membre…"
+                  placeholder={t("groups.searchMemberPlaceholder")}
                   className="w-full pl-8 pr-3 py-2 rounded-xl bg-secondary border border-border text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50"
                 />
               </div>
@@ -358,7 +358,7 @@ export default function GroupTransfers() {
                     <Avatar initials={m.avatar} size="sm" />
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-medium text-foreground truncate">{m.name}</div>
-                      <div className="text-[10px] text-muted-foreground">{m.role} · {m.flag} {m.country}</div>                    </div>
+                      <div className="text-[10px] text-muted-foreground">{t(m.role)} · {m.flag} {t(m.country)}</div>                    </div>
                     <div className="text-right shrink-0">
                       <div className="text-sm font-bold font-mono text-foreground">
                         {m.customAmount ? m.customAmount.toLocaleString() : (baseAmount || "—")}
@@ -374,16 +374,16 @@ export default function GroupTransfers() {
             {selectedMembers.length > 0 && (
               <div className="rounded-xl bg-primary/5 border border-primary/20 p-4 space-y-2">
                 {[
-                  ["Bénéficiaires", `${selectedMembers.length} membres`],
-                  ["Sous-total", `${currency} ${totalAmount.toLocaleString()}`],
-                  ["Frais PayRus (7.5%)", `${currency} ${payrusMargin.toLocaleString(undefined, { maximumFractionDigits: 0 })}`],
+                  [t("groups.beneficiaries"), t("groups.membersCount", { count: selectedMembers.length })],
+                  [t("groups.subtotal"), `${currency} ${totalAmount.toLocaleString()}`],
+                  [t("groups.fee"), `${currency} ${payrusMargin.toLocaleString(undefined, { maximumFractionDigits: 0 })}`],
                 ].map(([k, v]) => (
                   <div key={k} className="flex justify-between text-xs text-muted-foreground">
                     <span>{k}</span><span className="font-medium text-foreground">{v}</span>
                   </div>
                 ))}
                 <div className="flex justify-between text-sm font-bold pt-2 border-t border-primary/20">
-                  <span className="text-primary">Total à décaisser</span>
+                  <span className="text-primary">{t("groups.totalToDisburse")}</span>
                   <span className="text-primary">{currency} {grandTotal.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
                 </div>
               </div>
@@ -394,13 +394,13 @@ export default function GroupTransfers() {
               disabled={selectedMembers.length === 0}
               onClick={() => {
                 if (!baseAmount && selectedMembers.every(m => !m.customAmount)) {
-                  toast.error("Entrez un montant");
+                  toast.error(t("groups.enterAmountToast"));
                   return;
                 }
                 setActiveView("confirm");
               }}
             >
-              <Send size={15} /> Confirmer le paiement groupé
+              <Send size={15} /> {t("groups.confirmGroupPayment")}
             </Button>
           </motion.div>
         )}
@@ -413,17 +413,17 @@ export default function GroupTransfers() {
                 <div className="rounded-md bg-white px-2 py-0.5">
                   <PayRusLogo className="h-4 w-auto" />
                 </div>
-                <span className="font-bold text-foreground">Confirmation paiement groupé</span>
+                <span className="font-bold text-foreground">{t("groups.confirmGroupPaymentTitle")}</span>
               </div>
               <div className="p-5 space-y-3">
                 {[
-                  ["Groupe", selectedGroup.name],
-                  ["Type", PAYMENT_TYPES.find(p => p.id === paymentType)?.label ?? "—"],
-                  ["Bénéficiaires", `${selectedMembers.length} membres`],
-                  ["Devise", currency],
-                  ["Sous-total", `${currency} ${totalAmount.toLocaleString()}`],
-                  ["Frais PayRus (7.5%)", `${currency} ${payrusMargin.toLocaleString(undefined, { maximumFractionDigits: 0 })}`],
-                  ["Total décaissé", `${currency} ${grandTotal.toLocaleString(undefined, { maximumFractionDigits: 0 })}`],
+                  [t("groups.group"), selectedGroup.name],
+                  [t("groups.typeLabel"), paymentTypeLabel],
+                  [t("groups.beneficiaries"), t("groups.membersCount", { count: selectedMembers.length })],
+                  [t("groups.currency"), currency],
+                  [t("groups.subtotal"), `${currency} ${totalAmount.toLocaleString()}`],
+                  [t("groups.fee"), `${currency} ${payrusMargin.toLocaleString(undefined, { maximumFractionDigits: 0 })}`],
+                  [t("groups.totalDisbursed"), `${currency} ${grandTotal.toLocaleString(undefined, { maximumFractionDigits: 0 })}`],
                 ].map(([l, v]) => (
                   <div key={l} className="flex justify-between text-sm">
                     <span className="text-muted-foreground">{l}</span>
@@ -433,9 +433,9 @@ export default function GroupTransfers() {
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <Button variant="secondary" onClick={() => setActiveView("new-payment")} className="cursor-pointer">Modifier</Button>
-              <Button className="gap-2 font-bold cursor-pointer" onClick={() => { setActiveView("success"); toast.success("Paiement groupé envoyé !"); }}>
-                <CheckCircle size={15} /> Valider
+              <Button variant="secondary" onClick={() => setActiveView("new-payment")} className="cursor-pointer">{t("groups.editButton")}</Button>
+              <Button className="gap-2 font-bold cursor-pointer" onClick={() => { setActiveView("success"); toast.success(t("groups.groupPaymentSentToast")); }}>
+                <CheckCircle size={15} /> {t("groups.validate")}
               </Button>
             </div>
           </motion.div>
@@ -449,8 +449,8 @@ export default function GroupTransfers() {
                 <CheckCircle size={40} className="text-primary" />
               </motion.div>
               <div>
-                <div className="text-2xl font-bold text-foreground">Paiement groupé envoyé !</div>
-                <div className="text-sm text-muted-foreground mt-1">{selectedMembers.length} membres notifiés instantanément</div>
+                <div className="text-2xl font-bold text-foreground">{t("groups.groupPaymentSentToast")}</div>
+                <div className="text-sm text-muted-foreground mt-1">{t("groups.membersNotified", { count: selectedMembers.length })}</div>
               </div>
               <div className="rounded-md bg-white px-3 py-1.5 shadow-sm">
                 <PayRusLogo className="h-5 w-auto" />
@@ -458,7 +458,7 @@ export default function GroupTransfers() {
               <div className="font-mono text-xs text-muted-foreground">REF: GRP-{Date.now().toString(36).toUpperCase()}</div>
             </div>
             <Button className="w-full gap-2 cursor-pointer" onClick={() => { setActiveView("groups"); setSelectedGroup(null); setBaseAmount(""); }}>
-              <ArrowRight size={15} /> Retour aux groupes
+              <ArrowRight size={15} /> {t("groups.backToGroups")}
             </Button>
           </motion.div>
         )}

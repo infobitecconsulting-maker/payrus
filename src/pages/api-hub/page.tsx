@@ -131,15 +131,15 @@ const WEBHOOKS: WebhookEndpoint[] = [
 
 function StatusBadge({ status }: { status: NetworkStatus | ApiKeyStatus | WebhookStatus }) {
   const map: Record<string, { label: string; className: string; dot: string }> = {
-    connected: { label: "Connected", className: "bg-emerald-400/15 text-emerald-400 border-emerald-400/30", dot: "bg-emerald-400 animate-pulse" },
-    active:    { label: "Active",     className: "bg-emerald-400/15 text-emerald-400 border-emerald-400/30", dot: "bg-emerald-400 animate-pulse" },
-    pending:   { label: "Pending",    className: "bg-amber-400/15 text-amber-400 border-amber-400/30",       dot: "bg-amber-400" },
-    inactive:  { label: "Inactive",   className: "bg-zinc-500/15 text-zinc-400 border-zinc-500/30",          dot: "bg-zinc-500" },
-    error:     { label: "Error",      className: "bg-red-400/15 text-red-400 border-red-400/30",             dot: "bg-red-400 animate-pulse" },
-    expired:   { label: "Expired",    className: "bg-zinc-500/15 text-zinc-400 border-zinc-500/30",          dot: "bg-zinc-500" },
-    revoked:   { label: "Revoked",    className: "bg-red-400/15 text-red-400 border-red-400/30",             dot: "bg-red-400" },
-    failing:   { label: "Failing",    className: "bg-red-400/15 text-red-400 border-red-400/30",             dot: "bg-red-400 animate-pulse" },
-    paused:    { label: "Paused",     className: "bg-amber-400/15 text-amber-400 border-amber-400/30",       dot: "bg-amber-400" },
+    connected: { label: "Connected", className: "bg-emerald-50 text-emerald-700 border-emerald-200", dot: "bg-emerald-400 animate-pulse" },
+    active:    { label: "Active",     className: "bg-emerald-50 text-emerald-700 border-emerald-200", dot: "bg-emerald-400 animate-pulse" },
+    pending:   { label: "Pending",    className: "bg-amber-50 text-amber-700 border-amber-200",       dot: "bg-amber-400" },
+    inactive:  { label: "Inactive",   className: "bg-zinc-50 text-zinc-700 border-zinc-200",          dot: "bg-zinc-500" },
+    error:     { label: "Error",      className: "bg-red-50 text-red-700 border-red-200",             dot: "bg-red-400 animate-pulse" },
+    expired:   { label: "Expired",    className: "bg-zinc-50 text-zinc-700 border-zinc-200",          dot: "bg-zinc-500" },
+    revoked:   { label: "Revoked",    className: "bg-red-50 text-red-700 border-red-200",             dot: "bg-red-400" },
+    failing:   { label: "Failing",    className: "bg-red-50 text-red-700 border-red-200",             dot: "bg-red-400 animate-pulse" },
+    paused:    { label: "Paused",     className: "bg-amber-50 text-amber-700 border-amber-200",       dot: "bg-amber-400" },
   };
   const cfg = map[status] ?? map.inactive;
   return (
@@ -152,14 +152,14 @@ function StatusBadge({ status }: { status: NetworkStatus | ApiKeyStatus | Webhoo
 
 function MethodBadge({ method }: { method: string }) {
   const map: Record<string, string> = {
-    GET: "bg-blue-400/15 text-blue-400",
-    POST: "bg-emerald-400/15 text-emerald-400",
-    PUT: "bg-amber-400/15 text-amber-400",
-    DELETE: "bg-red-400/15 text-red-400",
-    PATCH: "bg-violet-400/15 text-violet-400",
+    GET: "bg-blue-50 text-blue-700",
+    POST: "bg-emerald-50 text-emerald-700",
+    PUT: "bg-amber-50 text-amber-700",
+    DELETE: "bg-red-50 text-red-700",
+    PATCH: "bg-violet-50 text-violet-700",
   };
   return (
-    <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded font-mono", map[method] ?? "bg-zinc-500/15 text-zinc-400")}>
+    <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded font-mono", map[method] ?? "bg-zinc-50 text-zinc-700")}>
       {method}
     </span>
   );
@@ -170,7 +170,7 @@ function MetricCard({ icon: Icon, label, value, sub, color = "text-primary" }: {
 }) {
   return (
     <div className="bg-secondary/50 rounded-xl border border-border p-4">
-      <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center mb-3", color === "text-primary" ? "bg-primary/10" : "bg-amber-400/10")}>
+      <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center mb-3", color === "text-primary" ? "bg-primary/10" : "bg-amber-50")}>
         <Icon size={16} className={color} />
       </div>
       <div className="text-xl font-bold text-foreground">{value}</div>
@@ -195,7 +195,7 @@ function NetworksTab() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <MetricCard icon={Network} label="Networks Connected" value={`${connected.length} / ${NETWORKS.length}`} sub="2 pending activation" />
         <MetricCard icon={Zap} label="Transactions Today" value={totalTx.toLocaleString()} sub="across all networks" />
-        <MetricCard icon={BarChart3} label="Volume Today (USD)" value={`$${(totalVol / 1_000_000).toFixed(1)}M`} sub="+12.4% vs yesterday" color="text-amber-400" />
+        <MetricCard icon={BarChart3} label="Volume Today (USD)" value={`$${(totalVol / 1_000_000).toFixed(1)}M`} sub="+12.4% vs yesterday" color="text-amber-700" />
         <MetricCard icon={Activity} label="Avg. Latency" value="89 ms" sub="P95: 210 ms" />
       </div>
 
@@ -270,7 +270,7 @@ function NetworksTab() {
                       <div className="text-[10px] text-muted-foreground">volume</div>
                     </div>
                     <div className="text-right">
-                      <div className="text-xs font-semibold text-emerald-400">{net.latency}ms</div>
+                      <div className="text-xs font-semibold text-emerald-700">{net.latency}ms</div>
                       <div className="text-[10px] text-muted-foreground">latency</div>
                     </div>
                   </>
@@ -320,7 +320,7 @@ function NetworksTab() {
                         </>
                       )}
                       {(net.status === "pending" || net.status === "inactive") && (
-                        <button onClick={() => toast.info(`Activation request submitted for ${net.name}. The integration team will contact you within 48h.`)} className="text-xs px-3 py-1.5 rounded-lg bg-amber-400/10 text-amber-400 hover:bg-amber-400/20 transition-colors border border-amber-400/30 cursor-pointer flex items-center gap-1.5">
+                        <button onClick={() => toast.info(`Activation request submitted for ${net.name}. The integration team will contact you within 48h.`)} className="text-xs px-3 py-1.5 rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors border border-amber-200 cursor-pointer flex items-center gap-1.5">
                           <PlugZap size={12} /> Request Activation
                         </button>
                       )}
@@ -362,7 +362,7 @@ function ApiCatalogTab() {
             <div className="text-xs text-muted-foreground">Base URL: <span className="font-mono text-primary">https://api.payrus.africa/v2</span></div>
           </div>
           <div className="ml-auto flex items-center gap-2">
-            <span className="text-[11px] bg-emerald-400/15 text-emerald-400 border border-emerald-400/30 rounded-full px-2.5 py-0.5 font-semibold">REST + Webhooks</span>
+            <span className="text-[11px] bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full px-2.5 py-0.5 font-semibold">REST + Webhooks</span>
             <button onClick={() => toast.info("OpenAPI spec download will be available shortly.")} className="text-xs px-3 py-1.5 rounded-lg bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 transition-colors cursor-pointer flex items-center gap-1.5">
               <Download size={12} /> OpenAPI Spec
             </button>
@@ -540,7 +540,7 @@ function ApiKeysTab() {
               </div>
               <div className="flex items-center gap-2">
                 {key.status === "active" && (
-                  <button onClick={() => toast.error(`Key "${key.name}" revoked. Systems using this key will be denied immediately.`)} className="text-xs px-2.5 py-1.5 rounded-lg bg-red-400/10 text-red-400 border border-red-400/20 hover:bg-red-400/15 cursor-pointer transition-colors flex items-center gap-1">
+                  <button onClick={() => toast.error(`Key "${key.name}" revoked. Systems using this key will be denied immediately.`)} className="text-xs px-2.5 py-1.5 rounded-lg bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 cursor-pointer transition-colors flex items-center gap-1">
                     <Trash2 size={11} /> Revoke
                   </button>
                 )}
@@ -561,10 +561,10 @@ function ApiKeysTab() {
       </div>
 
       {/* Security notice */}
-      <div className="flex gap-3 p-4 bg-amber-400/5 border border-amber-400/20 rounded-xl">
-        <Shield size={16} className="text-amber-400 shrink-0 mt-0.5" />
+      <div className="flex gap-3 p-4 bg-amber-50 border border-amber-200 rounded-xl">
+        <Shield size={16} className="text-amber-700 shrink-0 mt-0.5" />
         <div className="text-xs text-amber-300/80">
-          <strong className="text-amber-400">Security reminder:</strong> Store API keys in your system's secret manager (Vault, AWS Secrets Manager, etc.). Never embed keys in client-side code or version control. Rotate keys every 90 days. IP allowlisting is available in the API settings.
+          <strong className="text-amber-700">Security reminder:</strong> Store API keys in your system's secret manager (Vault, AWS Secrets Manager, etc.). Never embed keys in client-side code or version control. Rotate keys every 90 days. IP allowlisting is available in the API settings.
         </div>
       </div>
     </div>
@@ -650,13 +650,13 @@ function WebhooksTab() {
             </div>
 
             <div className="mt-3 flex items-center gap-4 text-[11px] text-muted-foreground">
-              <span>Success rate: <strong className={wh.successRate > 95 ? "text-emerald-400" : "text-red-400"}>{wh.successRate}%</strong></span>
+              <span>Success rate: <strong className={wh.successRate > 95 ? "text-emerald-700" : "text-red-700"}>{wh.successRate}%</strong></span>
               <span>{wh.deliveries.toLocaleString()} deliveries</span>
               <span>Last delivery {wh.lastDelivery}</span>
             </div>
 
             {wh.status === "failing" && (
-              <div className="mt-3 flex items-center gap-2 text-xs text-red-400 bg-red-400/10 rounded-lg px-3 py-2 border border-red-400/20">
+              <div className="mt-3 flex items-center gap-2 text-xs text-red-700 bg-red-50 rounded-lg px-3 py-2 border border-red-200">
                 <AlertCircle size={12} />
                 High failure rate detected. Verify your endpoint returns HTTP 200 within 5s.
               </div>
@@ -670,11 +670,11 @@ function WebhooksTab() {
                 <Activity size={11} /> Logs
               </button>
               {wh.status === "failing" && (
-                <button onClick={() => toast.info("Re-queuing failed deliveries…")} className="text-xs px-2.5 py-1.5 rounded-lg bg-amber-400/10 text-amber-400 border border-amber-400/30 hover:bg-amber-400/15 cursor-pointer transition-colors flex items-center gap-1">
+                <button onClick={() => toast.info("Re-queuing failed deliveries…")} className="text-xs px-2.5 py-1.5 rounded-lg bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 cursor-pointer transition-colors flex items-center gap-1">
                   <RefreshCw size={11} /> Retry Failed
                 </button>
               )}
-              <button onClick={() => toast.error("Webhook endpoint removed")} className="text-xs px-2.5 py-1.5 rounded-lg bg-secondary border border-border text-muted-foreground hover:text-red-400 cursor-pointer transition-colors ml-auto flex items-center gap-1">
+              <button onClick={() => toast.error("Webhook endpoint removed")} className="text-xs px-2.5 py-1.5 rounded-lg bg-secondary border border-border text-muted-foreground hover:text-red-700 cursor-pointer transition-colors ml-auto flex items-center gap-1">
                 <Trash2 size={11} />
               </button>
             </div>
@@ -711,8 +711,7 @@ function WebhooksTab() {
 // ── Main Page ──────────────────────────────────────────────────────────────────
 
 const FI_PROFILES = new Set([
-  "business", "corporate", "pension_fund", "microfinance",
-  "cooperative", "insurance", "investment_fund", "development_bank",
+  "merchant", "agent", "treasury", "admin",
 ]);
 
 export default function ApiHub() {
@@ -753,7 +752,7 @@ export default function ApiHub() {
             <p className="text-xs text-muted-foreground">{t("apiHub.subtitle")}</p>
           </div>
           <div className="ml-auto hidden md:flex items-center gap-2">
-            <span className="text-[11px] bg-emerald-400/15 text-emerald-400 border border-emerald-400/30 rounded-full px-2.5 py-1 font-semibold flex items-center gap-1.5">
+            <span className="text-[11px] bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full px-2.5 py-1 font-semibold flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
               {t("apiHub.liveStatus")}
             </span>

@@ -1,16 +1,21 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { motion, AnimatePresence } from "motion/react";
+import { useMutation, useQuery } from "convex/react";
+import { useCurrentAppUser } from "@/hooks/use-current-app-user.ts";
 import PageHeader from "@/components/ui/page-header.tsx";
 import {
   Eye, EyeOff, Lock, Unlock, Settings2, Plus, Wifi, Shield,
   Copy, RefreshCw, ArrowUpRight, ArrowDownLeft, ChevronRight,
-  Smartphone, Zap, Star, Globe, CreditCard, BadgeCheck
+  Nfc, Zap, Star, Globe, CreditCard, BadgeCheck
 } from "lucide-react";
 import { Button } from "@/components/ui/button.tsx";
 import { cn } from "@/lib/utils.ts";
 import { toast } from "sonner";
+import { api } from "@/convex/_generated/api.js";
+import { getAnonId } from "@/lib/anon-id.ts";
 import { PayRusLogo } from "@/pages/layout/AppLayout.tsx";
+import AddPaymentMethodSheet, { PAYMENT_PROVIDERS, type LinkedMethodProvider } from "@/components/ui/add-payment-method-sheet.tsx";
 
 /* ─── Card data ─────────────────────────────────────────── */
 const CARDS = [
@@ -279,40 +284,66 @@ export default function Cards() {
   const [showBalances, setShowBalances] = useState(true);
   const [activeCard, setActiveCard] = useState(0);
   const [activeTab, setActiveTab] = useState<"details" | "linked">("details");
+  const [addMethodOpen, setAddMethodOpen] = useState(false);
+  const ownerKey = useState(getAnonId)[0];
+  const linkedAccounts = useQuery(api.linkedPaymentMethods.list, { ownerKey });
+  const addLinkedMethod = useMutation(api.linkedPaymentMethods.add);
+  const seedDefaults = useMutation(api.linkedPaymentMethods.seedDefaults);
+
+  // Real per-user cards when signed in — falls back to the shared demo
+  // deck above for anonymous/no-account preview visitors.
+  const currentUser = useCurrentAppUser();
+  const realCards = useQuery(api.cards.listForUser, currentUser ? { userId: currentUser._id } : "skip");
 
   const card = cards[activeCard];
 
+  useEffect(() => {
+    if (linkedAccounts?.length === 0) void seedDefaults({ ownerKey });
+  }, [linkedAccounts, ownerKey, seedDefaults]);
+
+  useEffect(() => {
+    if (realCards && realCards.length > 0) {
+      setCards(realCards.map((c, i) => ({
+        id: i,
+        tier: c.tier, brand: c.brand, last4: c.last4, holder: c.holder, expiry: c.expiry,
+        cvv: "***", balance: c.balance, currency: c.currency, type: c.type, network: c.network,
+        contactless: c.contactless, gradient: c.gradient, shimmer: c.shimmer, accentColor: c.accentColor,
+        locked: c.locked, monthlySpend: c.monthlySpend, monthlyLimit: c.monthlyLimit,
+      })));
+      setActiveCard(0);
+    }
+  }, [realCards]);
+
+  const addLinkedAccount = (provider: LinkedMethodProvider) => {
+    const providerMeta = PAYMENT_PROVIDERS.find(p => p.id === provider)!;
+    const label = t(providerMeta.labelKey);
+    void addLinkedMethod({ ownerKey, provider, label });
+    toast.success(t("cards.toast.methodLinked", { name: label }));
+  };
+
   const toggleLock = () => {
     setCards(prev => prev.map(c => c.id === card.id ? { ...c, locked: !c.locked } : c));
-    toast.success(card.locked ? "Carte débloquée" : "Carte bloquée");
+    toast.success(card.locked ? t("cards.toast.unlocked") : t("cards.toast.locked"));
   };
 
   const copyNumber = () => {
     navigator.clipboard.writeText(`•••• •••• •••• ${card.last4}`).catch(() => {});
-    toast.success("Numéro copié !");
+    toast.success(t("cards.toast.numberCopied"));
   };
 
   const spendPct = Math.min(100, Math.round((card.monthlySpend / card.monthlyLimit) * 100));
 
-  const LINKED = [
-    { name: "PayRus Wallet (CDF)", type: "Wallet", balance: "CDF 7,303,000", icon: "🟢", limit: "$8,000" },
-    { name: "Rawbank Visa •• 4821", type: "Bank Card", balance: "$4,200", icon: "🏦", limit: "$5,000" },
-    { name: "Ecobank MC •• 9302", type: "Bank Card", balance: "$1,600", icon: "🏦", limit: "$2,000" },
-    { name: "Orange Money +243", type: "Mobile Money", balance: "XAF 48,200", icon: "🟠", limit: "$500" },
-    { name: "Bitcoin Wallet", type: "Crypto", balance: "0.021 BTC", icon: "₿", limit: "$800" },
-  ];
-
   const PERKS: Record<string, string[]> = {
-    Prime: ["1% cashback sur tous les achats", "2 retraits ATM gratuits/mois", "PayRus Miles sur vols", "Assurance voyage incluse"],
-    Platinum: ["2% cashback international", "Accès salon aéroport (LoungeKey)", "Concierge 24h/7j", "Protection achats 90 jours"],
-    Business: ["Gestion de dépenses équipe", "0.5% sur volumes > XAF 1M", "Rapports comptables auto", "Carte virtuelle illimitée"],
-    Diaspora: ["Transferts gratuits PayRus→PayRus", "Taux FX préférentiel", "Paiement en 3× sans frais", "Assurance santé déplacement"],
+    Prime: ["cards.perk.primeCashback", "cards.perk.primeAtm", "cards.perk.primeMiles", "cards.perk.primeTravelInsurance"],
+    Platinum: ["cards.perk.platinumCashback", "cards.perk.platinumLounge", "cards.perk.platinumConcierge", "cards.perk.platinumPurchaseProtection"],
+    Business: ["cards.perk.businessExpenseMgmt", "cards.perk.businessVolumeDiscount", "cards.perk.businessReports", "cards.perk.businessVirtualCard"],
+    Diaspora: ["cards.perk.diasporaFreeTransfers", "cards.perk.diasporaFxRate", "cards.perk.diasporaInstallments", "cards.perk.diasporaHealthInsurance"],
   };
 
   const cardPerks = PERKS[card.tier] ?? [];
 
   return (
-    <div className="p-4 md:p-6 max-w-3xl mx-auto">
+    <div className="p-4 md:p-6 max-w-4xl mx-auto">
       <PageHeader title={t("cards.title")} className="mb-4 md:mb-6" />
       {/* ── Header */}
       <div className="flex items-center justify-between mb-6">
@@ -336,7 +367,7 @@ export default function Cards() {
       </div>
 
       {/* ── Combined balance banner */}
-      <div className="mb-5 rounded-2xl bg-gradient-to-r from-primary/20 via-accent/10 to-primary/5 border border-primary/20 px-5 py-3 flex items-center justify-between">
+      <div className="mb-5 rounded-[24px] bg-[linear-gradient(135deg,rgba(10,47,92,0.10),rgba(14,127,176,0.08),rgba(10,47,92,0.04))] border border-primary/20 px-5 py-3 flex items-center justify-between shadow-[0_18px_30px_rgba(15,23,42,0.04)]">
         <div>
           <div className="text-[10px] text-muted-foreground uppercase tracking-widest flex items-center gap-1">
             <Zap size={10} className="text-primary" /> {t("cards.combinedBalance")}
@@ -345,7 +376,7 @@ export default function Cards() {
             {showBalances ? "$19,460.00" : "•••••••"}
           </div>
           <div className="text-[10px] text-muted-foreground mt-0.5">
-            {cards.length} sources actives · $18,500 limite totale
+            {t("cards.activeSourcesSummary", { count: cards.length })}
           </div>
         </div>
         <div className="flex -space-x-1">
@@ -364,13 +395,13 @@ export default function Cards() {
         ))}
         {/* Add card */}
         <button
-          onClick={() => toast.info("Émission de carte — bientôt disponible !")}
+          onClick={() => toast.info(t("cards.toast.issuanceSoon"))}
           className="shrink-0 w-40 h-48 rounded-2xl border-2 border-dashed border-border flex flex-col items-center justify-center gap-3 text-muted-foreground hover:border-primary/50 hover:text-primary transition-colors cursor-pointer snap-start"
         >
           <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center">
             <Plus size={20} />
           </div>
-          <span className="text-xs font-medium text-center px-2">Ajouter une carte</span>
+          <span className="text-xs font-medium text-center px-2">{t("cards.addCard")}</span>
         </button>
       </div>
 
@@ -382,20 +413,20 @@ export default function Cards() {
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -10 }}
           transition={{ duration: 0.2 }}
-          className="rounded-2xl bg-card border border-border overflow-hidden"
+          className="rounded-[26px] bg-card border border-border/80 overflow-hidden shadow-[0_18px_38px_rgba(15,23,42,0.04)]"
         >
           {/* Tabs */}
-          <div className="flex border-b border-border">
+          <div className="flex gap-2 border-b border-border bg-secondary/30 p-2">
             {(["details", "linked"] as const).map(tab => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
                 className={cn(
-                  "flex-1 py-3 text-xs font-semibold uppercase tracking-wider transition-colors cursor-pointer",
-                  activeTab === tab ? "text-primary border-b-2 border-primary bg-primary/5" : "text-muted-foreground hover:text-foreground"
+                  "flex-1 rounded-xl py-2.5 text-xs font-semibold uppercase tracking-wider transition-all cursor-pointer",
+                  activeTab === tab ? "text-primary bg-white shadow-sm border border-primary/10" : "text-muted-foreground hover:text-foreground"
                 )}
               >
-                {tab === "details" ? t("cards.tabDetails") : `${t("cards.tabLinked")} (${LINKED.length})`}
+                {tab === "details" ? t("cards.tabDetails") : `${t("cards.tabLinked")} (${linkedAccounts?.length ?? 0})`}
               </button>
             ))}
           </div>
@@ -412,7 +443,7 @@ export default function Cards() {
                 </div>
                 <div className="flex flex-col items-end gap-1">
                   <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", card.locked ? "bg-destructive/20 text-destructive" : "bg-primary/10 text-primary")}>
-                    {card.locked ? "Bloquée" : "Active"}
+                    {card.locked ? t("cards.locked") : t("cards.active")}
                   </span>
                   <span className="text-[10px] text-muted-foreground">{card.type}</span>
                 </div>
@@ -421,7 +452,7 @@ export default function Cards() {
               {/* Monthly spend bar */}
               <div>
                 <div className="flex justify-between text-xs text-muted-foreground mb-1.5">
-                  <span>Dépenses ce mois</span>
+                  <span>{t("cards.spentThisMonth")}</span>
                   <span>${card.monthlySpend} / ${card.monthlyLimit.toLocaleString()}</span>
                 </div>
                 <div className="h-1.5 rounded-full bg-secondary overflow-hidden">
@@ -432,16 +463,16 @@ export default function Cards() {
                     className={cn("h-full rounded-full", spendPct > 80 ? "bg-destructive" : "bg-primary")}
                   />
                 </div>
-                <div className="text-[10px] text-muted-foreground mt-1">{spendPct}% du plafond utilisé</div>
+                <div className="text-[10px] text-muted-foreground mt-1">{t("cards.pctLimitUsed", { pct: spendPct })}</div>
               </div>
 
               {/* Action buttons */}
               <div className="grid grid-cols-4 gap-2">
                 {[
-                  { label: "Bloquer", icon: card.locked ? Unlock : Lock, action: toggleLock, variant: card.locked ? "destructive" : "secondary" },
-                  { label: "Détails", icon: Eye, action: () => toast.info("Affichage sécurisé — bientôt"), variant: "secondary" },
-                  { label: "Copier", icon: Copy, action: copyNumber, variant: "secondary" },
-                  { label: "Régler", icon: Settings2, action: () => toast.info("Paramètres — bientôt"), variant: "secondary" },
+                  { label: card.locked ? t("cards.unlock") : t("cards.lock"), icon: card.locked ? Unlock : Lock, action: toggleLock, variant: card.locked ? "destructive" : "secondary" },
+                  { label: t("cards.details"), icon: Eye, action: () => toast.info(t("cards.toast.secureViewSoon")), variant: "secondary" },
+                  { label: t("cards.copy"), icon: Copy, action: copyNumber, variant: "secondary" },
+                  { label: t("cards.settings"), icon: Settings2, action: () => toast.info(t("cards.toast.settingsSoon")), variant: "secondary" },
                 ].map(({ label, icon: Icon, action, variant }) => (
                   <button
                     key={label}
@@ -459,24 +490,24 @@ export default function Cards() {
 
               {/* Quick actions */}
               <div className="grid grid-cols-2 gap-2">
-                <button onClick={() => toast.info("Envoyer — bientôt")} className="flex items-center gap-2 p-3 rounded-xl bg-secondary border border-border hover:bg-primary/10 transition-colors cursor-pointer text-sm font-medium">
-                  <ArrowUpRight size={16} className="text-primary" /> Envoyer de l'argent
+                <button onClick={() => toast.info(t("cards.toast.sendSoon"))} className="flex items-center gap-2 p-3 rounded-2xl bg-secondary border border-border hover:bg-primary/10 transition-colors cursor-pointer text-sm font-medium">
+                  <ArrowUpRight size={16} className="text-primary" /> {t("cards.sendMoney")}
                 </button>
-                <button onClick={() => toast.info("Recharger — bientôt")} className="flex items-center gap-2 p-3 rounded-xl bg-secondary border border-border hover:bg-primary/10 transition-colors cursor-pointer text-sm font-medium">
-                  <ArrowDownLeft size={16} className="text-accent" /> Recharger la carte
+                <button onClick={() => toast.info(t("cards.toast.topUpSoon"))} className="flex items-center gap-2 p-3 rounded-2xl bg-secondary border border-border hover:bg-primary/10 transition-colors cursor-pointer text-sm font-medium">
+                  <ArrowDownLeft size={16} className="text-accent" /> {t("cards.topUpCard")}
                 </button>
               </div>
 
               {/* Perks */}
               <div>
                 <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1">
-                  <Star size={11} className="text-primary" /> Avantages {card.tier}
+                  <Star size={11} className="text-primary" /> {t("cards.perksHeading", { tier: card.tier })}
                 </div>
                 <div className="grid grid-cols-1 gap-1.5">
                   {cardPerks.map(perk => (
                     <div key={perk} className="flex items-center gap-2 text-xs text-muted-foreground">
                       <BadgeCheck size={13} className="text-primary shrink-0" />
-                      {perk}
+                      {t(perk)}
                     </div>
                   ))}
                 </div>
@@ -486,8 +517,8 @@ export default function Cards() {
               <div className="flex items-start gap-3 p-3 rounded-xl border border-border bg-secondary/50">
                 <Shield size={15} className="text-primary shrink-0 mt-0.5" />
                 <p className="text-xs text-muted-foreground">
-                  <span className="text-foreground font-medium">Sécurité PayRus · </span>
-                  Cryptage 256-bit · 3DS2 activé · Visa/Mastercard Zero Liability · Alertes temps réel
+                  <span className="text-foreground font-medium">{t("cards.securedByPayRus")} · </span>
+                  {t("cards.securityFeatures")}
                 </p>
               </div>
             </div>
@@ -496,36 +527,49 @@ export default function Cards() {
           {activeTab === "linked" && (
             <div className="p-5 space-y-3">
               <p className="text-xs text-muted-foreground">
-                Tous ces comptes alimentent votre <span className="text-primary font-semibold">One Limit</span>.
-                La carte débite automatiquement la meilleure source disponible.
+                {t("cards.linkedIntroPrefix")} <span className="text-primary font-semibold">One Limit</span>.{" "}
+                {t("cards.linkedIntroSuffix")}
               </p>
-              {LINKED.map((acc) => (
-                <div key={acc.name} className="flex items-center gap-3 p-3 rounded-xl bg-secondary border border-border hover:bg-primary/5 transition-colors">
-                  <div className="w-9 h-9 rounded-full bg-card border border-border flex items-center justify-center text-sm shrink-0">{acc.icon}</div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium text-foreground truncate">{acc.name}</div>
-                    <div className="text-xs text-muted-foreground">{acc.type} · Solde: {acc.balance}</div>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <div className="text-xs text-muted-foreground">Plafond</div>
-                    <div className="text-sm font-semibold text-primary">{acc.limit}</div>
-                  </div>
-                  <ChevronRight size={14} className="text-muted-foreground shrink-0" />
-                </div>
-              ))}
+              {linkedAccounts === undefined ? (
+                <div className="py-6 text-center text-xs text-muted-foreground">{t("common.loading")}</div>
+              ) : (
+                linkedAccounts.map((acc) => {
+                  const Icon = PAYMENT_PROVIDERS.find(p => p.id === acc.provider)?.icon ?? CreditCard;
+                  return (
+                    <button
+                      key={acc._id}
+                      type="button"
+                      onClick={() => toast.info(t("cards.toast.accountDetailsSoon"))}
+                      className="w-full flex items-center gap-3 p-3 rounded-2xl bg-secondary border border-border hover:bg-primary/5 transition-colors cursor-pointer text-left"
+                    >
+                      <div className="w-9 h-9 rounded-full bg-card border border-border flex items-center justify-center shrink-0">
+                        <Icon size={16} className="text-foreground" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium text-foreground truncate">{acc.label}</div>
+                      </div>
+                      <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0",
+                        acc.status === "primary" ? "text-primary bg-primary/10 border-primary/25" : "text-emerald-700 bg-emerald-50 border-emerald-200")}>
+                        {acc.status === "primary" ? t("settings.status.primary") : t("settings.status.active")}
+                      </span>
+                      <ChevronRight size={14} className="text-muted-foreground shrink-0" />
+                    </button>
+                  );
+                })
+              )}
               <button
-                onClick={() => toast.info("Lier un compte — bientôt disponible")}
-                className="w-full py-3 rounded-xl border-2 border-dashed border-border text-xs font-medium text-muted-foreground hover:border-primary/50 hover:text-primary transition-colors cursor-pointer flex items-center justify-center gap-2"
+                onClick={() => setAddMethodOpen(true)}
+                className="w-full py-3 rounded-2xl border-2 border-dashed border-border text-xs font-medium text-muted-foreground hover:border-primary/50 hover:text-primary transition-colors cursor-pointer flex items-center justify-center gap-2"
               >
-                <Plus size={14} /> Lier un nouveau compte
+                <Plus size={14} /> {t("cards.linkNewAccount")}
               </button>
 
               {/* Global acceptance */}
               <div className="flex items-start gap-3 p-3 rounded-xl border border-border bg-secondary/50 mt-2">
                 <Globe size={14} className="text-accent shrink-0 mt-0.5" />
                 <p className="text-xs text-muted-foreground">
-                  <span className="text-foreground font-medium">Acceptée dans 180+ pays · </span>
-                  Visa &amp; Mastercard réseau mondial · Compatible Apple Pay · Google Pay · Samsung Pay
+                  <span className="text-foreground font-medium">{t("cards.globalAcceptanceTitle")} · </span>
+                  {t("cards.globalAcceptanceDetails")}
                 </p>
               </div>
             </div>
@@ -540,15 +584,20 @@ export default function Cards() {
           <div className="h-4 w-px bg-border" />
           <MastercardLogo className="h-6 w-auto opacity-80" />
         </div>
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <Smartphone size={12} />
-          <span>NFC · Apple Pay · Google Pay</span>
-        </div>
+        <button
+          onClick={() => setAddMethodOpen(true)}
+          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors cursor-pointer"
+        >
+          <Nfc size={12} />
+          <span>{t("cards.networkStripAcceptance")}</span>
+        </button>
         <div className="flex items-center gap-1 text-xs text-muted-foreground">
           <CreditCard size={12} className="text-primary" />
-          <span className="text-primary font-medium">54 pays africains</span>
+          <span className="text-primary font-medium">{t("cards.networkStripCountries")}</span>
         </div>
       </div>
+
+      <AddPaymentMethodSheet open={addMethodOpen} onOpenChange={setAddMethodOpen} onAdd={addLinkedAccount} />
     </div>
   );
 }

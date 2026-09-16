@@ -75,34 +75,34 @@ const DIASPORA_HUBS: {
   africans: string; primaryOrigin: string; annualFlow: string; role: string;
   color: string;
 }[] = [
-  { flag: "🇦🇪", city: "Dubai / Abu Dhabi", country: "UAE", region: "Gulf", africans: "850K+", primaryOrigin: "EAC · Horn · CEMAC", annualFlow: "$9.2B", role: "Top remittance origin for East Africa, DRC, Ethiopia, and CEMAC. African traders (textiles, electronics, gold) use Dubai as a transit clearing hub. PayRus UAE wallet enables multi-currency settlement.", color: "text-amber-400 bg-amber-400/10 border-amber-400/25" },
-  { flag: "🇨🇳", city: "Guangzhou / Yiwu", country: "China", region: "Asia", africans: "500K+", primaryOrigin: "West Africa · DRC · CEMAC", annualFlow: "$4.1B", role: "Africa's largest import sourcing corridor. Guangzhou hosts 200K+ African traders at any time. Yiwu wholesale market. PayRus China wallet settles XAF, CDF, NGN trade payments with Yuan.", color: "text-red-400 bg-red-400/10 border-red-400/25" },
-  { flag: "🇫🇷", city: "Paris / Lyon", country: "France", region: "Europe", africans: "1.8M+", primaryOrigin: "CEMAC · Maghreb · WAEMU", annualFlow: "$7.8B", role: "PayRus primary Western diaspora market. Largest CEMAC diaspora outside Africa. Paris–Bangui and Paris–Brazzaville are founding corridors. French regulatory framework under ACPR.", color: "text-blue-400 bg-blue-400/10 border-blue-400/25" },
-  { flag: "🇧🇪", city: "Brussels / Liège", country: "Belgium", region: "Europe", africans: "450K+", primaryOrigin: "DRC · Congo-B · Rwanda", annualFlow: "$2.2B", role: "Largest DRC diaspora in Europe. Brussels–Kinshasa is the world's highest-value Central Africa corridor. Key Phase 2 DRC launch partner city.", color: "text-yellow-400 bg-yellow-400/10 border-yellow-400/25" },
-  { flag: "🇬🇧", city: "London", country: "UK", region: "Europe", africans: "750K+", primaryOrigin: "Nigeria · Ghana · Kenya · Somalia", annualFlow: "$5.6B", role: "West Africa and EAC diaspora capital. London–Lagos and London–Nairobi are highest-volume English-speaking corridors. Financial services regulatory model.", color: "text-indigo-400 bg-indigo-400/10 border-indigo-400/25" },
-  { flag: "🇺🇸", city: "New York / DC / Houston", country: "USA", region: "Americas", africans: "2.0M+", primaryOrigin: "Nigeria · Ethiopia · Ghana · Cameroon", annualFlow: "$12.4B", role: "Largest diaspora remittance origin globally for Sub-Saharan Africa. Nigerian-American, Ethiopian, and Cameroonian communities are high-frequency senders. PayRus USD wallet cross-rail settlement.", color: "text-cyan-400 bg-cyan-400/10 border-cyan-400/25" },
-  { flag: "🇸🇦", city: "Riyadh / Jeddah", country: "Saudi Arabia", region: "Gulf", africans: "600K+", primaryOrigin: "Ethiopia · EAC · CEMAC", annualFlow: "$5.1B", role: "Second Gulf hub. Ethiopian and East African domestic workers dominant. Hajj/Umrah travel corridor drives seasonal spikes. Riyal–ETB/KES settlements are high frequency.", color: "text-green-400 bg-green-400/10 border-green-400/25" },
+  { flag: "🇦🇪", city: "Dubai / Abu Dhabi", country: "UAE", region: "Gulf", africans: "850K+", primaryOrigin: "EAC · Horn · CEMAC", annualFlow: "$9.2B", role: "Top remittance origin for East Africa, DRC, Ethiopia, and CEMAC. African traders (textiles, electronics, gold) use Dubai as a transit clearing hub. PayRus UAE wallet enables multi-currency settlement.", color: "text-amber-700 bg-amber-50 border-amber-200" },
+  { flag: "🇨🇳", city: "Guangzhou / Yiwu", country: "China", region: "Asia", africans: "500K+", primaryOrigin: "West Africa · DRC · CEMAC", annualFlow: "$4.1B", role: "Africa's largest import sourcing corridor. Guangzhou hosts 200K+ African traders at any time. Yiwu wholesale market. PayRus China wallet settles XAF, CDF, NGN trade payments with Yuan.", color: "text-red-700 bg-red-50 border-red-200" },
+  { flag: "🇫🇷", city: "Paris / Lyon", country: "France", region: "Europe", africans: "1.8M+", primaryOrigin: "CEMAC · Maghreb · WAEMU", annualFlow: "$7.8B", role: "PayRus primary Western diaspora market. Largest CEMAC diaspora outside Africa. Paris–Bangui and Paris–Brazzaville are founding corridors. French regulatory framework under ACPR.", color: "text-blue-700 bg-blue-50 border-blue-200" },
+  { flag: "🇧🇪", city: "Brussels / Liège", country: "Belgium", region: "Europe", africans: "450K+", primaryOrigin: "DRC · Congo-B · Rwanda", annualFlow: "$2.2B", role: "Largest DRC diaspora in Europe. Brussels–Kinshasa is the world's highest-value Central Africa corridor. Key Phase 2 DRC launch partner city.", color: "text-yellow-700 bg-yellow-50 border-yellow-200" },
+  { flag: "🇬🇧", city: "London", country: "UK", region: "Europe", africans: "750K+", primaryOrigin: "Nigeria · Ghana · Kenya · Somalia", annualFlow: "$5.6B", role: "West Africa and EAC diaspora capital. London–Lagos and London–Nairobi are highest-volume English-speaking corridors. Financial services regulatory model.", color: "text-indigo-700 bg-indigo-50 border-indigo-200" },
+  { flag: "🇺🇸", city: "New York / DC / Houston", country: "USA", region: "Americas", africans: "2.0M+", primaryOrigin: "Nigeria · Ethiopia · Ghana · Cameroon", annualFlow: "$12.4B", role: "Largest diaspora remittance origin globally for Sub-Saharan Africa. Nigerian-American, Ethiopian, and Cameroonian communities are high-frequency senders. PayRus USD wallet cross-rail settlement.", color: "text-cyan-700 bg-cyan-50 border-cyan-200" },
+  { flag: "🇸🇦", city: "Riyadh / Jeddah", country: "Saudi Arabia", region: "Gulf", africans: "600K+", primaryOrigin: "Ethiopia · EAC · CEMAC", annualFlow: "$5.1B", role: "Second Gulf hub. Ethiopian and East African domestic workers dominant. Hajj/Umrah travel corridor drives seasonal spikes. Riyal–ETB/KES settlements are high frequency.", color: "text-green-700 bg-green-50 border-green-200" },
   { flag: "🇪🇹", city: "Addis Ababa", country: "Ethiopia", region: "Africa Hub", africans: "AU Member", primaryOrigin: "Transit hub — all Africa", annualFlow: "Transit", role: "African Union HQ and Ethiopia Airlines global hub. Addis is the #1 African transit city — 80% of intercontinental African travellers connect here. Critical PayRus Travel & Business corridor node.", color: "text-primary bg-primary/10 border-primary/25" },
-  { flag: "🇵🇹", city: "Lisbon / Porto", country: "Portugal", region: "Europe", africans: "700K+", primaryOrigin: "Angola · Mozambique · Cape Verde · São Tomé", annualFlow: "$2.8B", role: "Lusophone Africa gateway. Largest Angolan and Mozambican diaspora in Europe. Portugal–Luanda corridor is PayRus Phase 2 Portuguese-language expansion entry point.", color: "text-rose-400 bg-rose-400/10 border-rose-400/25" },
-  { flag: "🇩🇪", city: "Berlin / Frankfurt", country: "Germany", region: "Europe", africans: "350K+", primaryOrigin: "Cameroon · Nigeria · Namibia", annualFlow: "$1.6B", role: "Growing CEMAC and SADC diaspora. Cameroon–Germany corridor fuelled by students and medical professionals. Frankfurt as European financial hub for PayRus EUR liquidity.", color: "text-gray-300 bg-gray-400/10 border-gray-400/25" },
-  { flag: "🇮🇳", city: "Mumbai / Delhi", country: "India", region: "Asia", africans: "40K biz travelers", primaryOrigin: "Trade — East + West Africa", annualFlow: "$1.2B", role: "Africa–India trade finance growing 18% YoY. Indian businesses investing in East Africa and CEMAC. Mumbai–Nairobi B2B corridor for goods and services.", color: "text-orange-400 bg-orange-400/10 border-orange-400/25" },
-  { flag: "🇹🇷", city: "Istanbul", country: "Turkey", region: "Eurasia", africans: "120K+ travelers", primaryOrigin: "Nigeria · Ethiopia · CEMAC", annualFlow: "$1.8B", role: "Africa–Turkey trade accelerating. Turkish Airlines serves 60+ African cities. Istanbul is growing as a transit and trade hub competing with Dubai for African business traffic.", color: "text-teal-400 bg-teal-400/10 border-teal-400/25" },
+  { flag: "🇵🇹", city: "Lisbon / Porto", country: "Portugal", region: "Europe", africans: "700K+", primaryOrigin: "Angola · Mozambique · Cape Verde · São Tomé", annualFlow: "$2.8B", role: "Lusophone Africa gateway. Largest Angolan and Mozambican diaspora in Europe. Portugal–Luanda corridor is PayRus Phase 2 Portuguese-language expansion entry point.", color: "text-rose-700 bg-rose-50 border-rose-200" },
+  { flag: "🇩🇪", city: "Berlin / Frankfurt", country: "Germany", region: "Europe", africans: "350K+", primaryOrigin: "Cameroon · Nigeria · Namibia", annualFlow: "$1.6B", role: "Growing CEMAC and SADC diaspora. Cameroon–Germany corridor fuelled by students and medical professionals. Frankfurt as European financial hub for PayRus EUR liquidity.", color: "text-gray-700 bg-gray-50 border-gray-200" },
+  { flag: "🇮🇳", city: "Mumbai / Delhi", country: "India", region: "Asia", africans: "40K biz travelers", primaryOrigin: "Trade — East + West Africa", annualFlow: "$1.2B", role: "Africa–India trade finance growing 18% YoY. Indian businesses investing in East Africa and CEMAC. Mumbai–Nairobi B2B corridor for goods and services.", color: "text-orange-700 bg-orange-50 border-orange-200" },
+  { flag: "🇹🇷", city: "Istanbul", country: "Turkey", region: "Eurasia", africans: "120K+ travelers", primaryOrigin: "Nigeria · Ethiopia · CEMAC", annualFlow: "$1.8B", role: "Africa–Turkey trade accelerating. Turkish Airlines serves 60+ African cities. Istanbul is growing as a transit and trade hub competing with Dubai for African business traffic.", color: "text-teal-700 bg-teal-50 border-teal-200" },
 ];
 
 const REGIONAL_ORGS = [
-  { name: "ECOWAS", members: 15, gdp: "$822B", currency: "ECO (2027)", role: "West Africa single market & monetary union", color: "text-emerald-400 bg-emerald-400/10 border-emerald-400/20" },
-  { name: "CEMAC", members: 6, gdp: "$103B", currency: "XAF (CFA)", role: "PayRus Home Zone — founded in CAR & Congo-Brazzaville. All 6 CEMAC member states live. Central Africa CFA monetary union.", color: "text-amber-400 bg-amber-400/10 border-amber-400/20" },
-  { name: "EAC", members: 7, gdp: "$312B", currency: "EAC Shilling (plan)", role: "East Africa customs & payments union", color: "text-blue-400 bg-blue-400/10 border-blue-400/20" },
-  { name: "SADC", members: 16, gdp: "$680B", currency: "Multi-currency", role: "Southern Africa development community", color: "text-violet-400 bg-violet-400/10 border-violet-400/20" },
-  { name: "AU / AfCFTA", members: 55, gdp: "$3.1T", currency: "Pan-African PAS", role: "Continental free trade — largest single market by nations", color: "text-rose-400 bg-rose-400/10 border-rose-400/20" },
-  { name: "BCEAO", members: 8, gdp: "$173B", currency: "XOF (CFA)", role: "West Africa CFA central bank — WAEMU zone regulator", color: "text-cyan-400 bg-cyan-400/10 border-cyan-400/20" },
+  { name: "ECOWAS", members: 15, gdp: "$822B", currency: "ECO (2027)", role: "West Africa single market & monetary union", color: "text-emerald-700 bg-emerald-50 border-emerald-200" },
+  { name: "CEMAC", members: 6, gdp: "$103B", currency: "XAF (CFA)", role: "PayRus Home Zone — founded in CAR & Congo-Brazzaville. All 6 CEMAC member states live. Central Africa CFA monetary union.", color: "text-amber-700 bg-amber-50 border-amber-200" },
+  { name: "EAC", members: 7, gdp: "$312B", currency: "EAC Shilling (plan)", role: "East Africa customs & payments union", color: "text-blue-700 bg-blue-50 border-blue-200" },
+  { name: "SADC", members: 16, gdp: "$680B", currency: "Multi-currency", role: "Southern Africa development community", color: "text-violet-700 bg-violet-50 border-violet-200" },
+  { name: "AU / AfCFTA", members: 55, gdp: "$3.1T", currency: "Pan-African PAS", role: "Continental free trade — largest single market by nations", color: "text-rose-700 bg-rose-50 border-rose-200" },
+  { name: "BCEAO", members: 8, gdp: "$173B", currency: "XOF (CFA)", role: "West Africa CFA central bank — WAEMU zone regulator", color: "text-cyan-700 bg-cyan-50 border-cyan-200" },
 ];
 
 const INVESTMENT_TIERS = [
   { tier: "Seed Partner", min: "$250K", max: "$1M", equity: "0.5–2%", perks: ["Early API access", "Logo on platform", "Advisory seat"], color: "border-muted-foreground/30" },
   { tier: "Strategic Investor", min: "$1M", max: "$5M", equity: "2–6%", perks: ["White-label product", "Priority corridor allocation", "Board observer"], color: "border-primary/50" },
   { tier: "Anchor Partner", min: "$5M", max: "$25M", equity: "6–15%", perks: ["Co-brand in 3 countries", "Revenue share", "Board seat"], color: "border-accent/50" },
-  { tier: "Sovereign Fund", min: "$25M+", max: "Open", equity: "Negotiated", perks: ["National partnership MOU", "Regulatory fast-track", "XAF liquidity pool co-governance"], color: "border-amber-400/60" },
+  { tier: "Sovereign Fund", min: "$25M+", max: "Open", equity: "Negotiated", perks: ["National partnership MOU", "Regulatory fast-track", "XAF liquidity pool co-governance"], color: "border-amber-200" },
 ];
 
 const PROJECTIONS = [
@@ -167,8 +167,8 @@ function SectionHeader({ eyebrow, title, sub }: { eyebrow: string; title: string
 }
 
 function CountryCard({ c, i }: { c: typeof COUNTRIES[number]; i: number }) {
-  const borderColor = c.status === "active" ? "border-primary/30" : c.status === "pipeline" ? "border-accent/25" : c.status === "phase3" ? "border-blue-400/25" : "border-border/60";
-  const badgeColor = c.status === "active" ? "bg-primary/15 border-primary/30 text-primary" : c.status === "pipeline" ? "bg-accent/15 border-accent/30 text-accent-foreground" : c.status === "phase3" ? "bg-blue-400/10 border-blue-400/30 text-blue-400" : "bg-muted/50 border-border text-muted-foreground";
+  const borderColor = c.status === "active" ? "border-primary/30" : c.status === "pipeline" ? "border-accent/25" : c.status === "phase3" ? "border-blue-200" : "border-border/60";
+  const badgeColor = c.status === "active" ? "bg-primary/15 border-primary/30 text-primary" : c.status === "pipeline" ? "bg-accent/15 border-accent/30 text-accent-foreground" : c.status === "phase3" ? "bg-blue-50 border-blue-200 text-blue-700" : "bg-muted/50 border-border text-muted-foreground";
   const badgeLabel = c.status === "active" ? "● LIVE" : c.status === "pipeline" ? "◐ PHASE 2" : c.status === "phase3" ? "◑ PHASE 3" : "○ PHASE 4";
   return (
     <motion.div
@@ -189,7 +189,7 @@ function CountryCard({ c, i }: { c: typeof COUNTRIES[number]; i: number }) {
         <div className="flex flex-col items-end gap-1 shrink-0">
           <span className={cn("text-[9px] font-black px-2 py-0.5 rounded-full border", badgeColor)}>{badgeLabel}</span>
           {c.founding && (
-            <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-amber-400/15 border border-amber-400/40 text-amber-400">★ FOUNDING</span>
+            <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-700">★ FOUNDING</span>
           )}
         </div>
       </div>
@@ -250,7 +250,7 @@ export default function InvestorDeck() {
           transition={{ duration: 0.7, ease: "easeOut" as const }}
           className="relative z-10 max-w-4xl"
         >
-          <div className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-amber-400 bg-amber-400/10 border border-amber-400/25 px-4 py-1.5 rounded-full mb-6">
+          <div className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-amber-700 bg-amber-50 border border-amber-200 px-4 py-1.5 rounded-full mb-6">
             <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
             {t("investor.badge")}
           </div>
@@ -265,18 +265,18 @@ export default function InvestorDeck() {
 
           {/* Founding markets badge */}
           <div className="flex flex-wrap items-center justify-center gap-3 mb-6">
-            <div className="flex items-center gap-2 bg-amber-400/10 border border-amber-400/30 rounded-xl px-4 py-2">
+            <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2">
               <span className="text-xl">🇨🇫</span>
               <div className="text-left">
-                <div className="text-[10px] font-black text-amber-400 uppercase tracking-wider">{t("investor.foundingMarket")}</div>
+                <div className="text-[10px] font-black text-amber-700 uppercase tracking-wider">{t("investor.foundingMarket")}</div>
                 <div className="text-xs font-bold text-foreground">Central African Republic</div>
               </div>
             </div>
             <div className="w-4 h-px bg-amber-400/40 hidden md:block" />
-            <div className="flex items-center gap-2 bg-amber-400/10 border border-amber-400/30 rounded-xl px-4 py-2">
+            <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2">
               <span className="text-xl">🇨🇬</span>
               <div className="text-left">
-                <div className="text-[10px] font-black text-amber-400 uppercase tracking-wider">{t("investor.coFoundingMarket")}</div>
+                <div className="text-[10px] font-black text-amber-700 uppercase tracking-wider">{t("investor.coFoundingMarket")}</div>
                 <div className="text-xs font-bold text-foreground">Congo-Brazzaville</div>
               </div>
             </div>
@@ -383,7 +383,7 @@ export default function InvestorDeck() {
           {[
             { label: "Phase 1 — CEMAC (All 6 XAF Live)", color: "bg-primary/15 border-primary/40 text-primary" },
             { label: "Phase 2 — Angola · Namibia · DRC · WAEMU · ECOWAS (2026–27)", color: "bg-accent/15 border-accent/30 text-accent-foreground" },
-            { label: "Phase 3 — Full EAC Bloc + Horn of Africa (2027–28)", color: "bg-blue-400/10 border-blue-400/30 text-blue-400" },
+            { label: "Phase 3 — Full EAC Bloc + Horn of Africa (2027–28)", color: "bg-blue-50 border-blue-200 text-blue-700" },
             { label: "Phase 4 — North Africa · SADC · Egypt (2028+)", color: "bg-muted/60 border-border text-muted-foreground" },
           ].map(s => (
             <span key={s.label} className={cn("text-[10px] font-bold px-3 py-1 rounded-full border", s.color)}>{s.label}</span>
@@ -421,7 +421,7 @@ export default function InvestorDeck() {
         {/* Phase 3 */}
         <div className="mb-6">
           <div className="flex items-center gap-2 mb-4">
-            <span className="text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full bg-blue-400/10 border border-blue-400/30 text-blue-400">Phase 3 — Full EAC Bloc + Horn (2027–28)</span>
+            <span className="text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-700">Phase 3 — Full EAC Bloc + Horn (2027–28)</span>
             <div className="flex-1 h-px bg-blue-400/20" />
             <span className="text-[10px] text-muted-foreground font-mono">8 countries · KES · TZS · UGX · RWF · BIF · ETB · SSP · DJF</span>
           </div>
@@ -596,7 +596,7 @@ export default function InvestorDeck() {
                   <td className="py-2.5 px-3 font-mono text-muted-foreground">{p.users}</td>
                   <td className="py-2.5 px-3 font-mono font-bold text-foreground">{p.tpv}</td>
                   <td className="py-2.5 px-3 font-mono text-primary font-bold">{p.revenue}</td>
-                  <td className={cn("py-2.5 px-3 font-mono font-bold", p.ebitda.startsWith("-") ? "text-destructive" : "text-emerald-400")}>{p.ebitda}</td>
+                  <td className={cn("py-2.5 px-3 font-mono font-bold", p.ebitda.startsWith("-") ? "text-destructive" : "text-emerald-700")}>{p.ebitda}</td>
                 </tr>
               ))}
             </tbody>
@@ -674,9 +674,9 @@ export default function InvestorDeck() {
           </div>
 
           {/* Banking partners */}
-          <div className="bg-card border border-amber-400/25 rounded-2xl p-5">
+          <div className="bg-card border border-amber-200 rounded-2xl p-5">
             <div className="flex items-center gap-2 mb-4">
-              <Building2 size={18} className="text-amber-400" />
+              <Building2 size={18} className="text-amber-700" />
               <h3 className="font-black text-sm">Banking Partners</h3>
             </div>
             <ul className="space-y-2.5">
@@ -689,7 +689,7 @@ export default function InvestorDeck() {
                 "Revenue share on corridor transaction volume from Day 1",
               ].map((pt, i) => (
                 <li key={i} className="flex items-start gap-2 text-[11px] text-muted-foreground">
-                  <CheckCircle size={12} className="text-amber-400 mt-0.5 shrink-0" />
+                  <CheckCircle size={12} className="text-amber-700 mt-0.5 shrink-0" />
                   {pt}
                 </li>
               ))}

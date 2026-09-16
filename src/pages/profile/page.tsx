@@ -1,172 +1,175 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { useConvexAuth, useMutation, useQuery } from "convex/react";
+import { useConvex, useMutation, useQuery } from "convex/react";
+import { useCurrentAppUser } from "@/hooks/use-current-app-user.ts";
 import {
-  User, Briefcase, Building2, Heart, Landmark, Shield,
-  ChevronRight, CheckCircle2, ArrowLeft, Sparkles,
-  PiggyBank, Coins, HandshakeIcon, Umbrella, TrendingUp, Banknote,
-  Phone, Upload, ScanFace, IdCard, RotateCw,
+  ChevronRight, CheckCircle2, ArrowLeft, Shield,
+  Phone, Upload, ScanFace, IdCard, RotateCw, FileText, Building2, UserCheck,
 } from "lucide-react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils.ts";
 import { api } from "@/convex/_generated/api.js";
+import type { Id } from "@/convex/_generated/dataModel.js";
 import { Button } from "@/components/ui/button.tsx";
 import { Input } from "@/components/ui/input.tsx";
 import { Label } from "@/components/ui/label.tsx";
 import { Progress } from "@/components/ui/progress.tsx";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp.tsx";
 import { useProfile, type ProfileType, getDefaultProfile } from "@/contexts/profile-context.tsx";
+import { applyRealName } from "@/lib/post-auth-routing.ts";
+
+const ORGANISATION_ROLES: ProfileType[] = ["merchant", "agent", "treasury", "public_institution", "ngo", "group", "admin"];
+
+/* ─── Role icons (traced from the PayRus mobile artefact's icon sprite) ──── */
+type IconProps = { size?: number; className?: string };
+const iconBase = { viewBox: "0 0 256 256", fill: "none" as const };
+
+const IconWallet = ({ size = 26, className }: IconProps) => (
+  <svg {...iconBase} width={size} height={size} className={className}>
+    <rect x="24" y="64" width="208" height="128" rx="16" fill="currentColor" opacity=".25" />
+    <rect x="24" y="64" width="208" height="128" rx="16" fill="none" stroke="currentColor" strokeWidth="16" strokeLinejoin="round" />
+    <circle cx="188" cy="128" r="12" fill="currentColor" />
+  </svg>
+);
+const IconCard = ({ size = 26, className }: IconProps) => (
+  <svg {...iconBase} width={size} height={size} className={className}>
+    <rect x="24" y="56" width="208" height="144" rx="16" fill="currentColor" opacity=".25" />
+    <rect x="24" y="56" width="208" height="144" rx="16" fill="none" stroke="currentColor" strokeWidth="16" strokeLinejoin="round" />
+    <line x1="24" y1="100" x2="232" y2="100" stroke="currentColor" strokeWidth="16" />
+    <rect x="160" y="148" width="44" height="18" rx="4" fill="currentColor" />
+  </svg>
+);
+const IconPayout = ({ size = 26, className }: IconProps) => (
+  <svg {...iconBase} width={size} height={size} className={className}>
+    <rect x="24" y="72" width="208" height="112" rx="12" fill="currentColor" opacity=".25" />
+    <rect x="24" y="72" width="208" height="112" rx="12" fill="none" stroke="currentColor" strokeWidth="16" strokeLinejoin="round" />
+    <circle cx="128" cy="128" r="28" fill="none" stroke="currentColor" strokeWidth="16" />
+  </svg>
+);
+const IconChart = ({ size = 26, className }: IconProps) => (
+  <svg {...iconBase} width={size} height={size} className={className}>
+    <g fill="currentColor" opacity=".25">
+      <rect x="56" y="144" width="40" height="64" /><rect x="108" y="96" width="40" height="112" /><rect x="160" y="56" width="40" height="152" />
+    </g>
+    <g fill="none" stroke="currentColor" strokeWidth="16" strokeLinejoin="round" strokeLinecap="round">
+      <rect x="56" y="144" width="40" height="64" /><rect x="108" y="96" width="40" height="112" /><rect x="160" y="56" width="40" height="152" />
+    </g>
+  </svg>
+);
+const IconShield = ({ size = 26, className }: IconProps) => (
+  <svg {...iconBase} width={size} height={size} className={className}>
+    <path d="M128 24 216 56 V132 C216 190 128 232 128 232 S40 190 40 132 V56 Z" fill="currentColor" opacity=".25" />
+    <path d="M128 24 216 56 V132 C216 190 128 232 128 232 S40 190 40 132 V56 Z" fill="none" stroke="currentColor" strokeWidth="16" strokeLinecap="round" strokeLinejoin="round" />
+    <polyline points="96 124 120 148 164 100" fill="none" stroke="currentColor" strokeWidth="16" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+const IconRequest = ({ size = 26, className }: IconProps) => (
+  <svg {...iconBase} width={size} height={size} className={className}>
+    <circle cx="128" cy="128" r="96" fill="currentColor" opacity=".25" />
+    <line x1="184" y1="72" x2="72" y2="184" stroke="currentColor" strokeWidth="16" strokeLinecap="round" strokeLinejoin="round" />
+    <polyline points="136 184 72 184 72 120" fill="none" stroke="currentColor" strokeWidth="16" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+const IconDots = ({ size = 26, className }: IconProps) => (
+  <svg {...iconBase} width={size} height={size} className={className}>
+    <circle cx="128" cy="128" r="96" fill="currentColor" opacity=".25" />
+    <circle cx="64" cy="128" r="16" fill="currentColor" /><circle cx="128" cy="128" r="16" fill="currentColor" /><circle cx="192" cy="128" r="16" fill="currentColor" />
+  </svg>
+);
+const IconQuestion = ({ size = 26, className }: IconProps) => (
+  <svg {...iconBase} width={size} height={size} className={className}>
+    <circle cx="128" cy="128" r="96" fill="currentColor" opacity=".25" />
+    <circle cx="128" cy="128" r="96" fill="none" stroke="currentColor" strokeWidth="16" strokeLinecap="round" />
+    <line x1="128" y1="120" x2="128" y2="176" stroke="currentColor" strokeWidth="16" strokeLinecap="round" />
+    <circle cx="128" cy="86" r="11" fill="currentColor" />
+  </svg>
+);
 
 /* ─── Config ─────────────────────────────────────────────── */
 interface ProfileTypeConfig {
   id: ProfileType;
-  icon: React.ComponentType<{ size?: number; className?: string }>;
-  colorClass: string;
-  badgeClass: string;
+  icon: React.ComponentType<IconProps>;
   features: string[];
 }
 
-type Category = {
-  key: string;
-  profiles: ProfileTypeConfig[];
-};
-
-const CATEGORIES: Category[] = [
-  {
-    key: "personal",
-    profiles: [
-      {
-        id: "individual",
-        icon: User,
-        colorClass: "from-emerald-500/20 to-emerald-600/5 border-emerald-500/30 text-emerald-400",
-        badgeClass: "bg-emerald-500/10 text-emerald-400 border-emerald-500/30",
-        features: ["profile.feat.personal_wallet", "profile.feat.mobile_money", "profile.feat.remittance", "profile.feat.fx_converter"],
-      },
-      {
-        id: "business",
-        icon: Briefcase,
-        colorClass: "from-blue-500/20 to-blue-600/5 border-blue-500/30 text-blue-400",
-        badgeClass: "bg-blue-500/10 text-blue-400 border-blue-500/30",
-        features: ["profile.feat.multi_user", "profile.feat.invoicing", "profile.feat.payroll", "profile.feat.bulk_payments"],
-      },
-      {
-        id: "corporate",
-        icon: Building2,
-        colorClass: "from-violet-500/20 to-violet-600/5 border-violet-500/30 text-violet-400",
-        badgeClass: "bg-violet-500/10 text-violet-400 border-violet-500/30",
-        features: ["profile.feat.treasury", "profile.feat.api_access", "profile.feat.multi_currency", "profile.feat.dedicated_manager"],
-      },
-      {
-        id: "ngo",
-        icon: Heart,
-        colorClass: "from-rose-500/20 to-rose-600/5 border-rose-500/30 text-rose-400",
-        badgeClass: "bg-rose-500/10 text-rose-400 border-rose-500/30",
-        features: ["profile.feat.donor_payments", "profile.feat.grant_tracking", "profile.feat.zero_fees", "profile.feat.ngo_reporting"],
-      },
-    ],
-  },
-  {
-    key: "financial",
-    profiles: [
-      {
-        id: "pension_fund",
-        icon: PiggyBank,
-        colorClass: "from-teal-500/20 to-teal-600/5 border-teal-500/30 text-teal-400",
-        badgeClass: "bg-teal-500/10 text-teal-400 border-teal-500/30",
-        features: ["profile.feat.pension_accounts", "profile.feat.contributor_mgmt", "profile.feat.annuity_payments", "profile.feat.actuarial_reports"],
-      },
-      {
-        id: "microfinance",
-        icon: Coins,
-        colorClass: "from-orange-500/20 to-orange-600/5 border-orange-500/30 text-orange-400",
-        badgeClass: "bg-orange-500/10 text-orange-400 border-orange-500/30",
-        features: ["profile.feat.microloan_mgmt", "profile.feat.group_savings", "profile.feat.agent_network", "profile.feat.mfi_reporting"],
-      },
-      {
-        id: "cooperative",
-        icon: HandshakeIcon,
-        colorClass: "from-lime-500/20 to-lime-600/5 border-lime-500/30 text-lime-400",
-        badgeClass: "bg-lime-500/10 text-lime-400 border-lime-500/30",
-        features: ["profile.feat.member_accounts", "profile.feat.savings_loans", "profile.feat.dividend_payments", "profile.feat.sacco_governance"],
-      },
-      {
-        id: "insurance",
-        icon: Umbrella,
-        colorClass: "from-indigo-500/20 to-indigo-600/5 border-indigo-500/30 text-indigo-400",
-        badgeClass: "bg-indigo-500/10 text-indigo-400 border-indigo-500/30",
-        features: ["profile.feat.premium_collection", "profile.feat.claims_payments", "profile.feat.policy_mgmt", "profile.feat.reinsurance"],
-      },
-      {
-        id: "investment_fund",
-        icon: TrendingUp,
-        colorClass: "from-purple-500/20 to-purple-600/5 border-purple-500/30 text-purple-400",
-        badgeClass: "bg-purple-500/10 text-purple-400 border-purple-500/30",
-        features: ["profile.feat.portfolio_mgmt", "profile.feat.fund_transfers", "profile.feat.yield_distribution", "profile.feat.investor_reporting"],
-      },
-      {
-        id: "development_bank",
-        icon: Banknote,
-        colorClass: "from-yellow-500/20 to-yellow-600/5 border-yellow-500/30 text-yellow-400",
-        badgeClass: "bg-yellow-500/10 text-yellow-400 border-yellow-500/30",
-        features: ["profile.feat.project_financing", "profile.feat.sovereign_loans", "profile.feat.interbank", "profile.feat.development_reporting"],
-      },
-    ],
-  },
-  {
-    key: "public",
-    profiles: [
-      {
-        id: "government",
-        icon: Landmark,
-        colorClass: "from-amber-500/20 to-amber-600/5 border-amber-500/30 text-amber-400",
-        badgeClass: "bg-amber-500/10 text-amber-400 border-amber-500/30",
-        features: ["profile.feat.sovereign_account", "profile.feat.tax_collection", "profile.feat.interbank", "profile.feat.audit_trail"],
-      },
-      {
-        id: "state_entity",
-        icon: Shield,
-        colorClass: "from-cyan-500/20 to-cyan-600/5 border-cyan-500/30 text-cyan-400",
-        badgeClass: "bg-cyan-500/10 text-cyan-400 border-cyan-500/30",
-        features: ["profile.feat.public_payroll", "profile.feat.procurement", "profile.feat.treasury_mgmt", "profile.feat.compliance"],
-      },
-    ],
-  },
-  {
-    key: "system",
-    profiles: [
-      {
-        id: "admin" as ProfileType,
-        icon: TrendingUp,
-        colorClass: "from-primary/20 to-emerald-600/5 border-primary/30 text-primary",
-        badgeClass: "bg-primary/10 text-primary border-primary/30",
-        features: ["profile.feat.personal_wallet", "profile.feat.sovereign_account", "profile.feat.api_access", "profile.feat.audit_trail"],
-      },
-    ],
-  },
+const ROLES: ProfileTypeConfig[] = [
+  { id: "personal", icon: IconWallet, features: ["profile.feat.personal_wallet", "profile.feat.mobile_money", "profile.feat.remittance", "profile.feat.fx_converter"] },
+  { id: "merchant", icon: IconCard, features: ["profile.feat.pos_keypad", "profile.feat.payment_links", "profile.feat.invoicing", "profile.feat.bulk_payments"] },
+  { id: "agent", icon: IconPayout, features: ["profile.feat.cash_in_out", "profile.feat.agent_network", "profile.feat.float_management", "profile.feat.commission_tracking"] },
+  { id: "treasury", icon: IconChart, features: ["profile.feat.treasury", "profile.feat.api_access", "profile.feat.multi_currency", "profile.feat.two_sig_approvals"] },
+  { id: "public_institution", icon: IconShield, features: ["profile.feat.sovereign_account", "profile.feat.tax_collection", "profile.feat.public_payroll", "profile.feat.audit_trail"] },
+  { id: "ngo", icon: IconRequest, features: ["profile.feat.donor_payments", "profile.feat.grant_tracking", "profile.feat.beneficiary_payouts", "profile.feat.zero_fees"] },
+  { id: "group", icon: IconDots, features: ["profile.feat.group_pot", "profile.feat.member_accounts", "profile.feat.savings_loans", "profile.feat.dividend_payments"] },
+  { id: "starter", icon: IconQuestion, features: ["profile.feat.quick_setup", "profile.feat.basic_wallet", "profile.feat.mobile_money", "profile.feat.upgrade_anytime"] },
 ];
 
 /* Flatten for lookups */
-const ALL_PROFILES = CATEGORIES.flatMap(c => c.profiles);
+const ALL_PROFILES = ROLES;
 
-type Step = "select" | "detail" | "verify" | "complete";
+type Step = "select" | "detail" | "verify" | "complete" | "chooseExisting";
 const ID_TYPES = ["national", "passport", "voter"] as const;
 type IdType = (typeof ID_TYPES)[number];
+
+interface ExistingRole {
+  _id: Id<"userRoles">;
+  role: string;
+  kind: "individual" | "organisation";
+  status: "incomplete" | "pending_verification" | "verified";
+  complete: boolean;
+  orgName?: string;
+}
+
+interface LocationState {
+  existingUserId?: Id<"users">;
+  existingRoles?: ExistingRole[];
+}
 
 export default function ProfileSelection() {
   const { lng } = useParams<{ lng: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { t } = useTranslation("common");
   const { profile: activeProfile, setProfile } = useProfile();
+  const locationState = (location.state ?? {}) as LocationState;
 
-  const { isAuthenticated } = useConvexAuth();
-  const currentUser = useQuery(api.users.getCurrentUser, isAuthenticated ? {} : "skip");
-  const setProfileTypeRemote = useMutation(api.users.setProfileType);
-  const submitKyc = useMutation(api.users.submitKyc);
+  const currentUser = useCurrentAppUser();
+  const existingAddresses = useQuery(api.addresses.listForUser, currentUser ? { userId: currentUser._id } : "skip");
+  const convex = useConvex();
+  const upsertRole = useMutation(api.userRoles.upsertRole);
+  const generateDocUploadUrl = useMutation(api.userRoles.generateRegistrationDocUploadUrl);
 
-  const [step, setStep] = useState<Step>("select");
+  // Present when this page was reached from the sign-in existence check
+  // (found-but-incomplete, found-with-multiple-roles, or not-found) rather
+  // than the plain "Get started" preview path — this is what lets onboarding
+  // write real, persisted roles instead of just a local preview profile.
+  const [existingUserId] = useState<Id<"users"> | undefined>(locationState.existingUserId);
+  const [existingRoles] = useState<ExistingRole[] | undefined>(locationState.existingRoles);
+
+  // Reaching this page any other way (e.g. "Add another role" from an
+  // already-logged-in session) carries no location.state at all — fall back
+  // to the live session/roles so a returning user still gets the real,
+  // persisted upsertRole path instead of the account-less preview one.
+  const effectiveUserId = existingUserId ?? currentUser?._id;
+  const liveRoles = useQuery(
+    api.userRoles.listForUser,
+    !existingRoles && currentUser ? { userId: currentUser._id } : "skip",
+  );
+  const effectiveRoles = existingRoles ?? liveRoles;
+
+  // The admin profile is unique: once verified as admin, every other role is
+  // treated as already-activated (no re-running KYC per role) rather than
+  // requiring a separate onboarding pass for each one.
+  const isAdminUser = effectiveRoles?.some(r => r.role === "admin" && r.complete) ?? false;
+  const roleLookup = (id: ProfileType): ExistingRole | undefined =>
+    effectiveRoles?.find(r => r.role === id) ??
+    (isAdminUser ? { _id: "admin-virtual" as Id<"userRoles">, role: id, kind: "individual", status: "verified", complete: true } : undefined);
+
+  const [step, setStep] = useState<Step>(existingRoles && existingRoles.length > 1 ? "chooseExisting" : "select");
   const [selected, setSelected] = useState<ProfileType | null>(null);
   const [orgName, setOrgName] = useState("");
+  const isOrgRole = selected != null && ORGANISATION_ROLES.includes(selected);
 
   // KYC/verification sub-wizard state (kept local to this page — mirrors the
   // registration flow's fields but runs after profile selection, since the
@@ -183,19 +186,70 @@ export default function ProfileSelection() {
   const [selfieTaken, setSelfieTaken] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
+  // Organisation-only onboarding fields — collected before KYC, registration
+  // document first then the legal representative's identity, per the
+  // requested order.
+  const [registrationDocId, setRegistrationDocId] = useState<Id<"_storage"> | null>(null);
+  const [registrationDocName, setRegistrationDocName] = useState("");
+  const [uploadingDoc, setUploadingDoc] = useState(false);
+  const [legalRepName, setLegalRepName] = useState("");
+  const [legalRepIdType, setLegalRepIdType] = useState<IdType>("national");
+  const [legalRepIdNumber, setLegalRepIdNumber] = useState("");
+  const [legalRepPhone, setLegalRepPhone] = useState("");
+
   const selectedConfig = ALL_PROFILES.find(p => p.id === selected);
   const base = `/${lng ?? "en"}`;
+
+  // A registered user already has phone/date-of-birth/address on file
+  // (from registration, or an earlier role's KYC) — re-asking for them on
+  // every new role would just recollect what PayRus already knows. Only
+  // idType + the ID document + selfie are genuinely per-role proof of
+  // identity, so those always stay in the wizard regardless.
+  const knowsPhone = !!currentUser?.phone;
+  const knowsDob = !!currentUser?.dateOfBirth;
+  const knowsAddress = !!currentUser?.address || (existingAddresses?.length ?? 0) > 0;
+  const formattedKnownAddress = currentUser?.address
+    ?? (existingAddresses && existingAddresses[0]
+      ? `${existingAddresses[0].houseNumber} ${existingAddresses[0].street}, ${existingAddresses[0].city}, ${existingAddresses[0].province}, ${existingAddresses[0].country}`
+      : "");
+
+  const handleUploadRegistrationDoc = async (file: File) => {
+    setUploadingDoc(true);
+    try {
+      const uploadUrl = await generateDocUploadUrl();
+      const result = await fetch(uploadUrl, { method: "POST", headers: { "Content-Type": file.type }, body: file });
+      const { storageId } = await result.json();
+      setRegistrationDocId(storageId);
+      setRegistrationDocName(file.name);
+    } catch {
+      toast.error(t("profile.org.uploadFailed"));
+    } finally {
+      setUploadingDoc(false);
+    }
+  };
 
   // If this device has no local profile yet but the account already picked
   // one elsewhere (Convex is the source of truth), restore it instead of
   // asking again — keeps auth and profile selection in sync across devices.
   useEffect(() => {
     if (!activeProfile && currentUser?.profileType) {
-      setProfile(getDefaultProfile(currentUser.profileType as ProfileType));
+      const restored = getDefaultProfile(currentUser.profileType as ProfileType);
+      if (currentUser.name) restored.name = currentUser.name;
+      setProfile(restored);
     }
-  }, [activeProfile, currentUser?.profileType, setProfile]);
+  }, [activeProfile, currentUser?.profileType, currentUser?.name, setProfile]);
 
   const handleSelect = (id: ProfileType) => {
+    const existing = roleLookup(id);
+    if (existing?.complete) {
+      // Already onboarded for this role — activate it instead of re-running
+      // the whole KYC wizard from scratch.
+      const profile = getDefaultProfile(id);
+      applyRealName(profile, existing, currentUser?.name);
+      setProfile(profile);
+      navigate(base);
+      return;
+    }
     setSelected(id);
     setStep("detail");
   };
@@ -203,6 +257,7 @@ export default function ProfileSelection() {
   const handleConfirm = () => {
     if (!selected) return;
     setPhone(currentUser?.phone ?? "");
+    setDob(currentUser?.dateOfBirth ?? "");
     setKycStep(0);
     setStep("verify");
   };
@@ -210,99 +265,158 @@ export default function ProfileSelection() {
   const handleKycSubmit = async () => {
     if (!selected) return;
     setSubmitting(true);
-    try {
-      await submitKyc({ phone, dateOfBirth: dob, address, idType });
-      await setProfileTypeRemote({ profileType: selected });
-    } catch {
-      // Demo build: Convex may be unreachable (offline/local dev without a
-      // deployment). Fall through to activating the profile locally anyway.
+    const effectivePhone = knowsPhone ? (currentUser?.phone ?? "") : phone;
+    const effectiveDob = knowsDob ? (currentUser?.dateOfBirth ?? "") : dob;
+    const effectiveAddress = knowsAddress ? formattedKnownAddress : address;
+    if (effectiveUserId) {
+      // Real, persisted role — reached either from the sign-in existence
+      // check, or from an already-logged-in session adding another role.
+      try {
+        await upsertRole({
+          userId: effectiveUserId,
+          role: selected,
+          kind: isOrgRole ? "organisation" : "individual",
+          phone: effectivePhone, dateOfBirth: effectiveDob, address: effectiveAddress, idType,
+          ...(isOrgRole ? {
+            orgName: orgName.trim(),
+            registrationDocId: registrationDocId ?? undefined,
+            legalRepName, legalRepIdType, legalRepIdNumber, legalRepPhone,
+          } : {}),
+        });
+      } catch {
+        toast.error(t("profile.org.saveFailed"));
+      }
     }
+    // Else: "Get started" preview path — no real account behind it (no
+    // effectiveUserId to persist against), so this activates the profile
+    // locally only, same as it always has.
     const profile = getDefaultProfile(selected);
-    if (orgName.trim() && selected !== "individual") {
+    if (orgName.trim() && selected !== "personal" && selected !== "starter") {
       profile.name = orgName.trim();
+    } else if (currentUser?.name) {
+      // A real account's own name always wins over the generic per-role
+      // demo template (e.g. "Jean Dupont") — that template only exists for
+      // the anonymous, account-less preview path.
+      profile.name = currentUser.name;
     }
     setProfile(profile);
     setSubmitting(false);
     setStep("complete");
-    setTimeout(() => navigate(base), 1800);
+    if (!effectiveUserId) setTimeout(() => navigate(base), 1800);
   };
 
-  const kycTitles = [
-    t("profile.kyc.titlePhone"), t("profile.kyc.titleDetails"),
-    t("profile.kyc.titleId"), t("profile.kyc.titleSelfie"),
+  // Steps are a data-driven list rather than hardcoded indices, since which
+  // ones appear now depends on what PayRus already knows about this user —
+  // an org role always prepends its two steps; phone/details drop out
+  // individually once already on file.
+  const needsDetailsStep = !knowsDob || !knowsAddress;
+  type KycStepKey = "orgDoc" | "orgLegalRep" | "phone" | "details" | "id" | "selfie";
+  const steps: KycStepKey[] = [
+    ...(isOrgRole ? (["orgDoc", "orgLegalRep"] as const) : []),
+    ...(knowsPhone ? [] : (["phone"] as const)),
+    ...(needsDetailsStep ? (["details"] as const) : []),
+    "id", "selfie",
   ];
-  const kycReady = [
-    phone.trim().length >= 6 && otp.trim().length === 6,
-    dob.trim().length > 0 && address.trim().length > 0,
-    frontUploaded && backUploaded,
-    selfieTaken,
-  ];
+  const kycTitles = steps.map(s => ({
+    orgDoc: t("profile.org.titleDoc"),
+    orgLegalRep: t("profile.org.titleLegalRep"),
+    phone: t("profile.kyc.titlePhone"),
+    details: t("profile.kyc.titleDetails"),
+    id: t("profile.kyc.titleId"),
+    selfie: t("profile.kyc.titleSelfie"),
+  })[s]);
+  const kycReady = steps.map(s => {
+    switch (s) {
+      case "orgDoc": return registrationDocId != null;
+      case "orgLegalRep": return legalRepName.trim().length > 0 && legalRepIdNumber.trim().length > 0 && legalRepPhone.trim().length > 0;
+      case "phone": return phone.trim().length >= 6 && otp.trim().length === 6;
+      case "details": return (knowsDob || dob.trim().length > 0) && (knowsAddress || address.trim().length > 0);
+      case "id": return frontUploaded && backUploaded;
+      case "selfie": return selfieTaken;
+    }
+  });
+  const currentStepKey = steps[kycStep];
 
   return (
     <div className="min-h-full bg-background flex flex-col">
       <div className="flex-1 overflow-auto">
-        <div className="max-w-3xl mx-auto px-4 py-8">
+        <div className={cn("mx-auto px-4 py-8", step === "select" ? "max-w-3xl lg:max-w-6xl" : "max-w-3xl")}>
           <AnimatePresence mode="wait">
 
             {/* ── Step 1: Select ── */}
             {step === "select" && (
-              <motion.div key="select" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -16 }} transition={{ duration: 0.25 }} className="space-y-8">
-                <div className="text-center space-y-2">
-                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 mb-2">
-                    <Sparkles size={12} className="text-primary" />
-                    <span className="text-xs text-primary font-medium">{t("profile.step1of2")}</span>
-                  </div>
-                  <h1 className="text-2xl md:text-3xl font-bold text-foreground text-balance">{t("profile.selectTitle")}</h1>
-                  <p className="text-muted-foreground text-sm max-w-md mx-auto">{t("profile.selectSub")}</p>
+              <motion.div key="select" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -16 }} transition={{ duration: 0.25 }} className="space-y-6">
+                <div className="space-y-1.5 lg:text-center">
+                  <h1
+                    className="text-[28px] leading-[1.1] tracking-tight text-foreground"
+                    style={{ fontFamily: "'Source Serif 4', Georgia, serif", fontWeight: 600 }}
+                  >
+                    {t("profile.selectTitle")}
+                  </h1>
+                  <p className="text-muted-foreground text-[14.5px] leading-relaxed lg:max-w-md lg:mx-auto">{t("profile.selectSub")}</p>
                 </div>
 
-                {CATEGORIES.map((cat, ci) => (
-                  <div key={cat.key}>
-                    {/* Category header */}
-                    <div className="flex items-center gap-3 mb-3">
-                      <div className="flex-1 h-px bg-border" />
-                      <div className="text-center">
-                        <div className="text-sm font-bold text-foreground">{t(`profile.category.${cat.key}.label`)}</div>
-                        <div className="text-[10px] text-muted-foreground">{t(`profile.category.${cat.key}.desc`)}</div>
-                      </div>
-                      <div className="flex-1 h-px bg-border" />
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {cat.profiles.map((pt, i) => (
-                        <motion.button
-                          key={pt.id}
-                          initial={{ opacity: 0, y: 12 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: ci * 0.08 + i * 0.04 }}
-                          onClick={() => handleSelect(pt.id)}
-                          className={cn(
-                            "relative p-4 rounded-2xl bg-gradient-to-br border text-left cursor-pointer transition-all hover:scale-[1.02] active:scale-[0.98] group",
-                            pt.colorClass
-                          )}
+                {/* Mobile & tablet: flat list rows, per the PayRus mobile artefact */}
+                <div className="flex flex-col gap-2.5 lg:hidden">
+                  {ROLES.map((pt, i) => {
+                    const existing = roleLookup(pt.id);
+                    return (
+                    <motion.button
+                      key={pt.id}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: i * 0.03 }}
+                      onClick={() => handleSelect(pt.id)}
+                      className="flex items-center gap-3.5 rounded-sm bg-secondary/70 px-3.5 py-3.5 text-left cursor-pointer transition-colors hover:bg-secondary"
+                    >
+                      <pt.icon size={26} className="text-primary shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div
+                          className="text-[17px] leading-tight text-foreground"
+                          style={{ fontFamily: "'Source Serif 4', Georgia, serif", fontWeight: 600 }}
                         >
-                          <div className="flex items-start gap-3">
-                            <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center border shrink-0", pt.badgeClass)}>
-                              <pt.icon size={19} />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="font-semibold text-foreground text-sm leading-tight">{t(`profile.type.${pt.id}`)}</div>
-                              <div className="text-xs text-muted-foreground mt-0.5 leading-snug">{t(`profile.desc.${pt.id}`)}</div>
-                            </div>
-                            <ChevronRight size={15} className="text-muted-foreground shrink-0 mt-0.5 group-hover:translate-x-0.5 transition-transform" />
-                          </div>
-                          <div className="flex flex-wrap gap-1 mt-3">
-                            {pt.features.slice(0, 3).map(f => (
-                              <span key={f} className={cn("text-[10px] px-1.5 py-0.5 rounded-md border font-medium", pt.badgeClass)}>
-                                {t(f)}
-                              </span>
-                            ))}
-                          </div>
-                        </motion.button>
-                      ))}
-                    </div>
-                  </div>
-                ))}
+                          {t(`profile.type.${pt.id}`)}
+                        </div>
+                        <div className="text-[13px] text-muted-foreground mt-0.5 leading-snug">
+                          {existing ? (existing.complete ? t("profile.chooseRole.verified") : t("profile.chooseRole.incomplete")) : t(`profile.desc.${pt.id}`)}
+                        </div>
+                      </div>
+                      <ChevronRight size={16} className="text-muted-foreground shrink-0" />
+                    </motion.button>
+                    );
+                  })}
+                </div>
+
+                {/* Desktop: same content, roomier editorial cards */}
+                <div className="hidden lg:grid grid-cols-2 xl:grid-cols-3 gap-4">
+                  {ROLES.map((pt, i) => {
+                    const existing = roleLookup(pt.id);
+                    return (
+                    <motion.button
+                      key={pt.id}
+                      initial={{ opacity: 0, y: 12 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: i * 0.04 }}
+                      onClick={() => handleSelect(pt.id)}
+                      className="relative text-left rounded-sm border border-border bg-card p-6 cursor-pointer transition-all hover:shadow-lg hover:-translate-y-0.5 group"
+                    >
+                      <div className="flex items-center gap-3">
+                        <pt.icon size={28} className="text-primary shrink-0" />
+                        <div
+                          className="text-lg leading-tight text-foreground"
+                          style={{ fontFamily: "'Source Serif 4', Georgia, serif", fontWeight: 600 }}
+                        >
+                          {t(`profile.type.${pt.id}`)}
+                        </div>
+                        <ChevronRight size={16} className="text-muted-foreground shrink-0 ml-auto group-hover:translate-x-0.5 transition-transform" />
+                      </div>
+                      <div className="text-sm text-muted-foreground mt-3 leading-relaxed">
+                        {existing ? (existing.complete ? t("profile.chooseRole.verified") : t("profile.chooseRole.incomplete")) : t(`profile.desc.${pt.id}`)}
+                      </div>
+                    </motion.button>
+                    );
+                  })}
+                </div>
               </motion.div>
             )}
 
@@ -314,10 +428,15 @@ export default function ProfileSelection() {
                 </button>
 
                 <div className="text-center space-y-2">
-                  <div className={cn("inline-flex items-center justify-center w-16 h-16 rounded-2xl border mx-auto", selectedConfig.badgeClass)}>
-                    <selectedConfig.icon size={30} />
+                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-sm bg-secondary/70 mx-auto">
+                    <selectedConfig.icon size={32} className="text-primary" />
                   </div>
-                  <h2 className="text-xl font-bold text-foreground">{t(`profile.type.${selected}`)}</h2>
+                  <h2
+                    className="text-xl text-foreground"
+                    style={{ fontFamily: "'Source Serif 4', Georgia, serif", fontWeight: 600 }}
+                  >
+                    {t(`profile.type.${selected}`)}
+                  </h2>
                   <p className="text-sm text-muted-foreground">{t(`profile.desc.${selected}`)}</p>
                 </div>
 
@@ -332,8 +451,8 @@ export default function ProfileSelection() {
                   ))}
                 </div>
 
-                {/* Special notice for financial institutions */}
-                {(["pension_fund","microfinance","cooperative","insurance","investment_fund","development_bank"] as ProfileType[]).includes(selected!) && (
+                {/* Special notice for treasury/institutional roles */}
+                {(["treasury","public_institution","group"] as ProfileType[]).includes(selected!) && (
                   <div className="rounded-xl bg-accent/10 border border-accent/30 p-3 space-y-1">
                     <div className="text-xs font-semibold text-accent">
                       {t("profile.fiNotice.title")}
@@ -345,21 +464,24 @@ export default function ProfileSelection() {
                 )}
 
                 {/* Org name field */}
-                {selected !== "individual" && (
+                {selected !== "personal" && selected !== "starter" && (
                   <div className="space-y-1.5">
                     <label className="text-sm text-muted-foreground font-medium">{t("profile.orgName")}</label>
-                    <Input
-                      value={orgName}
-                      onChange={e => setOrgName(e.target.value)}
-                      placeholder={t("profile.orgNamePlaceholder")}
-                      className="bg-card border-border"
-                    />
+                    <div className="relative">
+                      <Building2 size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        value={orgName}
+                        onChange={e => setOrgName(e.target.value)}
+                        placeholder={t("profile.orgNamePlaceholder")}
+                        className="bg-card border-border pl-9"
+                      />
+                    </div>
                   </div>
                 )}
 
                 {/* KYC notice */}
-                <div className="flex items-start gap-3 p-3 rounded-xl bg-amber-500/8 border border-amber-500/20">
-                  <Shield size={15} className="text-amber-400 shrink-0 mt-0.5" />
+                <div className="flex items-start gap-3 p-3 rounded-xl bg-amber-50 border border-amber-200">
+                  <Shield size={15} className="text-amber-700 shrink-0 mt-0.5" />
                   <p className="text-xs text-muted-foreground">{t("profile.kycNotice")}</p>
                 </div>
 
@@ -382,12 +504,85 @@ export default function ProfileSelection() {
                 <div className="space-y-2">
                   <h2 className="text-xl font-bold text-foreground">{kycTitles[kycStep]}</h2>
                   <p className="text-sm text-muted-foreground">{t("profile.kyc.stepSub", { type: t(`profile.type.${selected}`) })}</p>
-                  <Progress value={((kycStep + 1) / 4) * 100} className="h-1.5" />
-                  <div className="text-xs text-muted-foreground">{t("profile.kyc.progress", { step: kycStep + 1 })}</div>
+                  <Progress value={((kycStep + 1) / kycTitles.length) * 100} className="h-1.5" />
+                  <div className="text-xs text-muted-foreground">{t("profile.kyc.progress", { step: kycStep + 1, total: kycTitles.length })}</div>
                 </div>
 
+                {kycStep === 0 && (knowsPhone || knowsDob || knowsAddress) && (
+                  <div className="flex items-start gap-2.5 p-3 rounded-xl bg-primary/5 border border-primary/20">
+                    <CheckCircle2 size={15} className="text-primary shrink-0 mt-0.5" />
+                    <p className="text-xs text-muted-foreground">{t("profile.kyc.reusingKnownInfo")}</p>
+                  </div>
+                )}
+
                 <div className="rounded-2xl bg-card border border-border p-4">
-                  {kycStep === 0 && (
+                  {currentStepKey === "orgDoc" && (
+                    <div className="space-y-3">
+                      <p className="text-xs text-muted-foreground">{t("profile.org.docSub")}</p>
+                      <label
+                        className={cn(
+                          "w-full flex flex-col items-center gap-2 border-2 border-dashed rounded-xl p-5 cursor-pointer transition-colors",
+                          registrationDocId ? "border-primary/50 bg-primary/5" : "border-border hover:border-primary/30",
+                        )}
+                      >
+                        {registrationDocId ? <CheckCircle2 size={26} className="text-primary" /> : <FileText size={26} className="text-muted-foreground" />}
+                        <span className={cn("text-xs font-medium text-center px-2", registrationDocId ? "text-primary" : "text-muted-foreground")}>
+                          {uploadingDoc ? t("profile.org.uploading") : registrationDocId ? registrationDocName : t("profile.org.uploadDoc")}
+                        </span>
+                        <input
+                          type="file"
+                          accept=".pdf,.png,.jpg,.jpeg"
+                          className="hidden"
+                          disabled={uploadingDoc}
+                          onChange={e => { const file = e.target.files?.[0]; if (file) void handleUploadRegistrationDoc(file); }}
+                        />
+                      </label>
+                    </div>
+                  )}
+
+                  {currentStepKey === "orgLegalRep" && (
+                    <div className="space-y-4">
+                      <p className="text-xs text-muted-foreground">{t("profile.org.legalRepSub")}</p>
+                      <div className="space-y-1.5">
+                        <Label className="text-sm text-muted-foreground font-medium">{t("profile.org.legalRepName")}</Label>
+                        <div className="relative">
+                          <UserCheck size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                          <Input value={legalRepName} onChange={e => setLegalRepName(e.target.value)} className="bg-background border-border pl-9" />
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-sm text-muted-foreground font-medium">{t("profile.kyc.idTypeLabel")}</Label>
+                        <div className="grid grid-cols-3 gap-2">
+                          {ID_TYPES.map(idt => (
+                            <button
+                              key={idt}
+                              type="button"
+                              onClick={() => setLegalRepIdType(idt)}
+                              className={cn(
+                                "text-xs font-semibold px-2 py-2.5 rounded-xl border transition-colors cursor-pointer",
+                                legalRepIdType === idt ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:text-foreground",
+                              )}
+                            >
+                              {t(`profile.kyc.id${idt === "national" ? "National" : idt === "passport" ? "Passport" : "Voter"}`)}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-sm text-muted-foreground font-medium">{t("profile.org.legalRepIdNumber")}</Label>
+                        <Input value={legalRepIdNumber} onChange={e => setLegalRepIdNumber(e.target.value)} className="bg-background border-border" />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-sm text-muted-foreground font-medium">{t("profile.org.legalRepPhone")}</Label>
+                        <div className="relative">
+                          <Phone size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                          <Input value={legalRepPhone} onChange={e => setLegalRepPhone(e.target.value)} className="bg-background border-border pl-9" />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {currentStepKey === "phone" && (
                     <div className="space-y-4">
                       <div className="space-y-1.5">
                         <Label className="text-sm text-muted-foreground font-medium">{t("profile.kyc.phoneLabel")}</Label>
@@ -420,16 +615,20 @@ export default function ProfileSelection() {
                     </div>
                   )}
 
-                  {kycStep === 1 && (
+                  {currentStepKey === "details" && (
                     <div className="space-y-4">
-                      <div className="space-y-1.5">
-                        <Label className="text-sm text-muted-foreground font-medium">{t("profile.kyc.dobLabel")}</Label>
-                        <Input type="date" value={dob} onChange={e => setDob(e.target.value)} className="bg-background border-border" />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label className="text-sm text-muted-foreground font-medium">{t("profile.kyc.addressLabel")}</Label>
-                        <Input value={address} onChange={e => setAddress(e.target.value)} className="bg-background border-border" />
-                      </div>
+                      {!knowsDob && (
+                        <div className="space-y-1.5">
+                          <Label className="text-sm text-muted-foreground font-medium">{t("profile.kyc.dobLabel")}</Label>
+                          <Input type="date" value={dob} onChange={e => setDob(e.target.value)} className="bg-background border-border" />
+                        </div>
+                      )}
+                      {!knowsAddress && (
+                        <div className="space-y-1.5">
+                          <Label className="text-sm text-muted-foreground font-medium">{t("profile.kyc.addressLabel")}</Label>
+                          <Input value={address} onChange={e => setAddress(e.target.value)} className="bg-background border-border" />
+                        </div>
+                      )}
                       <div className="space-y-1.5">
                         <Label className="text-sm text-muted-foreground font-medium">{t("profile.kyc.idTypeLabel")}</Label>
                         <div className="grid grid-cols-3 gap-2">
@@ -451,7 +650,7 @@ export default function ProfileSelection() {
                     </div>
                   )}
 
-                  {kycStep === 2 && (
+                  {currentStepKey === "id" && (
                     <div className="space-y-3">
                       <button
                         type="button"
@@ -482,7 +681,7 @@ export default function ProfileSelection() {
                     </div>
                   )}
 
-                  {kycStep === 3 && (
+                  {currentStepKey === "selfie" && (
                     <div className="flex flex-col items-center gap-3 py-4">
                       <p className="text-xs text-muted-foreground text-center max-w-xs">{t("profile.kyc.selfiePrompt")}</p>
                       <button
@@ -502,7 +701,7 @@ export default function ProfileSelection() {
                   )}
                 </div>
 
-                {kycStep < 3 ? (
+                {kycStep < kycTitles.length - 1 ? (
                   <Button
                     onClick={() => setKycStep(s => s + 1)}
                     disabled={!kycReady[kycStep]}
@@ -513,7 +712,7 @@ export default function ProfileSelection() {
                 ) : (
                   <Button
                     onClick={handleKycSubmit}
-                    disabled={!kycReady[3] || submitting}
+                    disabled={!kycReady[kycTitles.length - 1] || submitting}
                     className="w-full h-12 text-base font-semibold rounded-xl"
                   >
                     {t("profile.kyc.submit")}
@@ -530,6 +729,73 @@ export default function ProfileSelection() {
                 </motion.div>
                 <h2 className="text-2xl font-bold text-foreground">{t("profile.activated")}</h2>
                 <p className="text-muted-foreground max-w-xs">{t("profile.activatedSub")}</p>
+                {existingUserId && (
+                  <div className="flex flex-col gap-2.5 w-full max-w-xs pt-4">
+                    <Button
+                      variant="secondary"
+                      onClick={() => {
+                        setSelected(null);
+                        setOrgName("");
+                        setKycStep(0);
+                        setPhone(""); setOtp(""); setOtpResent(false);
+                        setDob(""); setAddress(""); setIdType("national");
+                        setFrontUploaded(false); setBackUploaded(false); setSelfieTaken(false);
+                        setRegistrationDocId(null); setRegistrationDocName(""); setLegalRepName("");
+                        setLegalRepIdType("national"); setLegalRepIdNumber(""); setLegalRepPhone("");
+                        setStep("select");
+                      }}
+                      className="w-full h-11 rounded-xl"
+                    >
+                      {t("profile.addAnotherRole")}
+                    </Button>
+                    <Button onClick={() => navigate(base)} className="w-full h-11 rounded-xl">
+                      {t("profile.goToDashboard")}
+                    </Button>
+                  </div>
+                )}
+              </motion.div>
+            )}
+
+            {/* ── Existing account: choose which role to use ── */}
+            {step === "chooseExisting" && existingRoles && (
+              <motion.div key="chooseExisting" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -16 }} transition={{ duration: 0.25 }} className="max-w-md mx-auto space-y-5">
+                <div className="space-y-1.5 text-center">
+                  <h1 className="text-xl font-bold text-foreground">{t("profile.chooseRole.title")}</h1>
+                  <p className="text-sm text-muted-foreground">{t("profile.chooseRole.sub")}</p>
+                </div>
+                <div className="space-y-2.5">
+                  {existingRoles.map(role => {
+                    const config = ALL_PROFILES.find(p => p.id === role.role);
+                    if (!config) return null;
+                    return (
+                      <button
+                        key={role._id}
+                        onClick={() => {
+                          const profile = getDefaultProfile(role.role as ProfileType);
+                          applyRealName(profile, role, currentUser?.name);
+                          setProfile(profile);
+                          navigate(base);
+                        }}
+                        className="w-full flex items-center gap-3.5 rounded-2xl bg-card border border-border px-4 py-3.5 text-left cursor-pointer transition-colors hover:border-primary/40"
+                      >
+                        <config.icon size={24} className="text-primary shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-semibold text-foreground">{t(`profile.type.${role.role}`)}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {role.complete ? t("profile.chooseRole.verified") : t("profile.chooseRole.incomplete")}
+                          </div>
+                        </div>
+                        <ChevronRight size={16} className="text-muted-foreground shrink-0" />
+                      </button>
+                    );
+                  })}
+                </div>
+                <button
+                  onClick={() => setStep("select")}
+                  className="w-full text-center text-sm font-medium text-muted-foreground hover:text-foreground transition-colors cursor-pointer py-2"
+                >
+                  {t("profile.chooseRole.addNew")}
+                </button>
               </motion.div>
             )}
 

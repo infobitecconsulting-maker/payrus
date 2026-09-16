@@ -6,6 +6,12 @@
       "runtimeExecutable": "C:\\Users\\Paul Makela\\AppData\\Roaming\\npm\\pnpm.cmd",
       "runtimeArgs": ["dev"],
       "port": 5173
+    },
+    {
+      "name": "payrus-demo-build",
+      "runtimeExecutable": "C:\\Users\\Paul Makela\\AppData\\Roaming\\npm\\pnpm.cmd",
+      "runtimeArgs": ["preview", "--port", "4174", "--strictPort"],
+      "port": 4174
     }
   ]
 }

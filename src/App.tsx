@@ -5,8 +5,14 @@ import { DefaultProviders } from "./components/providers/default.tsx";
 import LocaleWrapper from "./components/providers/locale-wrapper.tsx";
 import { SAVED_OR_DEFAULT_LOCALE, setLocaleInPath } from "./i18n.ts";
 import "./i18n.ts";
-import AuthCallback from "./pages/auth/Callback.tsx";
 import AppLayout from "./pages/layout/AppLayout.tsx";
+import Welcome from "./pages/welcome/page.tsx";
+import SignIn from "./pages/signin/page.tsx";
+import Register from "./pages/register/page.tsx";
+import Recover from "./pages/recover/page.tsx";
+import AuthCallback from "./pages/auth-callback/page.tsx";
+import ResetPassword from "./pages/reset-password/page.tsx";
+import Index from "./pages/Index.tsx";
 import Dashboard from "./pages/dashboard/page.tsx";
 import Payments from "./pages/payments/page.tsx";
 import Remittance from "./pages/remittance/page.tsx";
@@ -34,6 +40,7 @@ import Treasury from "./pages/treasury/page.tsx";
 import Bills from "./pages/bills/page.tsx";
 import Payouts from "./pages/payouts/page.tsx";
 import Disputes from "./pages/disputes/page.tsx";
+import Shop from "./pages/shop/page.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
 function RootRedirect() {
@@ -55,17 +62,24 @@ export default function App() {
         <Suspense fallback={<div className="min-h-screen bg-background" />}>
           <Routes>
             <Route path="/" element={<RootRedirect />} />
-            <Route path="/auth/callback" element={<AuthCallback />} />
 
             <Route
               path="/:lng"
               element={
                 <LocaleWrapper>
-                  <AppLayout />
+                  <Outlet />
                 </LocaleWrapper>
               }
             >
-              <Route index element={<Dashboard />} />
+              <Route path="welcome" element={<Welcome />} />
+              <Route path="signin" element={<SignIn />} />
+              <Route path="register" element={<Register />} />
+              <Route path="recover" element={<Recover />} />
+              <Route path="reset-password" element={<ResetPassword />} />
+              <Route path="auth/callback" element={<AuthCallback />} />
+              <Route element={<AppLayout />}>
+              <Route index element={<Index />} />
+              <Route path="dashboard" element={<Dashboard />} />
               <Route path="payments" element={<Payments />} />
               <Route path="remittance" element={<Remittance />} />
               <Route path="transactions" element={<Transactions />} />
@@ -92,7 +106,9 @@ export default function App() {
               <Route path="bills" element={<Bills />} />
               <Route path="payouts" element={<Payouts />} />
               <Route path="disputes" element={<Disputes />} />
+              <Route path="shop" element={<Shop />} />
               <Route path="*" element={<NotFound />} />
+              </Route>
             </Route>
 
             <Route path="*" element={<NotFound />} />

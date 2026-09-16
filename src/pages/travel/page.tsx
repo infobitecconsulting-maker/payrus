@@ -86,7 +86,7 @@ const FLIGHTS: Flight[] = [
     currency: "USD",
     priceXAF: 508_200,
     class: "economy",
-    amenities: ["WiFi", "Repas", "Divertissement"],
+    amenities: ["travel.amenity.wifi", "travel.amenity.meal", "travel.amenity.entertainment"],
     seatsLeft: 4,
     rating: 4.3,
     payrusDiscount: 7,
@@ -106,7 +106,7 @@ const FLIGHTS: Flight[] = [
     currency: "USD",
     priceXAF: 367_200,
     class: "economy",
-    amenities: ["Repas", "Divertissement"],
+    amenities: ["travel.amenity.meal", "travel.amenity.entertainment"],
     seatsLeft: 12,
     rating: 4.5,
     payrusDiscount: 5,
@@ -126,7 +126,7 @@ const FLIGHTS: Flight[] = [
     currency: "USD",
     priceXAF: 174_000,
     class: "economy",
-    amenities: ["Repas", "USB"],
+    amenities: ["travel.amenity.meal", "USB"],
     seatsLeft: 8,
     rating: 4.2,
     payrusDiscount: 6,
@@ -146,7 +146,7 @@ const FLIGHTS: Flight[] = [
     currency: "USD",
     priceXAF: 552_000,
     class: "economy",
-    amenities: ["WiFi", "Repas", "Divertissement", "USB"],
+    amenities: ["travel.amenity.wifi", "travel.amenity.meal", "travel.amenity.entertainment", "USB"],
     seatsLeft: 2,
     rating: 4.0,
     payrusDiscount: 8,
@@ -166,7 +166,7 @@ const FLIGHTS: Flight[] = [
     currency: "USD",
     priceXAF: 426_000,
     class: "economy",
-    amenities: ["WiFi", "Repas", "Divertissement", "USB"],
+    amenities: ["travel.amenity.wifi", "travel.amenity.meal", "travel.amenity.entertainment", "USB"],
     seatsLeft: 18,
     rating: 4.6,
     payrusDiscount: 5,
@@ -185,8 +185,8 @@ const HOTELS: Hotel[] = [
     currency: "USD",
     priceXAF: 111_000,
     image: "🏨",
-    amenities: ["WiFi", "Piscine", "Spa", "Restaurant", "Bar"],
-    distance: "Centre-ville",
+    amenities: ["travel.amenity.wifi", "travel.amenity.pool", "Spa", "Restaurant", "Bar"],
+    distance: "travel.distance.cityCenter",
     payrusMember: true,
     discount: 15,
     category: "Luxe",
@@ -202,8 +202,8 @@ const HOTELS: Hotel[] = [
     currency: "USD",
     priceXAF: 93_000,
     image: "🌴",
-    amenities: ["WiFi", "Piscine", "Restaurant", "Salle de conf."],
-    distance: "2 km du centre",
+    amenities: ["travel.amenity.wifi", "travel.amenity.pool", "Restaurant", "travel.amenity.conferenceRoom"],
+    distance: "travel.distance.2kmFromCenter",
     payrusMember: true,
     discount: 12,
     category: "Luxe",
@@ -219,7 +219,7 @@ const HOTELS: Hotel[] = [
     currency: "USD",
     priceXAF: 57_000,
     image: "🏩",
-    amenities: ["WiFi", "Restaurant", "Parking", "Climatisation"],
+    amenities: ["travel.amenity.wifi", "Restaurant", "Parking", "travel.amenity.ac"],
     distance: "Gombe, 500m",
     payrusMember: false,
     discount: 0,
@@ -236,7 +236,7 @@ const HOTELS: Hotel[] = [
     currency: "USD",
     priceXAF: 126_000,
     image: "🦒",
-    amenities: ["WiFi", "Piscine", "Spa", "Restaurant", "Gym", "Bar"],
+    amenities: ["travel.amenity.wifi", "travel.amenity.pool", "Spa", "Restaurant", "Gym", "Bar"],
     distance: "Parc Uhuru",
     payrusMember: true,
     discount: 10,
@@ -253,7 +253,7 @@ const HOTELS: Hotel[] = [
     currency: "USD",
     priceXAF: 103_200,
     image: "🌺",
-    amenities: ["WiFi", "Piscine", "Spa", "Restaurant", "Casino"],
+    amenities: ["travel.amenity.wifi", "travel.amenity.pool", "Spa", "Restaurant", "Casino"],
     distance: "Cocody, 1 km",
     payrusMember: true,
     discount: 18,
@@ -262,11 +262,11 @@ const HOTELS: Hotel[] = [
 ];
 
 const REVIEWS: UserReview[] = [
-  { id: "r1", user: "Mvutu E.", flag: "🇨🇩", rating: 5, comment: "Ethiopian Airlines — excellent service, repas délicieux. Vol direct très appréciable!", date: "12 nov 2024", type: "flight", entity: "Ethiopian Airlines" },
-  { id: "r2", user: "Laeticia B.", flag: "🇨🇬", rating: 5, comment: "Kempinski Fleuve Congo — vue sur le fleuve magnifique, service impeccable. Réservé via PayRus, -15% !", date: "8 nov 2024", type: "hotel", entity: "Kempinski Hotel Fleuve Congo" },
-  { id: "r3", user: "Diallo M.", flag: "🇸🇳", rating: 4, comment: "Turkish Airlines depuis KIN, correspondance Istanbul parfaite. WiFi fonctionnel tout le vol.", date: "5 nov 2024", type: "flight", entity: "Turkish Airlines" },
-  { id: "r4", user: "Amara K.", flag: "🇨🇮", rating: 5, comment: "Sofitel Ivoire — événement d'entreprise organisé via PayRus. Facturation directe sur compte corporate.", date: "2 nov 2024", type: "hotel", entity: "Sofitel Abidjan Hôtel Ivoire" },
-  { id: "r5", user: "Père T.", flag: "🇰🇪", rating: 4, comment: "Kenya Airways KIN-NBO, ponctuel et agréable. Idéal pour le transit vers l'Asie via Nairobi.", date: "28 oct 2024", type: "flight", entity: "Kenya Airways" },
+  { id: "r1", user: "Mvutu E.", flag: "🇨🇩", rating: 5, comment: "travel.review.r1", date: "travel.review.r1Date", type: "flight", entity: "Ethiopian Airlines" },
+  { id: "r2", user: "Laeticia B.", flag: "🇨🇬", rating: 5, comment: "travel.review.r2", date: "travel.review.r2Date", type: "hotel", entity: "Kempinski Hotel Fleuve Congo" },
+  { id: "r3", user: "Diallo M.", flag: "🇸🇳", rating: 4, comment: "travel.review.r3", date: "travel.review.r3Date", type: "flight", entity: "Turkish Airlines" },
+  { id: "r4", user: "Amara K.", flag: "🇨🇮", rating: 5, comment: "travel.review.r4", date: "travel.review.r4Date", type: "hotel", entity: "Sofitel Abidjan Hôtel Ivoire" },
+  { id: "r5", user: "Père T.", flag: "🇰🇪", rating: 4, comment: "travel.review.r5", date: "travel.review.r5Date", type: "flight", entity: "Kenya Airways" },
 ];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -297,6 +297,7 @@ interface SplitPaymentModalProps {
 }
 
 function SplitPaymentModal({ price, currency, item, onClose }: SplitPaymentModalProps) {
+  const { t } = useTranslation("common");
   const [step, setStep] = useState<"choose" | "confirm" | "success">("choose");
   const term1 = Math.round(price * 0.34);
   const term2 = Math.round(price * 0.33);
@@ -316,8 +317,8 @@ function SplitPaymentModal({ price, currency, item, onClose }: SplitPaymentModal
               <CreditCard size={15} className="text-primary" />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-foreground">Paiement en 3 fois</h3>
-              <p className="text-[11px] text-muted-foreground">PayRus Pay Later — sans frais cachés</p>
+              <h3 className="text-sm font-bold text-foreground">{t("travel.splitPayment.title")}</h3>
+              <p className="text-[11px] text-muted-foreground">{t("travel.splitPayment.subtitle")}</p>
             </div>
           </div>
         </div>
@@ -328,58 +329,58 @@ function SplitPaymentModal({ price, currency, item, onClose }: SplitPaymentModal
               className="p-6 space-y-5">
               {/* Flight summary */}
               <div className="rounded-2xl bg-secondary/50 p-4">
-                <div className="text-[11px] text-muted-foreground mb-1">Billet sélectionné</div>
+                <div className="text-[11px] text-muted-foreground mb-1">{t("travel.splitPayment.selectedTicket")}</div>
                 <div className="text-sm font-semibold text-foreground">{item}</div>
                 <div className="text-xl font-black text-primary font-mono mt-1">{formatCurrency(price, currency)}</div>
               </div>
 
               {/* 3 Terms */}
               <div>
-                <div className="text-xs font-semibold text-foreground mb-3">Votre plan de paiement</div>
+                <div className="text-xs font-semibold text-foreground mb-3">{t("travel.splitPayment.yourPlan")}</div>
                 <div className="space-y-2">
                   {[
-                    { label: "Maintenant", amount: term1, date: "Aujourd'hui", badge: "bg-primary/15 text-primary border-primary/25" },
-                    { label: "Dans 30 jours", amount: term2, date: "12 déc 2024", badge: "bg-secondary border-border text-muted-foreground" },
-                    { label: "Dans 60 jours", amount: term3, date: "11 jan 2025", badge: "bg-secondary border-border text-muted-foreground" },
-                  ].map((t, i) => (
-                    <div key={i} className={cn("flex items-center justify-between px-4 py-3 rounded-xl border", t.badge)}>
+                    { label: t("travel.splitPayment.termNow"), amount: term1, date: t("common.today"), badge: "bg-primary/15 text-primary border-primary/25" },
+                    { label: t("travel.splitPayment.termIn30Days"), amount: term2, date: "Dec 12, 2024", badge: "bg-secondary border-border text-muted-foreground" },
+                    { label: t("travel.splitPayment.termIn60Days"), amount: term3, date: "Jan 11, 2025", badge: "bg-secondary border-border text-muted-foreground" },
+                  ].map((term, i) => (
+                    <div key={i} className={cn("flex items-center justify-between px-4 py-3 rounded-xl border", term.badge)}>
                       <div>
-                        <div className="text-xs font-semibold">{t.label}</div>
-                        <div className="text-[10px] opacity-70">{t.date}</div>
+                        <div className="text-xs font-semibold">{term.label}</div>
+                        <div className="text-[10px] opacity-70">{term.date}</div>
                       </div>
-                      <div className="text-sm font-black font-mono">{formatCurrency(t.amount, currency)}</div>
+                      <div className="text-sm font-black font-mono">{formatCurrency(term.amount, currency)}</div>
                     </div>
                   ))}
                 </div>
               </div>
 
               {/* Fee notice */}
-              <div className="flex items-start gap-2.5 p-3 rounded-xl bg-amber-400/8 border border-amber-400/20">
-                <Shield size={13} className="text-amber-400 shrink-0 mt-0.5" />
+              <div className="flex items-start gap-2.5 p-3 rounded-xl bg-amber-50 border border-amber-200">
+                <Shield size={13} className="text-amber-700 shrink-0 mt-0.5" />
                 <p className="text-[11px] text-muted-foreground">
-                  Frais de service PayRus Pay Later : <span className="text-amber-400 font-semibold">{formatCurrency(fee, currency)}</span> — inclus dans la 1ère mensualité.
+                  {t("travel.splitPayment.feeNoticePrefix")} <span className="text-amber-700 font-semibold">{formatCurrency(fee, currency)}</span> {t("travel.splitPayment.feeNoticeSuffix")}
                 </p>
               </div>
 
               <button onClick={() => setStep("confirm")}
                 className="w-full py-3 rounded-2xl bg-primary text-primary-foreground text-sm font-bold cursor-pointer hover:bg-primary/90 transition-colors">
-                Confirmer le paiement en 3 fois
+                {t("travel.splitPayment.confirmButton")}
               </button>
-              <button onClick={onClose} className="w-full text-[12px] text-muted-foreground hover:text-foreground cursor-pointer transition-colors">Annuler</button>
+              <button onClick={onClose} className="w-full text-[12px] text-muted-foreground hover:text-foreground cursor-pointer transition-colors">{t("common.cancel")}</button>
             </motion.div>
           )}
 
           {step === "confirm" && (
             <motion.div key="confirm" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
               className="p-6 space-y-5">
-              <div className="text-sm text-muted-foreground">Confirmez votre paiement initial de</div>
+              <div className="text-sm text-muted-foreground">{t("travel.splitPayment.confirmInitialLabel")}</div>
               <div className="text-3xl font-black text-primary font-mono text-center py-4">{formatCurrency(term1 + fee, currency)}</div>
-              <div className="text-[11px] text-muted-foreground text-center">Débité de votre solde PayRus maintenant</div>
+              <div className="text-[11px] text-muted-foreground text-center">{t("travel.splitPayment.debitedNow")}</div>
               <button onClick={() => setStep("success")}
                 className="w-full py-3 rounded-2xl bg-primary text-primary-foreground text-sm font-bold cursor-pointer hover:bg-primary/90 transition-colors">
-                Payer {formatCurrency(term1 + fee, currency)} maintenant
+                {t("travel.splitPayment.payNowButton", { amount: formatCurrency(term1 + fee, currency) })}
               </button>
-              <button onClick={() => setStep("choose")} className="w-full text-[12px] text-muted-foreground hover:text-foreground cursor-pointer transition-colors">Retour</button>
+              <button onClick={() => setStep("choose")} className="w-full text-[12px] text-muted-foreground hover:text-foreground cursor-pointer transition-colors">{t("common.back")}</button>
             </motion.div>
           )}
 
@@ -391,25 +392,25 @@ function SplitPaymentModal({ price, currency, item, onClose }: SplitPaymentModal
                 <CheckCircle2 size={32} className="text-primary" />
               </motion.div>
               <div>
-                <div className="text-lg font-black text-foreground">Réservation confirmée !</div>
-                <div className="text-sm text-muted-foreground mt-1">Vous recevrez votre billet par e-mail sous 5 minutes</div>
+                <div className="text-lg font-black text-foreground">{t("travel.splitPayment.successTitle")}</div>
+                <div className="text-sm text-muted-foreground mt-1">{t("travel.splitPayment.successSubtitle")}</div>
               </div>
               <div className="rounded-2xl bg-secondary/50 p-4 text-left space-y-2">
                 <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground">Référence</span>
+                  <span className="text-muted-foreground">{t("travel.splitPayment.reference")}</span>
                   <span className="font-mono font-semibold text-foreground">PYR-{Math.random().toString(36).slice(2, 8).toUpperCase()}</span>
                 </div>
                 <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground">1ère mensualité</span>
+                  <span className="text-muted-foreground">{t("travel.splitPayment.firstInstallment")}</span>
                   <span className="font-semibold text-primary font-mono">{formatCurrency(term1 + fee, currency)}</span>
                 </div>
                 <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground">Reste à payer</span>
+                  <span className="text-muted-foreground">{t("travel.splitPayment.remainingBalance")}</span>
                   <span className="font-semibold text-foreground font-mono">{formatCurrency(term2 + term3, currency)}</span>
                 </div>
               </div>
               <button onClick={onClose} className="w-full py-3 rounded-2xl bg-primary text-primary-foreground text-sm font-bold cursor-pointer hover:bg-primary/90 transition-colors">
-                Voir mes réservations
+                {t("travel.splitPayment.viewBookingsButton")}
               </button>
             </motion.div>
           )}
@@ -422,13 +423,15 @@ function SplitPaymentModal({ price, currency, item, onClose }: SplitPaymentModal
 // ── Review Form ────────────────────────────────────────────────────────────────
 
 function ReviewForm({ onSubmit }: { onSubmit: () => void }) {
+  const { t } = useTranslation("common");
   const [rating, setRating] = useState(0);
   const [hoveredStar, setHoveredStar] = useState(0);
   const [comment, setComment] = useState("");
+  const ratingLabels = t("travel.reviewForm.ratingLabels", { returnObjects: true }) as string[];
 
   return (
     <div className="rounded-2xl bg-card border border-border p-5 space-y-4">
-      <h3 className="text-sm font-bold text-foreground">Laisser un avis</h3>
+      <h3 className="text-sm font-bold text-foreground">{t("travel.leaveReview")}</h3>
       <div className="flex items-center gap-2">
         {Array.from({ length: 5 }).map((_, i) => (
           <button key={i}
@@ -439,20 +442,20 @@ function ReviewForm({ onSubmit }: { onSubmit: () => void }) {
             <Star size={24} className={i < (hoveredStar || rating) ? "text-amber-400 fill-amber-400" : "text-muted-foreground"} />
           </button>
         ))}
-        {rating > 0 && <span className="text-sm text-muted-foreground ml-2">{["", "Mauvais", "Médiocre", "Bien", "Très bien", "Excellent"][rating]}</span>}
+        {rating > 0 && <span className="text-sm text-muted-foreground ml-2">{ratingLabels[rating]}</span>}
       </div>
       <textarea
         value={comment}
         onChange={e => setComment(e.target.value)}
-        placeholder="Partagez votre expérience avec la communauté PayRus..."
+        placeholder={t("travel.reviewForm.placeholder")}
         rows={3}
         className="w-full px-3 py-2.5 rounded-xl bg-secondary border border-border text-sm text-foreground placeholder:text-muted-foreground resize-none focus:outline-none focus:border-primary/50"
       />
       <button
-        onClick={() => { if (rating > 0 && comment.trim()) { onSubmit(); } else { toast.error("Veuillez noter et commenter."); } }}
+        onClick={() => { if (rating > 0 && comment.trim()) { onSubmit(); } else { toast.error(t("travel.reviewForm.toastError")); } }}
         className="px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold cursor-pointer hover:bg-primary/90 transition-colors"
       >
-        Publier l'avis
+        {t("travel.reviewForm.submitButton")}
       </button>
     </div>
   );
@@ -491,10 +494,10 @@ export default function TravelPage() {
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-lg font-bold text-foreground">Voyage & Style de vie</h1>
+                <h1 className="text-lg font-bold text-foreground">{t("travel.heading")}</h1>
                 <span className="text-[10px] font-bold text-primary bg-primary/10 border border-primary/25 px-2 py-0.5 rounded-full">PayRus Travel</span>
               </div>
-              <p className="text-xs text-muted-foreground mt-0.5">Vols · Hôtels · Paiement en 3 fois · Avantages membres</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{t("travel.subheading")}</p>
             </div>
           </div>
           {/* PayRus member badge */}
@@ -503,8 +506,8 @@ export default function TravelPage() {
               <PayRusLogo className="h-5 w-auto" />
             </div>
             <div>
-              <div className="text-[10px] font-bold text-primary">Membre PayRus</div>
-              <div className="text-[9px] text-muted-foreground">Jusqu'à 18% de réduction</div>
+              <div className="text-[10px] font-bold text-primary">{t("travel.memberBadge")}</div>
+              <div className="text-[9px] text-muted-foreground">{t("travel.upTo18Discount")}</div>
             </div>
           </div>
         </div>
@@ -512,10 +515,10 @@ export default function TravelPage() {
         {/* PayRus benefits strip */}
         <div className="flex items-center gap-3 overflow-x-auto pb-1">
           {[
-            { icon: TrendingDown, text: "Meilleurs tarifs garantis", color: "text-primary" },
-            { icon: CreditCard, text: "Paiement en 3 fois sans frais*", color: "text-blue-400" },
-            { icon: Zap, text: "Confirmation instantanée", color: "text-amber-400" },
-            { icon: Shield, text: "Protection acheteur incluse", color: "text-emerald-400" },
+            { icon: TrendingDown, text: t("travel.benefits.bestRates"), color: "text-primary" },
+            { icon: CreditCard, text: t("travel.benefits.splitPaymentNoFees"), color: "text-blue-700" },
+            { icon: Zap, text: t("travel.benefits.instantConfirmation"), color: "text-amber-700" },
+            { icon: Shield, text: t("travel.benefits.buyerProtection"), color: "text-emerald-700" },
           ].map((b, i) => (
             <div key={i} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary border border-border whitespace-nowrap shrink-0">
               <b.icon size={12} className={b.color} />
@@ -564,28 +567,28 @@ export default function TravelPage() {
                   </div>
                   <div className="relative">
                     <Calendar size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                    <div className="pl-8 pr-3 py-2.5 rounded-xl bg-secondary border border-border text-sm text-muted-foreground cursor-pointer">12 déc 2024</div>
+                    <div className="pl-8 pr-3 py-2.5 rounded-xl bg-secondary border border-border text-sm text-muted-foreground cursor-pointer">Dec 12, 2024</div>
                   </div>
                   <button className="flex items-center justify-center gap-2 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold cursor-pointer hover:bg-primary/90 transition-colors">
-                    <Search size={14} /> Rechercher
+                    <Search size={14} /> {t("travel.searchButton")}
                   </button>
                 </div>
                 <div className="flex items-center gap-3 mt-3 flex-wrap">
                   <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                    <Users size={11} /> 1 passager
+                    <Users size={11} /> {t("travel.onePassenger")}
                   </div>
                   <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                    <Luggage size={11} /> Bagage inclus
+                    <Luggage size={11} /> {t("travel.baggageIncluded")}
                   </div>
                   <button className="flex items-center gap-1.5 text-[11px] text-primary hover:underline cursor-pointer">
-                    <SlidersHorizontal size={11} /> Filtres avancés
+                    <SlidersHorizontal size={11} /> {t("travel.advancedFilters")}
                   </button>
                 </div>
               </div>
 
               {/* Filter pills */}
               <div className="flex items-center gap-2 overflow-x-auto pb-1">
-                {["Tous", "Sans escale", "< 10h", "Moins cher", "Meilleures notes", "PayRus -5%+"].map((f, i) => (
+                {[t("travel.filters.all"), t("travel.filters.nonStop"), t("travel.filters.under10h"), t("travel.filters.cheapest"), t("travel.filters.topRated"), t("travel.filters.payrusDiscount")].map((f, i) => (
                   <button key={f} className={cn(
                     "px-3 py-1.5 rounded-full text-[11px] font-medium border whitespace-nowrap shrink-0 cursor-pointer transition-colors",
                     i === 0 ? "bg-primary/15 text-primary border-primary/25" : "bg-card text-muted-foreground border-border hover:border-primary/30 hover:text-foreground"
@@ -615,12 +618,12 @@ export default function TravelPage() {
                           <div className="flex items-center gap-2 mb-2">
                             <span className="text-xs font-bold text-foreground">{flight.airline}</span>
                             {flight.stops === 0 && (
-                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-400/10 text-emerald-400 border border-emerald-400/20">Direct</span>
+                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">{t("travel.direct")}</span>
                             )}
-                            <span className="text-[9px] text-muted-foreground bg-secondary px-1.5 py-0.5 rounded border border-border">{flight.class === "economy" ? "Économie" : "Affaires"}</span>
+                            <span className="text-[9px] text-muted-foreground bg-secondary px-1.5 py-0.5 rounded border border-border">{flight.class === "economy" ? t("travel.classEconomy") : t("travel.classBusiness")}</span>
                             {flight.seatsLeft <= 5 && (
                               <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-destructive/10 text-destructive border border-destructive/20">
-                                {flight.seatsLeft} places restantes
+                                {t("travel.seatsRemaining", { count: flight.seatsLeft })}
                               </span>
                             )}
                           </div>
@@ -639,7 +642,7 @@ export default function TravelPage() {
                                 <div className="w-full h-px bg-border" />
                                 <Plane size={12} className="absolute left-1/2 -translate-x-1/2 -translate-y-px text-primary" />
                               </div>
-                              <div className="text-[10px] text-muted-foreground">{flight.stops === 0 ? "Non-stop" : `${flight.stops} escale`}</div>
+                              <div className="text-[10px] text-muted-foreground">{flight.stops === 0 ? t("travel.nonStopLabel") : t("travel.stopsCount", { count: flight.stops })}</div>
                             </div>
 
                             {/* Arrival */}
@@ -658,7 +661,7 @@ export default function TravelPage() {
                           </button>
                           <div>
                             {flight.payrusDiscount > 0 && (
-                              <div className="text-[10px] font-bold text-primary">-{flight.payrusDiscount}% membres</div>
+                              <div className="text-[10px] font-bold text-primary">{t("travel.membersDiscount", { pct: flight.payrusDiscount })}</div>
                             )}
                             <div className="text-xl font-black text-foreground font-mono">{formatCurrency(flight.price, flight.currency)}</div>
                             <div className="text-[10px] text-muted-foreground">{formatCurrency(flight.priceXAF, "XAF")}</div>
@@ -674,8 +677,8 @@ export default function TravelPage() {
                       <div className="flex items-center gap-2 mt-3 flex-wrap">
                         {flight.amenities.map(a => (
                           <div key={a} className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-secondary border border-border text-[10px] text-muted-foreground">
-                            {a === "WiFi" ? <Wifi size={9} /> : a === "Repas" ? <Utensils size={9} /> : <Zap size={9} />}
-                            {a}
+                            {a === "travel.amenity.wifi" ? <Wifi size={9} /> : a === "travel.amenity.meal" ? <Utensils size={9} /> : <Zap size={9} />}
+                            {t(a)}
                           </div>
                         ))}
                       </div>
@@ -691,18 +694,18 @@ export default function TravelPage() {
                                 onClick={e => { e.stopPropagation(); setSplitPaymentFor({ price: flight.price, currency: flight.currency, item: `${flight.airline} · ${flight.origin}→${flight.destination}` }); }}
                                 className="flex items-center justify-center gap-2 py-3 rounded-2xl border-2 border-primary/30 bg-primary/5 text-primary text-sm font-bold cursor-pointer hover:bg-primary/15 transition-colors"
                               >
-                                <CreditCard size={15} /> Payer en 3 fois
+                                <CreditCard size={15} /> {t("travel.payInThreeButton")}
                               </button>
                               <button
-                                onClick={e => { e.stopPropagation(); toast.success(`Billet ${flight.airline} réservé pour ${formatCurrency(flight.price, flight.currency)} !`); }}
+                                onClick={e => { e.stopPropagation(); toast.success(t("travel.flightBookedToast", { airline: flight.airline, price: formatCurrency(flight.price, flight.currency) })); }}
                                 className="flex items-center justify-center gap-2 py-3 rounded-2xl bg-primary text-primary-foreground text-sm font-bold cursor-pointer hover:bg-primary/90 transition-colors"
                               >
-                                Réserver maintenant <ArrowRight size={14} />
+                                {t("travel.bookNowButton")} <ArrowRight size={14} />
                               </button>
                             </div>
                             <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                              <Shield size={11} className="text-emerald-400" />
-                              Remboursement gratuit sous 24h · Protection acheteur PayRus incluse
+                              <Shield size={11} className="text-emerald-700" />
+                              {t("travel.freeRefundNotice")}
                             </div>
                           </div>
                         </motion.div>
@@ -715,17 +718,17 @@ export default function TravelPage() {
               {/* Reviews section */}
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-sm font-bold text-foreground">Avis de la communauté PayRus</h2>
+                  <h2 className="text-sm font-bold text-foreground">{t("travel.reviewsHeadingFlights")}</h2>
                   <button onClick={() => setShowReviewForm(!showReviewForm)}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 border border-primary/25 text-[11px] text-primary font-medium cursor-pointer hover:bg-primary/20 transition-colors">
-                    <Star size={11} /> Laisser un avis
+                    <Star size={11} /> {t("travel.leaveReview")}
                   </button>
                 </div>
 
                 <AnimatePresence>
                   {showReviewForm && (
                     <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
-                      <ReviewForm onSubmit={() => { setShowReviewForm(false); toast.success("Avis publié — merci !"); }} />
+                      <ReviewForm onSubmit={() => { setShowReviewForm(false); toast.success(t("travel.reviewPublishedToast")); }} />
                     </motion.div>
                   )}
                 </AnimatePresence>
@@ -744,10 +747,10 @@ export default function TravelPage() {
                         </div>
                         <div className="flex flex-col items-end gap-1">
                           <StarsDisplay count={review.rating} />
-                          <div className="text-[10px] text-muted-foreground">{review.date}</div>
+                          <div className="text-[10px] text-muted-foreground">{t(review.date)}</div>
                         </div>
                       </div>
-                      <p className="text-[12px] text-muted-foreground mt-3 leading-relaxed">{review.comment}</p>
+                      <p className="text-[12px] text-muted-foreground mt-3 leading-relaxed">{t(review.comment)}</p>
                     </motion.div>
                   ))}
                 </div>
@@ -765,18 +768,18 @@ export default function TravelPage() {
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   <div className="relative">
                     <MapPin size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                    <div className="pl-8 pr-3 py-2.5 rounded-xl bg-secondary border border-border text-sm text-muted-foreground cursor-pointer">Destination</div>
+                    <div className="pl-8 pr-3 py-2.5 rounded-xl bg-secondary border border-border text-sm text-muted-foreground cursor-pointer">{t("travel.destinationPlaceholder")}</div>
                   </div>
                   <div className="relative">
                     <Calendar size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                    <div className="pl-8 pr-3 py-2.5 rounded-xl bg-secondary border border-border text-sm text-muted-foreground cursor-pointer">Arrivée</div>
+                    <div className="pl-8 pr-3 py-2.5 rounded-xl bg-secondary border border-border text-sm text-muted-foreground cursor-pointer">{t("travel.checkInPlaceholder")}</div>
                   </div>
                   <div className="relative">
                     <Calendar size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                    <div className="pl-8 pr-3 py-2.5 rounded-xl bg-secondary border border-border text-sm text-muted-foreground cursor-pointer">Départ</div>
+                    <div className="pl-8 pr-3 py-2.5 rounded-xl bg-secondary border border-border text-sm text-muted-foreground cursor-pointer">{t("travel.checkOutPlaceholder")}</div>
                   </div>
                   <button className="flex items-center justify-center gap-2 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold cursor-pointer hover:bg-primary/90 transition-colors">
-                    <Search size={14} /> Rechercher
+                    <Search size={14} /> {t("travel.searchButton")}
                   </button>
                 </div>
               </div>
@@ -788,8 +791,8 @@ export default function TravelPage() {
                     <PayRusLogo className="h-6 w-auto" />
                   </div>
                   <div>
-                    <div className="text-sm font-bold text-foreground">Hôtels partenaires PayRus</div>
-                    <div className="text-[11px] text-muted-foreground mt-0.5">Jusqu'à <span className="text-primary font-semibold">18% de réduction</span> pour les membres PayRus · Facture directe sur votre compte · Late checkout offert</div>
+                    <div className="text-sm font-bold text-foreground">{t("travel.partnerHotelsTitle")}</div>
+                    <div className="text-[11px] text-muted-foreground mt-0.5">{t("travel.partnerHotelsPrefix")} <span className="text-primary font-semibold">{t("travel.partnerHotelsHighlight")}</span> {t("travel.partnerHotelsSuffix")}</div>
                   </div>
                   <Sparkles size={20} className="text-primary ml-auto shrink-0" />
                 </div>
@@ -797,7 +800,7 @@ export default function TravelPage() {
 
               {/* Filter pills */}
               <div className="flex items-center gap-2 overflow-x-auto pb-1">
-                {["Tous", "Partenaires PayRus", "Luxe 5★", "Affaires", "< 150$/nuit", "Piscine", "Spa"].map((f, i) => (
+                {[t("travel.filters.all"), t("travel.filters.payrusPartners"), t("travel.filters.luxury5star"), t("travel.filters.business"), t("travel.filters.under150"), t("travel.filters.pool"), t("travel.filters.spa")].map((f, i) => (
                   <button key={f} className={cn(
                     "px-3 py-1.5 rounded-full text-[11px] font-medium border whitespace-nowrap shrink-0 cursor-pointer transition-colors",
                     i === 0 ? "bg-primary/15 text-primary border-primary/25" : "bg-card text-muted-foreground border-border hover:border-primary/30 hover:text-foreground"
@@ -848,26 +851,26 @@ export default function TravelPage() {
                         </div>
                         <div className="text-right shrink-0">
                           <div className="text-lg font-black text-foreground font-mono">${hotel.pricePerNight}</div>
-                          <div className="text-[10px] text-muted-foreground">par nuit</div>
+                          <div className="text-[10px] text-muted-foreground">{t("travel.perNight")}</div>
                         </div>
                       </div>
 
                       {/* Rating */}
                       <div className="flex items-center gap-2 mb-3">
-                        <div className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-400/10 border border-amber-400/20">
+                        <div className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-50 border border-amber-200">
                           <Star size={10} className="text-amber-400 fill-amber-400" />
-                          <span className="text-[11px] font-bold text-amber-400">{hotel.rating}</span>
+                          <span className="text-[11px] font-bold text-amber-700">{hotel.rating}</span>
                         </div>
-                        <span className="text-[10px] text-muted-foreground">{hotel.reviewCount.toLocaleString()} avis</span>
-                        <span className="text-[10px] text-muted-foreground">· {hotel.distance}</span>
+                        <span className="text-[10px] text-muted-foreground">{t("travel.reviewsCountLabel", { count: hotel.reviewCount.toLocaleString() })}</span>
+                        <span className="text-[10px] text-muted-foreground">· {t(hotel.distance)}</span>
                       </div>
 
                       {/* Amenities */}
                       <div className="flex items-center gap-1.5 flex-wrap mb-3">
                         {hotel.amenities.slice(0, 4).map(a => (
                           <div key={a} className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-secondary text-[9px] text-muted-foreground border border-border">
-                            {a === "WiFi" ? <Wifi size={8} /> : a === "Piscine" ? <Wind size={8} /> : a === "Restaurant" ? <Coffee size={8} /> : a === "Spa" ? <Sparkles size={8} /> : <BedDouble size={8} />}
-                            {a}
+                            {a === "travel.amenity.wifi" ? <Wifi size={8} /> : a === "travel.amenity.pool" ? <Wind size={8} /> : a === "Restaurant" ? <Coffee size={8} /> : a === "Spa" ? <Sparkles size={8} /> : <BedDouble size={8} />}
+                            {t(a)}
                           </div>
                         ))}
                         {hotel.amenities.length > 4 && (
@@ -878,14 +881,14 @@ export default function TravelPage() {
                       {/* CTAs */}
                       <div className="grid grid-cols-2 gap-2">
                         <button
-                          onClick={() => toast.success(`${hotel.name} ajouté aux favoris!`)}
+                          onClick={() => toast.success(t("travel.addedToFavoritesToast", { name: hotel.name }))}
                           className="py-2 rounded-xl border border-border text-[12px] font-semibold text-muted-foreground hover:text-foreground hover:bg-secondary cursor-pointer transition-colors flex items-center justify-center gap-1.5">
-                          <Globe size={12} /> Voir
+                          <Globe size={12} /> {t("travel.viewButton")}
                         </button>
                         <button
-                          onClick={() => toast.success(`Réservation ${hotel.name} confirmée!`)}
+                          onClick={() => toast.success(t("travel.hotelBookedToast", { name: hotel.name }))}
                           className="py-2 rounded-xl bg-primary text-primary-foreground text-[12px] font-bold cursor-pointer hover:bg-primary/90 transition-colors flex items-center justify-center gap-1.5">
-                          Réserver <ArrowUpRight size={12} />
+                          {t("travel.reserveButton")} <ArrowUpRight size={12} />
                         </button>
                       </div>
 
@@ -893,7 +896,7 @@ export default function TravelPage() {
                       {hotel.payrusMember && (
                         <div className="mt-2 flex items-center gap-1.5 text-[10px] text-primary">
                           <CheckCircle2 size={10} />
-                          Prix membre: <span className="font-bold font-mono">${Math.round(hotel.pricePerNight * (1 - hotel.discount / 100))}/nuit</span>
+                          {t("travel.memberPrice")} <span className="font-bold font-mono">${Math.round(hotel.pricePerNight * (1 - hotel.discount / 100))}/{t("travel.nightAbbrev")}</span>
                         </div>
                       )}
                     </div>
@@ -904,17 +907,17 @@ export default function TravelPage() {
               {/* Hotel Reviews */}
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-sm font-bold text-foreground">Avis hôtels — Communauté PayRus</h2>
+                  <h2 className="text-sm font-bold text-foreground">{t("travel.reviewsHeadingHotels")}</h2>
                   <button onClick={() => setShowReviewForm(!showReviewForm)}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 border border-primary/25 text-[11px] text-primary font-medium cursor-pointer hover:bg-primary/20 transition-colors">
-                    <Star size={11} /> Laisser un avis
+                    <Star size={11} /> {t("travel.leaveReview")}
                   </button>
                 </div>
 
                 <AnimatePresence>
                   {showReviewForm && (
                     <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
-                      <ReviewForm onSubmit={() => { setShowReviewForm(false); toast.success("Avis publié — merci !"); }} />
+                      <ReviewForm onSubmit={() => { setShowReviewForm(false); toast.success(t("travel.reviewPublishedToast")); }} />
                     </motion.div>
                   )}
                 </AnimatePresence>
@@ -933,10 +936,10 @@ export default function TravelPage() {
                         </div>
                         <div className="flex flex-col items-end gap-1">
                           <StarsDisplay count={review.rating} />
-                          <div className="text-[10px] text-muted-foreground">{review.date}</div>
+                          <div className="text-[10px] text-muted-foreground">{t(review.date)}</div>
                         </div>
                       </div>
-                      <p className="text-[12px] text-muted-foreground mt-3 leading-relaxed">{review.comment}</p>
+                      <p className="text-[12px] text-muted-foreground mt-3 leading-relaxed">{t(review.comment)}</p>
                     </motion.div>
                   ))}
                 </div>

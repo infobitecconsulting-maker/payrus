@@ -3,12 +3,12 @@ import { motion, AnimatePresence } from "motion/react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
-  User, Briefcase, Building2, Heart, Landmark, Shield,
+  User, Store, Smartphone, Building2, Landmark, Heart, Users, Sparkles,
   ChevronDown, CheckCircle2, Plus, LogOut,
-  PiggyBank, Coins, HandshakeIcon, Umbrella, TrendingUp, Banknote
 } from "lucide-react";
 import { cn } from "@/lib/utils.ts";
 import { useProfile, type ProfileType, getDefaultProfile } from "@/contexts/profile-context.tsx";
+import { clearLocalUserId } from "@/lib/local-user.ts";
 
 interface ProfileTypeInfo {
   id: ProfileType;
@@ -18,24 +18,18 @@ interface ProfileTypeInfo {
 }
 
 const TYPE_INFO: ProfileTypeInfo[] = [
-  { id: "individual",       icon: User,           color: "text-emerald-600 dark:text-emerald-400", bgColor: "bg-emerald-100 dark:bg-emerald-500/15" },
-  { id: "business",         icon: Briefcase,      color: "text-blue-600 dark:text-blue-400",    bgColor: "bg-blue-100 dark:bg-blue-500/15" },
-  { id: "corporate",        icon: Building2,      color: "text-violet-600 dark:text-violet-400",  bgColor: "bg-violet-100 dark:bg-violet-500/15" },
-  { id: "ngo",              icon: Heart,          color: "text-rose-600 dark:text-rose-400",    bgColor: "bg-rose-100 dark:bg-rose-500/15" },
-  { id: "pension_fund",     icon: PiggyBank,      color: "text-teal-600 dark:text-teal-400",    bgColor: "bg-teal-100 dark:bg-teal-500/15" },
-  { id: "microfinance",     icon: Coins,          color: "text-orange-600 dark:text-orange-400",  bgColor: "bg-orange-100 dark:bg-orange-500/15" },
-  { id: "cooperative",      icon: HandshakeIcon,  color: "text-lime-600 dark:text-lime-400",    bgColor: "bg-lime-100 dark:bg-lime-500/15" },
-  { id: "insurance",        icon: Umbrella,       color: "text-indigo-600 dark:text-indigo-400",  bgColor: "bg-indigo-100 dark:bg-indigo-500/15" },
-  { id: "investment_fund",  icon: TrendingUp,     color: "text-purple-600 dark:text-purple-400",  bgColor: "bg-purple-100 dark:bg-purple-500/15" },
-  { id: "development_bank", icon: Banknote,       color: "text-yellow-600 dark:text-yellow-400",  bgColor: "bg-yellow-100 dark:bg-yellow-500/15" },
-  { id: "government",       icon: Landmark,       color: "text-amber-600 dark:text-amber-400",   bgColor: "bg-amber-100 dark:bg-amber-500/15" },
-  { id: "state_entity",     icon: Shield,         color: "text-cyan-600 dark:text-cyan-400",    bgColor: "bg-cyan-100 dark:bg-cyan-500/15" },
+  { id: "personal",            icon: User,       color: "text-emerald-600 dark:text-emerald-400", bgColor: "bg-emerald-100 dark:bg-emerald-500/15" },
+  { id: "merchant",            icon: Store,       color: "text-blue-600 dark:text-blue-400",    bgColor: "bg-blue-100 dark:bg-blue-500/15" },
+  { id: "agent",               icon: Smartphone,  color: "text-orange-600 dark:text-orange-400",  bgColor: "bg-orange-100 dark:bg-orange-500/15" },
+  { id: "treasury",            icon: Building2,   color: "text-violet-600 dark:text-violet-400",  bgColor: "bg-violet-100 dark:bg-violet-500/15" },
+  { id: "public_institution",  icon: Landmark,    color: "text-amber-600 dark:text-amber-400",   bgColor: "bg-amber-100 dark:bg-amber-500/15" },
+  { id: "ngo",                 icon: Heart,       color: "text-rose-600 dark:text-rose-400",    bgColor: "bg-rose-100 dark:bg-rose-500/15" },
+  { id: "group",               icon: Users,       color: "text-lime-600 dark:text-lime-400",    bgColor: "bg-lime-100 dark:bg-lime-500/15" },
+  { id: "starter",             icon: Sparkles,    color: "text-cyan-600 dark:text-cyan-400",    bgColor: "bg-cyan-100 dark:bg-cyan-500/15" },
 ];
 
 const SWITCHER_GROUPS = [
-  { label: "Personnel & Entreprise", ids: ["individual","business","corporate","ngo"] as ProfileType[] },
-  { label: "Institutions Financières", ids: ["pension_fund","microfinance","cooperative","insurance","investment_fund","development_bank"] as ProfileType[] },
-  { label: "Secteur Public", ids: ["government","state_entity"] as ProfileType[] },
+  { label: "profileSwitcher.groupRoles", ids: ["personal","merchant","agent","treasury","public_institution","ngo","group","starter"] as ProfileType[] },
 ];
 
 function getInitials(name: string) {
@@ -65,6 +59,7 @@ export default function ProfileSwitcher() {
 
   const handleLogout = () => {
     clearProfile();
+    clearLocalUserId();
     navigate(`${base}/profile`);
   };
 
@@ -115,7 +110,7 @@ export default function ProfileSwitcher() {
                   return (
                     <div key={group.label}>
                       <div className="px-4 pt-2 pb-1">
-                        <span className="text-[9px] font-bold text-muted-foreground/60 uppercase tracking-widest">{group.label}</span>
+                        <span className="text-[9px] font-bold text-muted-foreground/60 uppercase tracking-widest">{t(group.label)}</span>
                       </div>
                       {groupProfiles.map((info) => {
                         const isActiveProfile = profile.type === info.id;

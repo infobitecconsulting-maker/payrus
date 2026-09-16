@@ -319,10 +319,10 @@ export function generateTechAnalysisPDF() {
   // Architecture diagram (textual)
   const archBlocks = [
     { label: "Browser / End User", color: C.muted, desc: "React 19 SPA — Vite build — served from Hercules CDN" },
-    { label: "Auth Layer", color: C.amber, desc: "Hercules OIDC (OpenID Connect) — managed auth portal — no custom UI" },
+    { label: "Auth Layer", color: C.amber, desc: "Supabase Auth — password, OAuth, magic link, phone OTP, SAML SSO — custom sign-in/register UI" },
     { label: "Frontend App", color: C.green, desc: "React Router v7 (locale-prefix routing) · shadcn UI · Tailwind CSS 4 · i18n (EN/FR/PT)" },
     { label: "Convex Backend", color: C.blue, desc: "Convex V8 runtime — reactive WebSocket queries — Convex DB (document-relational)" },
-    { label: "Hercules Cloud", color: C.violet, desc: "Hosting · Auth · Files & Media CDN · AI Gateway · Email · Secrets management" },
+    { label: "Hercules Cloud", color: C.violet, desc: "Hosting · Files & Media CDN · AI Gateway · Secrets management" },
   ];
   archBlocks.forEach((b, i) => {
     if (y + 14 > doc.internal.pageSize.getHeight() - 18) {
@@ -380,9 +380,9 @@ export function generateTechAnalysisPDF() {
     body: [
       ["users", "_id", "Id<'users'>", "Auto — system field"],
       ["users", "_creationTime", "number (ms)", "Auto — system field"],
-      ["users", "tokenIdentifier", "v.string()", "Stable OIDC subject — index: by_token"],
-      ["users", "name", "v.optional(v.string())", "Display name from OIDC identity"],
-      ["users", "email", "v.optional(v.string())", "Email from OIDC identity"],
+      ["users", "tokenIdentifier", "v.string()", "\"supabase:<uuid>\" — Supabase Auth user id — index: by_token"],
+      ["users", "name", "v.optional(v.string())", "Display name from Supabase identity"],
+      ["users", "email", "v.optional(v.string())", "Email from Supabase identity"],
     ],
     theme: "plain",
     headStyles: { fillColor: C.border, textColor: C.violet, fontStyle: "bold", fontSize: 7.5 },
@@ -403,7 +403,7 @@ export function generateTechAnalysisPDF() {
     startY: y, margin: { left: 12, right: 12 },
     head: [["Table", "Index Name", "Fields", "Usage"]],
     body: [
-      ["users", "by_token", "['tokenIdentifier']", "Primary user lookup by OIDC token — O(log n)"],
+      ["users", "by_token", "['tokenIdentifier']", "Primary user lookup by Supabase user id — O(log n)"],
       ["users", "by_creation_time", "['_creationTime']", "Auto-created by Convex — ordered iteration"],
       ["users", "by_id", "['_id']", "Auto-created by Convex — point lookup"],
     ],
@@ -425,8 +425,9 @@ export function generateTechAnalysisPDF() {
     startY: y, margin: { left: 12, right: 12 },
     head: [["Function", "Type", "File", "Auth Required", "Description"]],
     body: [
-      ["updateCurrentUser", "mutation", "convex/users.ts", "Yes", "Upserts a user record from OIDC identity on login. Called by auth callback. No args."],
-      ["getCurrentUser", "query", "convex/users.ts", "Yes", "Fetches the current authenticated user's document. Reactive — auto-updates."],
+      ["getById", "query", "convex/users.ts", "No", "Looks up a user by id, passed explicitly from the client. Reactive — auto-updates."],
+      ["upsertSupabaseUser", "mutation", "convex/supabaseAuth.ts", "No", "Links a Supabase Auth user id to a users row on every sign-in path. Core identity bridge."],
+      ["resolveEmailByIdentifier", "query", "convex/supabaseAuth.ts", "No", "Resolves username/email/phone to an email for Supabase's password/magic-link APIs."],
     ],
     theme: "plain",
     headStyles: { fillColor: C.border, textColor: C.green, fontStyle: "bold", fontSize: 7.5 },
@@ -468,7 +469,7 @@ export function generateTechAnalysisPDF() {
     ["Investor Deck", "/en/investor", "All", "Interactive pitch deck — market data, financials, traction KPIs"],
     ["Admin", "/en/admin", "Admin", "User management, KYC review, system health, audit logs"],
     ["Profile Selection", "/en/profile", "All", "Account type selection — 13 profile types — persisted to localStorage"],
-    ["Auth Callback", "/auth/callback", "System", "OIDC callback handler — tokens → Convex user upsert"],
+    ["Auth Callback", "/en/auth/callback", "System", "OAuth/magic-link/SSO landing page — resolves session → upsertSupabaseUser"],
   ];
 
   autoTable(doc, {
@@ -501,18 +502,14 @@ export function generateTechAnalysisPDF() {
     startY: y, margin: { left: 12, right: 12 },
     head: [["Profile Type", "Default Name", "Tier", "Currency", "Balance (USD equiv.)"]],
     body: [
-      ["individual", "Jean Dupont", "Premium ✦", "XAF", "$12,149"],
-      ["business", "Dupont & Fils SARL", "Business Pro", "XAF", "$70,833"],
-      ["corporate", "CEMAC Holdings S.A.", "Corporate Platinum", "USD", "$2,850,000"],
+      ["personal", "Jean Dupont", "Premium ✦", "XAF", "$12,149"],
+      ["merchant", "Dupont & Fils SARL", "Merchant Pro", "XAF", "$70,833"],
+      ["agent", "Kiosque Mama Amina — Mobile Money", "Agent Network", "XAF", "$6,417"],
+      ["treasury", "CEMAC Holdings S.A.", "Corporate Treasury", "USD", "$2,850,000"],
+      ["public_institution", "Ministère des Finances — RCA", "Sovereign", "XAF", "$115,970,000"],
       ["ngo", "Fondation Ubuntu Centrafrique", "NGO Verified", "USD", "$385,000"],
-      ["government", "Ministère des Finances — RCA", "Sovereign", "XAF", "$115,970,000"],
-      ["state_entity", "SODECA — Société des Eaux RCA", "State Entity", "XAF", "$7,108,000"],
-      ["pension_fund", "CNSS RCA — Caisse de Retraite", "Pension Fund", "XAF", "$31,651,000"],
-      ["microfinance", "ADIE Centrafrique", "Microfinance", "XAF", "$5,330,000"],
-      ["cooperative", "MUCODEC Congo-Brazzaville", "Cooperative", "XAF", "$1,659,000"],
-      ["insurance", "AfricaRe Assurances", "Insurance Entity", "USD", "$14,200,000"],
-      ["investment_fund", "CEMAC Capital Fund", "Investment Fund", "USD", "$48,500,000"],
-      ["development_bank", "BDEAC — Banque de Développement CEMAC", "Dev Bank", "XAF", "$414,746,000"],
+      ["group", "MUCODEC Congo-Brazzaville", "Group / Cooperative", "XAF", "$1,659,000"],
+      ["starter", "New PayRus Member", "Starter", "XAF", "$42"],
       ["admin", "PayRus System Administrator", "System Admin", "—", "—"],
     ],
     theme: "plain",
@@ -540,7 +537,7 @@ export function generateTechAnalysisPDF() {
     startY: y, margin: { left: 12, right: 12 },
     head: [["Service", "SDK / Method", "Purpose", "Status"]],
     body: [
-      ["Hercules Auth", "@usehercules/auth ^1.2.0", "OIDC-based authentication — Google, Apple, Microsoft, email OTP, username+password", "Active"],
+      ["Supabase Auth", "@supabase/supabase-js", "Password, OAuth (Google/Facebook/GitHub live), magic link, phone OTP, SAML SSO", "Active"],
       ["Hercules Database", "convex ^1.42.3", "Reactive document-relational database for user persistence", "Active"],
       ["Hercules Backend", "convex ^1.42.3", "Serverless V8 functions — queries, mutations, actions", "Active"],
       ["Hercules CDN", "hercules-cdn.com", "Static asset hosting — logo (file_nhS7kK2ylKHlDb37jOlETDFt), campaign photos", "Active"],
@@ -568,8 +565,6 @@ export function generateTechAnalysisPDF() {
     body: [
       ["Unsplash CDN", "—", "Campaign photos — fundraise page", "Public CDN — images.unsplash.com"],
       ["Google Fonts", "—", "Space Grotesk & Space Mono fonts", "Loaded via @import in index.css"],
-      ["react-oidc-context", "^3.3.1", "OIDC token lifecycle management", "Wraps oidc-client-ts"],
-      ["oidc-client-ts", "^3.5.0", "Low-level OIDC protocol client", "Managed by @usehercules/auth"],
       ["recharts", "^3.10.1", "Savings growth charts, dashboard charts", "AreaChart, BarChart, PieChart"],
       ["embla-carousel-react", "^8.6.0", "Carousels in savings / travel pages", "Installed, available"],
     ],
@@ -591,12 +586,12 @@ export function generateTechAnalysisPDF() {
   doc.setFillColor(...C.amber);
   doc.rect(12, y, 3, 36, "F");
   const authLines = [
-    "Provider:       Hercules OIDC  (OpenID Connect 1.0)",
-    "Authority:      HERCULES_OIDC_AUTHORITY  (env var — set by Hercules platform)",
-    "Client ID:      HERCULES_OIDC_CLIENT_ID  (env var — set by Hercules platform)",
-    "Callback URL:   /auth/callback  →  AuthCallback component  →  updateCurrentUser mutation",
-    "Session:        Browser session storage via oidc-client-ts — automatic token refresh",
-    "User linking:   identity.tokenIdentifier  →  users.tokenIdentifier  (stable, opaque string)",
+    "Provider:       Supabase Auth  (password, OAuth, magic link, phone OTP, SAML SSO)",
+    "Project URL:    VITE_SUPABASE_URL  (env var, frontend)",
+    "Anon key:       VITE_SUPABASE_ANON_KEY  (env var, frontend — public, not a secret)",
+    "Callback URL:   /:lng/auth/callback  →  auth-callback page  →  upsertSupabaseUser mutation",
+    "Session:        Supabase's own client-side session store — automatic token refresh",
+    "User linking:   Supabase user id  →  users.tokenIdentifier  (\"supabase:<uuid>\")",
   ];
   authLines.forEach((line, i) => {
     doc.setFont("courier", "normal");
@@ -616,13 +611,12 @@ export function generateTechAnalysisPDF() {
 
   y = sectionTitle(doc, "5.1  Authentication Flow", y, C.red);
   const authFlow = [
-    ["1", "User clicks SignInButton", "Browser", "Redirects to Hercules Auth portal (OIDC Authorization Code flow)"],
-    ["2", "User authenticates", "Hercules Auth", "Supports Google, Apple, Microsoft, Facebook, LinkedIn, email OTP, username+password"],
-    ["3", "Redirect to /auth/callback", "Browser", "OIDC code exchanged for tokens via oidc-client-ts"],
-    ["4", "AuthCallback mounts", "React", "useAuthCallback hook fires onSync callback"],
-    ["5", "updateCurrentUser mutation", "Convex Backend", "Upserts user in DB using identity.tokenIdentifier — no args accepted"],
-    ["6", "Navigate to /", "Browser", "User redirected to locale-prefixed home route (/en, /fr, /pt)"],
-    ["7", "Profile selection guard", "AppLayout", "If no profile in localStorage → redirect to /profile selection page"],
+    ["1", "User submits sign-in form, or clicks a PayRus SSO icon", "Browser", "Password path calls signInWithPassword; OAuth path calls signInWithOAuth (redirects out)"],
+    ["2", "User authenticates", "Supabase Auth", "Password, Google/Facebook/GitHub (live), magic link, phone OTP, or SAML SSO"],
+    ["3", "Redirect to /:lng/auth/callback", "Browser", "OAuth/magic-link/SSO paths only — Supabase resolves the session client-side"],
+    ["4", "upsertSupabaseUser mutation", "Convex Backend", "Links the Supabase user id to a users row by tokenIdentifier, syncing name/email"],
+    ["5", "routeAfterIdentity", "React", "Sends first-time identities to onboarding, returning ones straight to their dashboard"],
+    ["6", "Profile selection guard", "AppLayout", "If no profile in localStorage → redirect to /profile selection page"],
   ];
   autoTable(doc, {
     startY: y, margin: { left: 12, right: 12 },
@@ -650,8 +644,8 @@ export function generateTechAnalysisPDF() {
       ["Government features", "isGovProfile flag in navItems", "Client — conditional nav rendering", "No server enforcement"],
       ["FI-only features", "isFiProfile flag in navItems", "Client — conditional nav rendering", "No server enforcement"],
       ["Admin page", "Route /admin — no server guard yet", "Client — nav display only", "URL accessible directly"],
-      ["Convex auth check", "ctx.auth.getUserIdentity() in handlers", "Server — Convex backend function", "Unauthenticated calls throw UNAUTHENTICATED"],
-      ["tokenIdentifier", "identity.tokenIdentifier from OIDC", "Server — only source of truth", "Never accepted as client argument"],
+      ["Convex identity", "userId passed explicitly per call (see use-current-app-user.ts)", "Client-resolved, server-trusted", "Convex never verifies a Supabase session — no ctx.auth check"],
+      ["Password/secret handling", "Supabase Auth API only — passwords never touch Convex", "Server — Supabase", "Service-role key stays in Convex's server env, never in a VITE_ var"],
     ],
     theme: "plain",
     headStyles: { fillColor: C.border, textColor: C.amber, fontStyle: "bold", fontSize: 7.5 },
@@ -677,9 +671,9 @@ export function generateTechAnalysisPDF() {
   const secNotes = [
     ["⚠", "Admin route is client-side only", "HIGH", "Add server-side role check via Convex mutation using tokenIdentifier"],
     ["⚠", "Gov/FI profile restrictions are UI-only", "MEDIUM", "Add Convex function guards checking user's persisted role in DB"],
-    ["✓", "tokenIdentifier never accepted as arg", "MITIGATED", "All identity is derived server-side from ctx.auth.getUserIdentity()"],
-    ["✓", "Secrets managed by Hercules platform", "MITIGATED", "No API keys in codebase — all via process.env Secrets tab"],
-    ["✓", "No custom auth UI", "MITIGATED", "All auth through Hercules managed portal — no credential handling"],
+    ["⚠", "Convex trusts a client-passed userId", "MEDIUM", "No ctx.auth check — a Convex function guard should verify the Supabase session server-side"],
+    ["✓", "Passwords never handled by our own code", "MITIGATED", "Password auth, OAuth, and OTP all go through Supabase's own Auth API"],
+    ["✓", "Secrets managed via env, not code", "MITIGATED", "Supabase service-role key lives only in Convex's server env — never a VITE_ var or frontend file"],
     ["ℹ", "Profile stored in localStorage", "LOW", "Demo data only — no sensitive financial data persisted client-side"],
   ];
   autoTable(doc, {
@@ -902,9 +896,9 @@ export function generateTechAnalysisPDF() {
     startY: y, margin: { left: 12, right: 12 },
     head: [["Currency", "Code", "Zone / Issuer", "Used By Profile Types", "Exchange Rate Ref"]],
     body: [
-      ["Congolese Franc", "CDF", "DRC — Banque Centrale du Congo (BCC)", "individual, government, state_entity, pension_fund, microfinance", "~600 CDF/USD"],
-      ["CFA Franc CEMAC", "XAF", "CEMAC — BEAC (Central Bank)", "individual, business, cooperative, development_bank", "~600 XAF/USD"],
-      ["US Dollar", "USD", "International reserve currency", "corporate, ngo, insurance, investment_fund", "1:1 reference"],
+      ["Congolese Franc", "CDF", "DRC — Banque Centrale du Congo (BCC)", "personal, public_institution, agent, group", "~600 CDF/USD"],
+      ["CFA Franc CEMAC", "XAF", "CEMAC — BEAC (Central Bank)", "personal, merchant, group", "~600 XAF/USD"],
+      ["US Dollar", "USD", "International reserve currency", "treasury, ngo", "1:1 reference"],
       ["Euro", "EUR", "European Union — ECB", "International remittance corridors", "~0.92 EUR/USD"],
       ["British Pound", "GBP", "United Kingdom — Bank of England", "Diaspora remittance corridor", "~0.79 GBP/USD"],
     ],

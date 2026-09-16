@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { motion, AnimatePresence } from "motion/react";
 import PageHeader from "@/components/ui/page-header.tsx";
 import {
@@ -20,9 +21,9 @@ type NotifType = "credit" | "debit" | "security" | "campaign" | "travel" | "syst
 interface Notification {
   id: string;
   type: NotifType;
-  title: string;
-  body: string;
-  time: string;
+  titleKey: string;
+  bodyKey: string;
+  minutesAgo: number;
   read: boolean;
   amount?: number;
   currency?: string;
@@ -35,75 +36,63 @@ interface Notification {
 const SHARED_NOTIFS: Notification[] = [
   {
     id: "n1", type: "credit", category: "transactions",
-    title: "Paiement reçu",
-    body: "Amara K. vous a envoyé XAF 75,000 depuis Abidjan",
-    time: "Il y a 3 min", read: false, amount: 75000, currency: "XAF", emoji: "💸",
+    titleKey: "notifications.n1Title", bodyKey: "notifications.n1Body",
+    minutesAgo: 3, read: false, amount: 75000, currency: "XAF", emoji: "💸",
   },
   {
     id: "n2", type: "security", category: "security",
-    title: "Nouvelle connexion détectée",
-    body: "Connexion depuis un nouvel appareil — Kinshasa, RDC. C'est vous ?",
-    time: "Il y a 12 min", read: false, emoji: "🔐",
+    titleKey: "notifications.n2Title", bodyKey: "notifications.n2Body",
+    minutesAgo: 12, read: false, emoji: "🔐",
   },
   {
     id: "n3", type: "credit", category: "transactions",
-    title: "Virement reçu",
-    body: "Diaspora · Paris — CDF 1,200,000 crédités sur votre compte",
-    time: "Il y a 28 min", read: false, amount: 1200000, currency: "CDF", emoji: "🌍",
+    titleKey: "notifications.n3Title", bodyKey: "notifications.n3Body",
+    minutesAgo: 28, read: false, amount: 1200000, currency: "CDF", emoji: "🌍",
   },
   {
     id: "n4", type: "campaign", category: "transactions",
-    title: "Don reçu — Collecte Kasaï",
-    body: "Votre campagne a reçu un don de XAF 10,000. Total : XAF 2,184,000",
-    time: "Il y a 1h", read: true, amount: 10000, currency: "XAF", emoji: "❤️",
+    titleKey: "notifications.n4Title", bodyKey: "notifications.n4Body",
+    minutesAgo: 60, read: true, amount: 10000, currency: "XAF", emoji: "❤️",
   },
   {
     id: "n5", type: "travel", category: "promotions",
-    title: "Offre voyage exclusive",
-    body: "Vols KIN → CDG dès $612 avec -8% membres PayRus. Valable 48h.",
-    time: "Il y a 2h", read: true, emoji: "✈️",
+    titleKey: "notifications.n5Title", bodyKey: "notifications.n5Body",
+    minutesAgo: 120, read: true, emoji: "✈️",
   },
   {
     id: "n6", type: "alert", category: "security",
-    title: "Alerte taux de change",
-    body: "USD/XAF atteint votre cible : 1 USD = 2,800 XAF. Moment idéal pour convertir.",
-    time: "Il y a 3h", read: true, emoji: "📊",
+    titleKey: "notifications.n6Title", bodyKey: "notifications.n6Body",
+    minutesAgo: 180, read: true, emoji: "📊",
   },
   {
     id: "n7", type: "debit", category: "transactions",
-    title: "Paiement effectué",
-    body: "Orange Money — Recharge XAF 5,000 pour +243 81 234 5678",
-    time: "Il y a 5h", read: true, amount: -5000, currency: "XAF", emoji: "📱",
+    titleKey: "notifications.n7Title", bodyKey: "notifications.n7Body",
+    minutesAgo: 300, read: true, amount: -5000, currency: "XAF", emoji: "📱",
   },
   {
     id: "n8", type: "promo", category: "promotions",
-    title: "Nouveau partenaire PayRus",
-    body: "Kempinski Fleuve Congo rejoint PayRus Travel — -15% sur les réservations",
-    time: "Hier", read: true, emoji: "🏨",
+    titleKey: "notifications.n8Title", bodyKey: "notifications.n8Body",
+    minutesAgo: 1440, read: true, emoji: "🏨",
   },
   {
     id: "n9", type: "system", category: "updates",
-    title: "Mise à jour PayRus 2.1.4",
-    body: "Nouvelles fonctionnalités : Collecte de fonds, Voyage en 3 fois, Groupes améliorés",
-    time: "Hier", read: true, emoji: "🚀",
+    titleKey: "notifications.n9Title", bodyKey: "notifications.n9Body",
+    minutesAgo: 1500, read: true, emoji: "🚀",
   },
   {
     id: "n10", type: "alert", category: "security",
-    title: "PIN modifié avec succès",
-    body: "Votre code PIN a été mis à jour. Contactez le support si ce n'est pas vous.",
-    time: "Il y a 2 jours", read: true, emoji: "✅",
+    titleKey: "notifications.n10Title", bodyKey: "notifications.n10Body",
+    minutesAgo: 2880, read: true, emoji: "✅",
   },
   {
     id: "n11", type: "credit", category: "transactions",
-    title: "Remboursement reçu",
-    body: "PayRus Travel — remboursement billet Vol ET-502 : $612.00",
-    time: "Il y a 3 jours", read: true, amount: 612, currency: "USD", emoji: "💰",
+    titleKey: "notifications.n11Title", bodyKey: "notifications.n11Body",
+    minutesAgo: 4320, read: true, amount: 612, currency: "USD", emoji: "💰",
   },
   {
     id: "n12", type: "promo", category: "promotions",
-    title: "Offre épargne du mois",
-    body: "Blocage 90 jours — taux 8.5% annuel. Déposez à partir de XAF 50,000.",
-    time: "Il y a 3 jours", read: true, emoji: "🐷",
+    titleKey: "notifications.n12Title", bodyKey: "notifications.n12Body",
+    minutesAgo: 4400, read: true, emoji: "🐷",
   },
 ];
 
@@ -112,22 +101,22 @@ function getProfileNotifs(profileType: string): Notification[] {
   const base = [...SHARED_NOTIFS];
 
   const profileSpecific: Partial<Record<string, Notification[]>> = {
-    pension_fund: [
-      { id: "pf1", type: "alert", category: "transactions", title: "Cotisations en retard", body: "3 entreprises affiliées ont un retard > 30 jours. Relance automatique déclenchée.", time: "Il y a 5 min", read: false, emoji: "⚠️" },
-      { id: "pf2", type: "credit", category: "transactions", title: "Cotisations reçues", body: "Lot CNSS Janvier 2026 — CDF 840,000,000 crédités (184 entreprises)", time: "Il y a 1h", read: false, amount: 840000000, currency: "CDF", emoji: "🏛️" },
+    group: [
+      { id: "pf1", type: "alert", category: "transactions", titleKey: "notifications.pf1Title", bodyKey: "notifications.pf1Body", minutesAgo: 5, read: false, emoji: "⚠️" },
+      { id: "pf2", type: "credit", category: "transactions", titleKey: "notifications.pf2Title", bodyKey: "notifications.pf2Body", minutesAgo: 60, read: false, amount: 840000000, currency: "CDF", emoji: "🏛️" },
     ],
-    microfinance: [
-      { id: "mf1", type: "alert", category: "security", title: "Alerte portefeuille", body: "42 crédits dépassent 90 jours d'impayé. Mission terrain suggérée pour 6 agents.", time: "Il y a 8 min", read: false, emoji: "🔴" },
-      { id: "mf2", type: "credit", category: "transactions", title: "Remboursement reçu", body: "Mwana Solidarity Group · Uvira — CDF 680,000", time: "Il y a 30 min", read: false, amount: 680000, currency: "CDF", emoji: "✅" },
+    agent: [
+      { id: "mf1", type: "alert", category: "security", titleKey: "notifications.mf1Title", bodyKey: "notifications.mf1Body", minutesAgo: 8, read: false, emoji: "🔴" },
+      { id: "mf2", type: "credit", category: "transactions", titleKey: "notifications.mf2Title", bodyKey: "notifications.mf2Body", minutesAgo: 30, read: false, amount: 680000, currency: "CDF", emoji: "✅" },
     ],
-    insurance: [
-      { id: "ins1", type: "alert", category: "transactions", title: "128 polices à renouveler", body: "Arrivée à échéance dans 30 jours. Déclencher les relances automatiques ?", time: "Il y a 10 min", read: false, emoji: "📋" },
+    merchant: [
+      { id: "ins1", type: "alert", category: "transactions", titleKey: "notifications.ins1Title", bodyKey: "notifications.ins1Body", minutesAgo: 10, read: false, emoji: "📋" },
     ],
-    government: [
-      { id: "gov1", type: "credit", category: "transactions", title: "Recette SIGTAS reçue", body: "TVA Novembre — $420,000 crédités sur compte Trésor", time: "Il y a 2 min", read: false, amount: 420000, currency: "USD", emoji: "🏛️" },
+    public_institution: [
+      { id: "gov1", type: "credit", category: "transactions", titleKey: "notifications.gov1Title", bodyKey: "notifications.gov1Body", minutesAgo: 2, read: false, amount: 420000, currency: "USD", emoji: "🏛️" },
     ],
-    investment_fund: [
-      { id: "inv1", type: "alert", category: "transactions", title: "Rééquilibrage recommandé", body: "Allocation obligataire dépasse de 4% la cible. Arbitrage vers actions africaines suggéré.", time: "Il y a 15 min", read: false, emoji: "📊" },
+    treasury: [
+      { id: "inv1", type: "alert", category: "transactions", titleKey: "notifications.inv1Title", bodyKey: "notifications.inv1Body", minutesAgo: 15, read: false, emoji: "📊" },
     ],
   };
 
@@ -135,18 +124,27 @@ function getProfileNotifs(profileType: string): Notification[] {
   return [...specific, ...base];
 }
 
+// ── Relative time formatting ─────────────────────────────────────────────────
+
+function formatRelativeTime(minutesAgo: number, t: TFunction): string {
+  if (minutesAgo < 60) return t("notifications.timeMinutesAgo", { count: minutesAgo });
+  if (minutesAgo < 60 * 24) return t("notifications.timeHoursAgo", { count: Math.floor(minutesAgo / 60) });
+  if (minutesAgo < 60 * 24 * 2) return t("common.yesterday");
+  return t("notifications.timeDaysAgo", { count: Math.floor(minutesAgo / (60 * 24)) });
+}
+
 // ── Notif type styling ────────────────────────────────────────────────────────
 
 function notifStyle(type: NotifType) {
   return {
-    credit:   { bg: "bg-emerald-400/10", icon: ArrowDownLeft, color: "text-emerald-400" },
-    debit:    { bg: "bg-amber-400/10",   icon: ArrowUpRight,  color: "text-amber-400" },
-    security: { bg: "bg-red-400/10",     icon: Shield,        color: "text-red-400" },
-    campaign: { bg: "bg-red-400/10",     icon: Heart,         color: "text-red-400" },
-    travel:   { bg: "bg-blue-400/10",    icon: Plane,         color: "text-blue-400" },
+    credit:   { bg: "bg-emerald-50", icon: ArrowDownLeft, color: "text-emerald-700" },
+    debit:    { bg: "bg-amber-50",   icon: ArrowUpRight,  color: "text-amber-700" },
+    security: { bg: "bg-red-50",     icon: Shield,        color: "text-red-700" },
+    campaign: { bg: "bg-red-50",     icon: Heart,         color: "text-red-700" },
+    travel:   { bg: "bg-blue-50",    icon: Plane,         color: "text-blue-700" },
     system:   { bg: "bg-primary/10",     icon: Sparkles,      color: "text-primary" },
-    promo:    { bg: "bg-violet-400/10",  icon: Gift,          color: "text-violet-400" },
-    alert:    { bg: "bg-orange-400/10",  icon: AlertTriangle, color: "text-orange-400" },
+    promo:    { bg: "bg-violet-50",  icon: Gift,          color: "text-violet-700" },
+    alert:    { bg: "bg-orange-50",  icon: AlertTriangle, color: "text-orange-700" },
   }[type];
 }
 
@@ -155,7 +153,7 @@ function notifStyle(type: NotifType) {
 export default function NotificationsPage() {
   const { t } = useTranslation("common");
   const { profile } = useProfile();
-  const profileType = profile?.type ?? "individual";
+  const profileType = profile?.type ?? "personal";
   const [allNotifs, setAllNotifs] = useState<Notification[]>(() => getProfileNotifs(profileType));
   const [activeCategory, setActiveCategory] = useState<NotifCategory>("all");
   const [showClearConfirm, setShowClearConfirm] = useState(false);
@@ -168,7 +166,7 @@ export default function NotificationsPage() {
 
   const markAllRead = () => {
     setAllNotifs(prev => prev.map(n => ({ ...n, read: true })));
-    toast.success("Toutes les notifications marquées comme lues");
+    toast.success(t("notifications.markedAllRead"));
   };
 
   const markRead = (id: string) => {
@@ -182,7 +180,7 @@ export default function NotificationsPage() {
   const clearAll = () => {
     setAllNotifs([]);
     setShowClearConfirm(false);
-    toast.success("Toutes les notifications effacées");
+    toast.success(t("notifications.clearedAll"));
   };
 
   const CATEGORIES = [
@@ -195,9 +193,9 @@ export default function NotificationsPage() {
 
   // Group by date
   const grouped: { label: string; items: Notification[] }[] = [];
-  const recentItems = filtered.filter(n => n.time.includes("min") || n.time.includes("h"));
-  const yesterdayItems = filtered.filter(n => n.time === "Hier");
-  const olderItems = filtered.filter(n => n.time.includes("jours") || n.time.includes("semaine"));
+  const recentItems = filtered.filter(n => n.minutesAgo < 60 * 24);
+  const yesterdayItems = filtered.filter(n => n.minutesAgo >= 60 * 24 && n.minutesAgo < 60 * 24 * 2);
+  const olderItems = filtered.filter(n => n.minutesAgo >= 60 * 24 * 2);
 
   if (recentItems.length) grouped.push({ label: t("notifications.today"), items: recentItems });
   if (yesterdayItems.length) grouped.push({ label: t("notifications.yesterday"), items: yesterdayItems });
@@ -224,7 +222,7 @@ export default function NotificationsPage() {
               )}
             </div>
             <div>
-              <h1 className="text-base font-black text-foreground">Notifications</h1>
+              <h1 className="text-base font-black text-foreground">{t("notifications.title")}</h1>
               <p className="text-[11px] text-muted-foreground">{unreadCount > 0 ? t("notifications.unread", { count: unreadCount }) : t("notifications.allCaughtUp")}</p>
             </div>
           </div>
@@ -270,8 +268,8 @@ export default function NotificationsPage() {
               <Bell size={28} className="opacity-30" />
             </div>
             <div className="text-center">
-              <div className="text-sm font-semibold text-foreground">Aucune notification</div>
-              <div className="text-xs mt-1">Vous êtes à jour !</div>
+              <div className="text-sm font-semibold text-foreground">{t("notifications.empty")}</div>
+              <div className="text-xs mt-1">{t("notifications.emptySubtitle")}</div>
             </div>
           </div>
         ) : (
@@ -307,14 +305,14 @@ export default function NotificationsPage() {
                         {/* Content */}
                         <div className="flex-1 min-w-0">
                           <div className="flex items-start justify-between gap-2">
-                            <div className="text-sm font-semibold text-foreground leading-snug">{notif.title}</div>
-                            <div className="text-[10px] text-muted-foreground shrink-0 mt-0.5">{notif.time}</div>
+                            <div className="text-sm font-semibold text-foreground leading-snug">{t(notif.titleKey)}</div>
+                            <div className="text-[10px] text-muted-foreground shrink-0 mt-0.5">{formatRelativeTime(notif.minutesAgo, t)}</div>
                           </div>
-                          <p className="text-[12px] text-muted-foreground mt-0.5 leading-relaxed">{notif.body}</p>
+                          <p className="text-[12px] text-muted-foreground mt-0.5 leading-relaxed">{t(notif.bodyKey)}</p>
                           {notif.amount !== undefined && (
                             <div className={cn(
                               "mt-1.5 text-xs font-black font-mono",
-                              notif.amount > 0 ? "text-emerald-400" : "text-foreground"
+                              notif.amount > 0 ? "text-emerald-700" : "text-foreground"
                             )}>
                               {notif.amount > 0 ? "+" : ""}{Math.abs(notif.amount).toLocaleString()} {notif.currency}
                             </div>
@@ -337,7 +335,7 @@ export default function NotificationsPage() {
             {/* Live indicator */}
             <div className="flex items-center justify-center gap-2 py-4 text-[11px] text-muted-foreground">
               <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-              Notifications en temps réel · PayRus Cloud
+              {t("notifications.live")}
             </div>
           </div>
         )}
@@ -354,17 +352,17 @@ export default function NotificationsPage() {
                 <Trash2 size={20} className="text-destructive" />
               </div>
               <div>
-                <div className="text-base font-black text-foreground">Tout effacer ?</div>
-                <div className="text-sm text-muted-foreground mt-1">Cette action supprimera toutes vos notifications.</div>
+                <div className="text-base font-black text-foreground">{t("notifications.clearConfirmTitle")}</div>
+                <div className="text-sm text-muted-foreground mt-1">{t("notifications.clearConfirmBody")}</div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <button onClick={() => setShowClearConfirm(false)}
                   className="py-2.5 rounded-xl border border-border text-sm text-muted-foreground hover:bg-secondary cursor-pointer transition-colors">
-                  Annuler
+                  {t("common.cancel")}
                 </button>
                 <button onClick={clearAll}
                   className="py-2.5 rounded-xl bg-destructive text-white text-sm font-bold cursor-pointer hover:bg-destructive/90 transition-colors">
-                  Effacer
+                  {t("notifications.clearConfirmAction")}
                 </button>
               </div>
             </motion.div>

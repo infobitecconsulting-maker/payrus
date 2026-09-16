@@ -83,27 +83,27 @@ const DAILY_COLLECTIONS = [
 ];
 
 const RECENT_TRANSACTIONS: Transaction[] = [
-  { id: "t1", type: "collection",   description: "SIGTAS — TVA Novembre · Kinshasa",   amount: 420000,  currency: "USD", source: "SIGTAS",  status: "completed",  time: "14:32" },
-  { id: "t2", type: "disbursement", description: "IPPIS — Salaires Fonctionnaires",     amount: 2800000, currency: "CDF", source: "IPPIS",   status: "processing", time: "13:00" },
-  { id: "t3", type: "collection",   description: "SYDONIA — Droits de douane · Matadi", amount: 185000,  currency: "USD", source: "SYDONIA", status: "completed",  time: "12:15" },
-  { id: "t4", type: "transfer",     description: "IFMIS — Transfert BCC · Compte Sor.", amount: 1500000, currency: "USD", source: "IFMIS",   status: "completed",  time: "11:48" },
-  { id: "t5", type: "disbursement", description: "SWIFT — Remboursement Obligation",    amount: 820000,  currency: "EUR", source: "SWIFT",   status: "pending",    time: "10:30" },
+  { id: "t1", type: "collection",   description: "gov.tx.vatCollection",       amount: 420000,  currency: "USD", source: "SIGTAS",  status: "completed",  time: "14:32" },
+  { id: "t2", type: "disbursement", description: "gov.tx.civilServantSalaries", amount: 2800000, currency: "CDF", source: "IPPIS",   status: "processing", time: "13:00" },
+  { id: "t3", type: "collection",   description: "gov.tx.customsDuties",       amount: 185000,  currency: "USD", source: "SYDONIA", status: "completed",  time: "12:15" },
+  { id: "t4", type: "transfer",     description: "gov.tx.treasuryTransfer",    amount: 1500000, currency: "USD", source: "IFMIS",   status: "completed",  time: "11:48" },
+  { id: "t5", type: "disbursement", description: "gov.tx.bondRepayment",       amount: 820000,  currency: "EUR", source: "SWIFT",   status: "pending",    time: "10:30" },
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function statusColor(s: IntegrationStatus) {
   return {
-    connected: "text-emerald-400",
-    pending:   "text-amber-400",
+    connected: "text-emerald-700",
+    pending:   "text-amber-700",
     error:     "text-destructive",
     inactive:  "text-muted-foreground",
   }[s];
 }
 function statusBg(s: IntegrationStatus) {
   return {
-    connected: "bg-emerald-400/10 border-emerald-400/25",
-    pending:   "bg-amber-400/10 border-amber-400/25",
+    connected: "bg-emerald-50 border-emerald-200",
+    pending:   "bg-amber-50 border-amber-200",
     error:     "bg-destructive/10 border-destructive/25",
     inactive:  "bg-secondary border-border",
   }[s];
@@ -128,12 +128,12 @@ function categoryIcon(c: Integration["category"]) {
 }
 function categoryColor(c: Integration["category"]) {
   return {
-    tax:      "text-amber-400 bg-amber-400/10",
-    customs:  "text-blue-400 bg-blue-400/10",
-    treasury: "text-violet-400 bg-violet-400/10",
-    payroll:  "text-emerald-400 bg-emerald-400/10",
-    fx:       "text-cyan-400 bg-cyan-400/10",
-    social:   "text-rose-400 bg-rose-400/10",
+    tax:      "text-amber-700 bg-amber-50",
+    customs:  "text-blue-700 bg-blue-50",
+    treasury: "text-violet-700 bg-violet-50",
+    payroll:  "text-emerald-700 bg-emerald-50",
+    fx:       "text-cyan-700 bg-cyan-50",
+    social:   "text-rose-700 bg-rose-50",
   }[c];
 }
 function compactNumber(n: number) {
@@ -197,22 +197,22 @@ export default function GovHub() {
       <div className="px-6 pt-0 pb-4 border-b border-border bg-sidebar/40">
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-amber-400/15 border border-amber-400/30 flex items-center justify-center shrink-0">
-              <Landmark size={20} className="text-amber-400" />
+            <div className="w-11 h-11 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-center shrink-0">
+              <Landmark size={20} className="text-amber-700" />
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-lg font-bold text-foreground">{t("gov.title")}</h1>
-                <span className="text-[10px] font-bold text-amber-400 bg-amber-400/10 border border-amber-400/25 px-2 py-0.5 rounded-full">{profile?.tier}</span>
+                <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">{profile?.tier}</span>
               </div>
               <p className="text-xs text-muted-foreground mt-0.5">{profile?.name} · {t("gov.subtitle")}</p>
             </div>
           </div>
           {/* Top KPIs */}
           <div className="flex items-center gap-3 flex-wrap">
-            <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-emerald-400/8 border border-emerald-400/20">
+            <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-emerald-50 border border-emerald-200">
               <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="text-xs font-medium text-emerald-400">{connectedCount}/{INTEGRATIONS.length} {t("gov.connected")}</span>
+              <span className="text-xs font-medium text-emerald-700">{connectedCount}/{INTEGRATIONS.length} {t("gov.connected")}</span>
             </div>
             <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-card border border-border">
               <Zap size={12} className="text-primary" />
@@ -264,7 +264,7 @@ export default function GovHub() {
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-xl">{b.flag}</span>
                         <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded-md",
-                          b.change >= 0 ? "text-emerald-400 bg-emerald-400/10" : "text-destructive bg-destructive/10")}>
+                          b.change >= 0 ? "text-emerald-700 bg-emerald-50" : "text-destructive bg-destructive/10")}>
                           {b.change >= 0 ? "+" : ""}{b.change}%
                         </span>
                       </div>
@@ -336,26 +336,26 @@ export default function GovHub() {
                     <motion.div key={tx.id} initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.05 * i }}
                       className="flex items-center gap-3 px-4 py-3.5 hover:bg-secondary/40 transition-colors cursor-pointer">
                       <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center shrink-0",
-                        tx.type === "collection"   ? "bg-emerald-400/10" :
-                        tx.type === "disbursement" ? "bg-amber-400/10" : "bg-blue-400/10")}>
-                        {tx.type === "collection"   ? <ArrowDownLeft size={15} className="text-emerald-400" /> :
-                         tx.type === "disbursement" ? <ArrowUpRight  size={15} className="text-amber-400" /> :
-                                                      <ArrowUpRight  size={15} className="text-blue-400" />}
+                        tx.type === "collection"   ? "bg-emerald-50" :
+                        tx.type === "disbursement" ? "bg-amber-50" : "bg-blue-50")}>
+                        {tx.type === "collection"   ? <ArrowDownLeft size={15} className="text-emerald-700" /> :
+                         tx.type === "disbursement" ? <ArrowUpRight  size={15} className="text-amber-700" /> :
+                                                      <ArrowUpRight  size={15} className="text-blue-700" />}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium text-foreground truncate">{tx.description}</div>
+                        <div className="text-sm font-medium text-foreground truncate">{t(tx.description)}</div>
                         <div className="flex items-center gap-2 mt-0.5">
                           <span className="text-[10px] text-muted-foreground">{tx.source} · {tx.time}</span>
                           <span className={cn("text-[9px] font-bold px-1.5 py-0.5 rounded border",
-                            tx.status === "completed"  ? "text-emerald-400 bg-emerald-400/8 border-emerald-400/25" :
-                            tx.status === "processing" ? "text-amber-400 bg-amber-400/8 border-amber-400/25" :
+                            tx.status === "completed"  ? "text-emerald-700 bg-emerald-50 border-emerald-200" :
+                            tx.status === "processing" ? "text-amber-700 bg-amber-50 border-amber-200" :
                             "text-muted-foreground bg-secondary border-border")}>
                             {t(`gov.status.${tx.status}`)}
                           </span>
                         </div>
                       </div>
                       <div className={cn("text-sm font-bold font-mono text-right",
-                        tx.type === "collection" ? "text-emerald-400" : "text-foreground")}>
+                        tx.type === "collection" ? "text-emerald-700" : "text-foreground")}>
                         {tx.type === "collection" ? "+" : "−"}{compactNumber(tx.amount)}
                         <div className="text-[10px] font-normal text-muted-foreground">{tx.currency}</div>
                       </div>
@@ -466,7 +466,7 @@ export default function GovHub() {
                                     </button>
                                   )}
                                   {integ.status === "pending" && (
-                                    <button className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-amber-400/10 border border-amber-400/25 text-[11px] text-amber-400 font-medium cursor-pointer hover:bg-amber-400/20 transition-colors">
+                                    <button className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-[11px] text-amber-700 font-medium cursor-pointer hover:bg-amber-50 transition-colors">
                                       <Wifi size={11} /> {t("gov.verify")}
                                     </button>
                                   )}
@@ -507,18 +507,18 @@ export default function GovHub() {
                       </div>
                       <div className="p-5 space-y-4">
                         {[
-                          { key: "gdt",    label: "GDT — Direction Générale des Impôts",  cat: "tax",      color: "text-amber-400 bg-amber-400/10" },
-                          { key: "dgddi",  label: "DGDDI — Douanes & Droits Indirects",   cat: "customs",  color: "text-blue-400 bg-blue-400/10" },
-                          { key: "bcc",    label: "BCC — Banque Centrale du Congo",        cat: "treasury", color: "text-violet-400 bg-violet-400/10" },
-                          { key: "inpp",   label: "INPP — Institut Nat. Préprofessionnel", cat: "social",   color: "text-rose-400 bg-rose-400/10" },
-                          { key: "custom", label: t("gov.addSystem.custom"),               cat: "fx",       color: "text-cyan-400 bg-cyan-400/10" },
+                          { key: "gdt",    label: "gov.addSystem.gdt",    cat: "tax",      color: "text-amber-700 bg-amber-50" },
+                          { key: "dgddi",  label: "gov.addSystem.dgddi",  cat: "customs",  color: "text-blue-700 bg-blue-50" },
+                          { key: "bcc",    label: "gov.addSystem.bcc",    cat: "treasury", color: "text-violet-700 bg-violet-50" },
+                          { key: "inpp",   label: "gov.addSystem.inpp",   cat: "social",   color: "text-rose-700 bg-rose-50" },
+                          { key: "custom", label: "gov.addSystem.custom", cat: "fx",       color: "text-cyan-700 bg-cyan-50" },
                         ].map(s => (
                           <button key={s.key} onClick={() => setShowAddModal(false)} className="w-full flex items-center gap-3 p-3 rounded-xl border border-border hover:border-primary/30 hover:bg-secondary transition-all cursor-pointer text-left">
                             <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center shrink-0", s.color)}>
                               <Database size={14} />
                             </div>
                             <div className="flex-1 min-w-0">
-                              <div className="text-sm font-medium text-foreground truncate">{s.label}</div>
+                              <div className="text-sm font-medium text-foreground truncate">{t(s.label)}</div>
                               <div className="text-[10px] text-muted-foreground">{s.cat}</div>
                             </div>
                             <ChevronRight size={14} className="text-muted-foreground shrink-0" />
@@ -545,9 +545,9 @@ export default function GovHub() {
               {/* Summary cards */}
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                 {[
-                  { label: t("gov.col.taxRevenue"),    value: "$4.32M",  change: "+8.4%",  up: true,  icon: FileText,   color: "text-amber-400 bg-amber-400/10" },
-                  { label: t("gov.col.customsDuties"), value: "$2.18M",  change: "+3.1%",  up: true,  icon: Globe,      color: "text-blue-400 bg-blue-400/10" },
-                  { label: t("gov.col.otherRevenue"),  value: "$1.05M",  change: "-1.2%",  up: false, icon: Building2,  color: "text-violet-400 bg-violet-400/10" },
+                  { label: t("gov.col.taxRevenue"),    value: "$4.32M",  change: "+8.4%",  up: true,  icon: FileText,   color: "text-amber-700 bg-amber-50" },
+                  { label: t("gov.col.customsDuties"), value: "$2.18M",  change: "+3.1%",  up: true,  icon: Globe,      color: "text-blue-700 bg-blue-50" },
+                  { label: t("gov.col.otherRevenue"),  value: "$1.05M",  change: "-1.2%",  up: false, icon: Building2,  color: "text-violet-700 bg-violet-50" },
                 ].map((c, i) => (
                   <motion.div key={c.label} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }}
                     className="rounded-2xl bg-card border border-border p-4">
@@ -556,7 +556,7 @@ export default function GovHub() {
                     </div>
                     <div className="text-[10px] text-muted-foreground uppercase tracking-wide">{c.label}</div>
                     <div className="text-xl font-black text-foreground font-mono mt-1">{c.value}</div>
-                    <div className={cn("text-[10px] mt-1 flex items-center gap-0.5 font-medium", c.up ? "text-emerald-400" : "text-destructive")}>
+                    <div className={cn("text-[10px] mt-1 flex items-center gap-0.5 font-medium", c.up ? "text-emerald-700" : "text-destructive")}>
                       {c.up ? <TrendingUp size={10} /> : <TrendingDown size={10} />} {c.change}
                     </div>
                   </motion.div>
@@ -580,8 +580,8 @@ export default function GovHub() {
                     { entity: "AirBelgo Cargo",              ref: "DD-2024-11-0318",  amount: 61000,   currency: "EUR", due: "Nov 24", type: t("gov.col.import") },
                   ].map((row, i) => (
                     <div key={i} className="flex items-center gap-3 px-4 py-3.5 hover:bg-secondary/40 transition-colors cursor-pointer">
-                      <div className="w-8 h-8 rounded-lg bg-amber-400/10 flex items-center justify-center shrink-0">
-                        <FileText size={14} className="text-amber-400" />
+                      <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center shrink-0">
+                        <FileText size={14} className="text-amber-700" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-medium text-foreground truncate">{row.entity}</div>
@@ -591,9 +591,9 @@ export default function GovHub() {
                         <div className="text-sm font-bold text-foreground font-mono">{row.amount.toLocaleString()} {row.currency}</div>
                         <div className="text-[10px] text-muted-foreground">{t("gov.due")}: {row.due}</div>
                       </div>
-                      <div className="flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-400/10 border border-amber-400/20 shrink-0">
-                        <Clock size={10} className="text-amber-400" />
-                        <span className="text-[10px] text-amber-400 font-semibold">{t("gov.status.pending")}</span>
+                      <div className="flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-50 border border-amber-200 shrink-0">
+                        <Clock size={10} className="text-amber-700" />
+                        <span className="text-[10px] text-amber-700 font-semibold">{t("gov.status.pending")}</span>
                       </div>
                     </div>
                   ))}
@@ -610,9 +610,9 @@ export default function GovHub() {
               {/* Summary */}
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                 {[
-                  { label: t("gov.dis.payroll"),   value: "$12.4M", change: "96,200 bénéf.", icon: Users,    color: "text-emerald-400 bg-emerald-400/10" },
-                  { label: t("gov.dis.suppliers"), value: "$3.8M",  change: "142 orders",  icon: Building2, color: "text-blue-400 bg-blue-400/10" },
-                  { label: t("gov.dis.grants"),    value: "$0.92M", change: "28 projets",  icon: Shield,    color: "text-violet-400 bg-violet-400/10" },
+                  { label: t("gov.dis.payroll"),   value: "$12.4M", change: "gov.dis.payrollChange", icon: Users,    color: "text-emerald-700 bg-emerald-50" },
+                  { label: t("gov.dis.suppliers"), value: "$3.8M",  change: "142 orders",  icon: Building2, color: "text-blue-700 bg-blue-50" },
+                  { label: t("gov.dis.grants"),    value: "$0.92M", change: "gov.dis.grantsChange",  icon: Shield,    color: "text-violet-700 bg-violet-50" },
                 ].map((d, i) => (
                   <motion.div key={d.label} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }}
                     className="rounded-2xl bg-card border border-border p-4">
@@ -621,7 +621,7 @@ export default function GovHub() {
                     </div>
                     <div className="text-[10px] text-muted-foreground uppercase tracking-wide">{d.label}</div>
                     <div className="text-xl font-black text-foreground font-mono mt-1">{d.value}</div>
-                    <div className="text-[10px] text-muted-foreground mt-1">{d.change}</div>
+                    <div className="text-[10px] text-muted-foreground mt-1">{t(d.change)}</div>
                   </motion.div>
                 ))}
               </div>
@@ -636,28 +636,28 @@ export default function GovHub() {
                 </div>
                 <div className="divide-y divide-border">
                   {[
-                    { name: "IPPIS — Paie Novembre 2024",           amount: "12,400,000", currency: "USD", count: "96,200",   status: "processing", date: "Nov 25" },
-                    { name: "Fournisseurs MO — Lot 22",              amount: "1,840,000",  currency: "USD", count: "87",       status: "completed",  date: "Nov 22" },
-                    { name: "Subventions ONG · Round Q4",            amount: "920,000",    currency: "USD", count: "28",       status: "pending",    date: "Nov 30" },
-                    { name: "Remboursement Obligations Souveraines", amount: "820,000",    currency: "EUR", count: "1",        status: "pending",    date: "Nov 28" },
-                    { name: "IPPIS — Paie Octobre 2024",             amount: "12,100,000", currency: "USD", count: "95,840",   status: "completed",  date: "Oct 25" },
+                    { name: "gov.run.payrollNov",     amount: "12,400,000", currency: "USD", count: "96,200",   status: "processing", date: "Nov 25" },
+                    { name: "gov.run.suppliersLot22", amount: "1,840,000",  currency: "USD", count: "87",       status: "completed",  date: "Nov 22" },
+                    { name: "gov.run.ngoGrantsQ4",    amount: "920,000",    currency: "USD", count: "28",       status: "pending",    date: "Nov 30" },
+                    { name: "gov.run.bondRepayment",  amount: "820,000",    currency: "EUR", count: "1",        status: "pending",    date: "Nov 28" },
+                    { name: "gov.run.payrollOct",     amount: "12,100,000", currency: "USD", count: "95,840",   status: "completed",  date: "Oct 25" },
                   ].map((run, i) => (
                     <div key={i} className="flex items-center gap-3 px-4 py-3.5 hover:bg-secondary/40 transition-colors cursor-pointer">
                       <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center shrink-0",
-                        run.status === "completed" ? "bg-emerald-400/10" : run.status === "processing" ? "bg-amber-400/10" : "bg-secondary")}>
-                        {run.status === "completed" ? <CheckCircle2 size={14} className="text-emerald-400" /> :
-                         run.status === "processing" ? <RefreshCw size={14} className="text-amber-400" /> :
+                        run.status === "completed" ? "bg-emerald-50" : run.status === "processing" ? "bg-amber-50" : "bg-secondary")}>
+                        {run.status === "completed" ? <CheckCircle2 size={14} className="text-emerald-700" /> :
+                         run.status === "processing" ? <RefreshCw size={14} className="text-amber-700" /> :
                          <Clock size={14} className="text-muted-foreground" />}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium text-foreground truncate">{run.name}</div>
+                        <div className="text-sm font-medium text-foreground truncate">{t(run.name)}</div>
                         <div className="text-[10px] text-muted-foreground">{run.count} {t("gov.recipients")} · {run.date}</div>
                       </div>
                       <div className="text-right shrink-0">
                         <div className="text-sm font-bold text-foreground font-mono">{run.amount} {run.currency}</div>
                         <span className={cn("text-[9px] font-bold px-1.5 py-0.5 rounded border",
-                          run.status === "completed"  ? "text-emerald-400 bg-emerald-400/8 border-emerald-400/25" :
-                          run.status === "processing" ? "text-amber-400 bg-amber-400/8 border-amber-400/25" :
+                          run.status === "completed"  ? "text-emerald-700 bg-emerald-50 border-emerald-200" :
+                          run.status === "processing" ? "text-amber-700 bg-amber-50 border-amber-200" :
                           "text-muted-foreground bg-secondary border-border")}>
                           {t(`gov.status.${run.status}`)}
                         </span>
