@@ -182,9 +182,12 @@ export default function ProfileSelection() {
   const [dob, setDob] = useState("");
   const [address, setAddress] = useState("");
   const [idType, setIdType] = useState<IdType>("national");
-  const [frontUploaded, setFrontUploaded] = useState(false);
-  const [backUploaded, setBackUploaded] = useState(false);
-  const [selfieTaken, setSelfieTaken] = useState(false);
+  const [idFrontDocId, setIdFrontDocId] = useState<string | null>(null);
+  const [uploadingIdFront, setUploadingIdFront] = useState(false);
+  const [idBackDocId, setIdBackDocId] = useState<string | null>(null);
+  const [uploadingIdBack, setUploadingIdBack] = useState(false);
+  const [selfieDocId, setSelfieDocId] = useState<string | null>(null);
+  const [uploadingSelfie, setUploadingSelfie] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   // Organisation-only onboarding fields — collected before KYC, registration
@@ -226,6 +229,48 @@ export default function ProfileSelection() {
       toast.error(t("profile.org.uploadFailed"));
     } finally {
       setUploadingDoc(false);
+    }
+  };
+
+  const handleUploadIdFront = async (file: File) => {
+    setUploadingIdFront(true);
+    try {
+      const uploadUrl = await generateDocUploadUrl();
+      const result = await fetch(uploadUrl, { method: "POST", headers: { "Content-Type": file.type }, body: file });
+      const { storageId } = await result.json();
+      setIdFrontDocId(storageId);
+    } catch {
+      toast.error(t("profile.org.uploadFailed"));
+    } finally {
+      setUploadingIdFront(false);
+    }
+  };
+
+  const handleUploadIdBack = async (file: File) => {
+    setUploadingIdBack(true);
+    try {
+      const uploadUrl = await generateDocUploadUrl();
+      const result = await fetch(uploadUrl, { method: "POST", headers: { "Content-Type": file.type }, body: file });
+      const { storageId } = await result.json();
+      setIdBackDocId(storageId);
+    } catch {
+      toast.error(t("profile.org.uploadFailed"));
+    } finally {
+      setUploadingIdBack(false);
+    }
+  };
+
+  const handleUploadSelfie = async (file: File) => {
+    setUploadingSelfie(true);
+    try {
+      const uploadUrl = await generateDocUploadUrl();
+      const result = await fetch(uploadUrl, { method: "POST", headers: { "Content-Type": file.type }, body: file });
+      const { storageId } = await result.json();
+      setSelfieDocId(storageId);
+    } catch {
+      toast.error(t("profile.org.uploadFailed"));
+    } finally {
+      setUploadingSelfie(false);
     }
   };
 
@@ -278,6 +323,9 @@ export default function ProfileSelection() {
           role: selected,
           kind: isOrgRole ? "organisation" : "individual",
           phone: effectivePhone, dateOfBirth: effectiveDob, address: effectiveAddress, idType,
+          idFrontDocPath: idFrontDocId ?? undefined,
+          idBackDocPath: idBackDocId ?? undefined,
+          selfieDocPath: selfieDocId ?? undefined,
           ...(isOrgRole ? {
             orgName: orgName.trim(),
             registrationDocPath: registrationDocId ?? undefined,
@@ -332,8 +380,8 @@ export default function ProfileSelection() {
       case "orgLegalRep": return legalRepName.trim().length > 0 && legalRepIdNumber.trim().length > 0 && legalRepPhone.trim().length > 0;
       case "phone": return phone.trim().length >= 6 && otp.trim().length === 6;
       case "details": return (knowsDob || dob.trim().length > 0) && (knowsAddress || address.trim().length > 0);
-      case "id": return frontUploaded && backUploaded;
-      case "selfie": return selfieTaken;
+      case "id": return !!idFrontDocId && !!idBackDocId;
+      case "selfie": return !!selfieDocId;
     }
   });
   const currentStepKey = steps[kycStep];
@@ -653,51 +701,69 @@ export default function ProfileSelection() {
 
                   {currentStepKey === "id" && (
                     <div className="space-y-3">
-                      <button
-                        type="button"
-                        onClick={() => setFrontUploaded(v => !v)}
+                      <label
                         className={cn(
                           "w-full flex flex-col items-center gap-2 border-2 border-dashed rounded-xl p-5 cursor-pointer transition-colors",
-                          frontUploaded ? "border-primary/50 bg-primary/5" : "border-border hover:border-primary/30",
+                          idFrontDocId ? "border-primary/50 bg-primary/5" : "border-border hover:border-primary/30",
                         )}
                       >
-                        {frontUploaded ? <CheckCircle2 size={26} className="text-primary" /> : <IdCard size={26} className="text-muted-foreground" />}
-                        <span className={cn("text-xs font-medium", frontUploaded ? "text-primary" : "text-muted-foreground")}>
-                          {frontUploaded ? t("profile.kyc.uploadedFront") : t("profile.kyc.uploadFront")}
+                        {idFrontDocId ? <CheckCircle2 size={26} className="text-primary" /> : <IdCard size={26} className="text-muted-foreground" />}
+                        <span className={cn("text-xs font-medium", idFrontDocId ? "text-primary" : "text-muted-foreground")}>
+                          {uploadingIdFront ? t("profile.org.uploading") : idFrontDocId ? t("profile.kyc.uploadedFront") : t("profile.kyc.uploadFront")}
                         </span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setBackUploaded(v => !v)}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          capture="environment"
+                          className="hidden"
+                          disabled={uploadingIdFront}
+                          onChange={e => { const file = e.target.files?.[0]; if (file) void handleUploadIdFront(file); }}
+                        />
+                      </label>
+                      <label
                         className={cn(
                           "w-full flex flex-col items-center gap-2 border-2 border-dashed rounded-xl p-5 cursor-pointer transition-colors",
-                          backUploaded ? "border-primary/50 bg-primary/5" : "border-border hover:border-primary/30",
+                          idBackDocId ? "border-primary/50 bg-primary/5" : "border-border hover:border-primary/30",
                         )}
                       >
-                        {backUploaded ? <CheckCircle2 size={26} className="text-primary" /> : <Upload size={26} className="text-muted-foreground" />}
-                        <span className={cn("text-xs font-medium", backUploaded ? "text-primary" : "text-muted-foreground")}>
-                          {backUploaded ? t("profile.kyc.uploadedBack") : t("profile.kyc.uploadBack")}
+                        {idBackDocId ? <CheckCircle2 size={26} className="text-primary" /> : <Upload size={26} className="text-muted-foreground" />}
+                        <span className={cn("text-xs font-medium", idBackDocId ? "text-primary" : "text-muted-foreground")}>
+                          {uploadingIdBack ? t("profile.org.uploading") : idBackDocId ? t("profile.kyc.uploadedBack") : t("profile.kyc.uploadBack")}
                         </span>
-                      </button>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          capture="environment"
+                          className="hidden"
+                          disabled={uploadingIdBack}
+                          onChange={e => { const file = e.target.files?.[0]; if (file) void handleUploadIdBack(file); }}
+                        />
+                      </label>
                     </div>
                   )}
 
                   {currentStepKey === "selfie" && (
                     <div className="flex flex-col items-center gap-3 py-4">
                       <p className="text-xs text-muted-foreground text-center max-w-xs">{t("profile.kyc.selfiePrompt")}</p>
-                      <button
-                        type="button"
-                        onClick={() => setSelfieTaken(v => !v)}
+                      <label
                         className={cn(
                           "w-36 h-44 rounded-2xl border-2 border-dashed flex flex-col items-center justify-center gap-2 cursor-pointer transition-colors",
-                          selfieTaken ? "border-primary/50 bg-primary/5" : "border-border hover:border-primary/30",
+                          selfieDocId ? "border-primary/50 bg-primary/5" : "border-border hover:border-primary/30",
                         )}
                       >
-                        {selfieTaken ? <CheckCircle2 size={30} className="text-primary" /> : <ScanFace size={30} className="text-muted-foreground" />}
-                        <span className={cn("text-xs font-medium", selfieTaken ? "text-primary" : "text-muted-foreground")}>
-                          {selfieTaken ? t("profile.kyc.selfieCaptured") : t("profile.kyc.selfieCta")}
+                        {selfieDocId ? <CheckCircle2 size={30} className="text-primary" /> : <ScanFace size={30} className="text-muted-foreground" />}
+                        <span className={cn("text-xs font-medium text-center px-2", selfieDocId ? "text-primary" : "text-muted-foreground")}>
+                          {uploadingSelfie ? t("profile.org.uploading") : selfieDocId ? t("profile.kyc.selfieCaptured") : t("profile.kyc.selfieCta")}
                         </span>
-                      </button>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          capture="user"
+                          className="hidden"
+                          disabled={uploadingSelfie}
+                          onChange={e => { const file = e.target.files?.[0]; if (file) void handleUploadSelfie(file); }}
+                        />
+                      </label>
                     </div>
                   )}
                 </div>
@@ -740,7 +806,7 @@ export default function ProfileSelection() {
                         setKycStep(0);
                         setPhone(""); setOtp(""); setOtpResent(false);
                         setDob(""); setAddress(""); setIdType("national");
-                        setFrontUploaded(false); setBackUploaded(false); setSelfieTaken(false);
+                        setIdFrontDocId(null); setIdBackDocId(null); setSelfieDocId(null);
                         setRegistrationDocId(null); setRegistrationDocName(""); setLegalRepName("");
                         setLegalRepIdType("national"); setLegalRepIdNumber(""); setLegalRepPhone("");
                         setStep("select");

@@ -63,4 +63,21 @@ http.route({
 
 http.route({ path: "/postalCodeSuggestions", method: "OPTIONS", handler: httpAction(async () => preflight()) });
 
+// ops-console has no Convex client of its own, so it fetches an upload URL
+// here instead of calling the (already doc-type-agnostic)
+// generateRegistrationDocUploadUrl mutation directly — same reasoning as the
+// two address-suggestion routes above. The client then POSTs the file bytes
+// straight to the returned URL (standard Convex upload pattern), never
+// through this route.
+http.route({
+  path: "/kycUploadUrl",
+  method: "POST",
+  handler: httpAction(async (ctx) => {
+    const uploadUrl = await ctx.runMutation(api.userRoles.generateRegistrationDocUploadUrl, {});
+    return json({ uploadUrl });
+  }),
+});
+
+http.route({ path: "/kycUploadUrl", method: "OPTIONS", handler: httpAction(async () => preflight()) });
+
 export default http;

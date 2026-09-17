@@ -65,6 +65,9 @@ export interface AppUserRole {
   legalRepIdType: string | null;
   legalRepIdNumber: string | null;
   legalRepPhone: string | null;
+  idFrontDocPath: string | null;
+  idBackDocPath: string | null;
+  selfieDocPath: string | null;
   createdAt: string;
   complete: boolean;
 }
@@ -254,7 +257,9 @@ export async function listUserRolesForUser(userId: string): Promise<AppUserRole[
       id: r.id, userId: r.user_id, role: r.role, kind: r.kind, status: r.status,
       phone: r.phone, dateOfBirth: r.date_of_birth, address: r.address, idType: r.id_type, orgName: r.org_name ?? undefined,
       registrationDocPath: r.registration_doc_path, legalRepName: r.legal_rep_name, legalRepIdType: r.legal_rep_id_type,
-      legalRepIdNumber: r.legal_rep_id_number, legalRepPhone: r.legal_rep_phone, createdAt: r.created_at,
+      legalRepIdNumber: r.legal_rep_id_number, legalRepPhone: r.legal_rep_phone,
+      idFrontDocPath: r.id_front_doc_path, idBackDocPath: r.id_back_doc_path, selfieDocPath: r.selfie_doc_path,
+      createdAt: r.created_at,
     };
     return { ...role, complete: roleIsComplete(role) };
   });
@@ -264,6 +269,7 @@ export async function upsertUserRole(args: {
   userId: string; role: string; kind: "individual" | "organisation"; phone?: string; dateOfBirth?: string;
   address?: string; idType?: string; orgName?: string; registrationDocPath?: string; legalRepName?: string;
   legalRepIdType?: string; legalRepIdNumber?: string; legalRepPhone?: string;
+  idFrontDocPath?: string; idBackDocPath?: string; selfieDocPath?: string;
 }): Promise<string> {
   const res = await supabase.rpc("upsert_user_role", {
     p_user_id: args.userId, p_role: args.role, p_kind: args.kind, p_phone: args.phone ?? null,
@@ -271,6 +277,8 @@ export async function upsertUserRole(args: {
     p_org_name: args.orgName ?? null, p_registration_doc_path: args.registrationDocPath ?? null,
     p_legal_rep_name: args.legalRepName ?? null, p_legal_rep_id_type: args.legalRepIdType ?? null,
     p_legal_rep_id_number: args.legalRepIdNumber ?? null, p_legal_rep_phone: args.legalRepPhone ?? null,
+    p_id_front_doc_path: args.idFrontDocPath ?? null, p_id_back_doc_path: args.idBackDocPath ?? null,
+    p_selfie_doc_path: args.selfieDocPath ?? null,
   });
   const row = mustHaveData(res, "upsertUserRole") as Record<string, unknown>;
   return row.id as string;
@@ -438,7 +446,9 @@ export async function adminListUsers(): Promise<AdminUserRow[]> {
         address: (role.address as string) ?? null, idType: (role.id_type as string) ?? null, orgName: (role.org_name as string) ?? undefined,
         registrationDocPath: (role.registration_doc_path as string) ?? null, legalRepName: (role.legal_rep_name as string) ?? null,
         legalRepIdType: (role.legal_rep_id_type as string) ?? null, legalRepIdNumber: (role.legal_rep_id_number as string) ?? null,
-        legalRepPhone: (role.legal_rep_phone as string) ?? null, createdAt: role.created_at as string,
+        legalRepPhone: (role.legal_rep_phone as string) ?? null,
+        idFrontDocPath: (role.id_front_doc_path as string) ?? null, idBackDocPath: (role.id_back_doc_path as string) ?? null,
+        selfieDocPath: (role.selfie_doc_path as string) ?? null, createdAt: role.created_at as string,
       };
       return { ...base, complete: roleIsComplete(base) };
     }),
