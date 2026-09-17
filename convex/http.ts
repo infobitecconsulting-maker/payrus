@@ -81,4 +81,20 @@ http.route({
 
 http.route({ path: "/kycUploadUrl", method: "OPTIONS", handler: httpAction(async () => preflight()) });
 
+// On-demand trigger for the same live-FX-rate refresh the cron
+// (convex/crons.ts) runs every 6 hours automatically — an admin "Refresh
+// rates now" control (in either app) hits this instead of waiting for the
+// schedule. Same ops-console-has-no-Convex-client reasoning as the routes
+// above.
+http.route({
+  path: "/refreshFxRates",
+  method: "POST",
+  handler: httpAction(async (ctx) => {
+    const result = await ctx.runAction(api.fxRates.refreshLiveFxRates, {});
+    return json(result);
+  }),
+});
+
+http.route({ path: "/refreshFxRates", method: "OPTIONS", handler: httpAction(async () => preflight()) });
+
 export default http;

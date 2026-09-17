@@ -201,6 +201,8 @@ export default function UsersPanel() {
     return (
       row.user.name?.toLowerCase().includes(q) ||
       row.user.email?.toLowerCase().includes(q) ||
+      row.user.username?.toLowerCase().includes(q) ||
+      row.user.id.toLowerCase().includes(q) ||
       row.roles.some((r) => r.role.toLowerCase().includes(q))
     );
   });
@@ -245,7 +247,7 @@ export default function UsersPanel() {
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by name, email or role..."
+            placeholder="Search by name, email, username, ID or role..."
             className="w-full rounded-xl border border-border bg-card pl-8 pr-3 py-2 text-xs"
           />
         </div>
@@ -299,7 +301,11 @@ export default function UsersPanel() {
                       </span>
                     )}
                   </div>
-                  <div className="text-xs text-muted-foreground truncate">{row.user.email ?? "no email"}</div>
+                  <div className="text-xs text-muted-foreground truncate">
+                    {row.user.email ?? "no email"}
+                    {row.user.username && <span className="text-muted-foreground/70"> · @{row.user.username}</span>}
+                  </div>
+                  <div className="text-[10px] text-muted-foreground/60 font-mono truncate">{row.user.id}</div>
                 </div>
                 <div className="flex items-center gap-3 shrink-0">
                   <div className="text-right">

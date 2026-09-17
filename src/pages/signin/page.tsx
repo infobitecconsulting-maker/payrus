@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { ArrowLeft } from "lucide-react";
@@ -40,11 +40,28 @@ export default function SignIn() {
   const [ssoEmail, setSsoEmail] = useState("");
   const [ssoSending, setSsoSending] = useState(false);
 
+  // Guards the actual "complete sign-in" step (not just each individual
+  // handler) since every path below funnels through here — a fast Enter-key
+  // keydown racing a click on the (React-state-)disabled Login button, or
+  // any other double-fire, would otherwise both reach signInWithPassword
+  // successfully and each independently toast + routeAfterIdentity, which is
+  // what produced the "double login" symptom. A ref (not state) is required
+  // because two re-entrant calls from the same render both close over the
+  // same stale `checking` state value — only a mutable ref updates in time
+  // to block the second call.
+  const finishingRef = useRef(false);
+
   const finishLogin = async (userId: string, name: string) => {
-    setLocalUserId(userId);
-    const roles = await listUserRolesForUser(userId);
-    toast.success(t("signin.welcomeBack"));
-    routeAfterIdentity({ userId, roles, navigate, base, setProfile, displayName: name });
+    if (finishingRef.current) return;
+    finishingRef.current = true;
+    try {
+      setLocalUserId(userId);
+      const roles = await listUserRolesForUser(userId);
+      toast.success(t("signin.welcomeBack"));
+      routeAfterIdentity({ userId, roles, navigate, base, setProfile, displayName: name });
+    } finally {
+      finishingRef.current = false;
+    }
   };
 
   const handleLogin = async () => {

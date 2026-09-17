@@ -502,6 +502,111 @@ export async function adminGrantAdminRole(args: { userId: string; password: stri
   return (mustHaveData(res, "adminGrantAdminRole") as Record<string, unknown>).id as string;
 }
 
+export interface FxMarginConfig {
+  id: string;
+  marginRate: number;
+  commissionRate: number;
+  decider: string;
+  note: string | null;
+  effectiveFrom: string;
+}
+
+function toFxMarginConfig(r: Record<string, unknown>): FxMarginConfig {
+  return {
+    id: r.id as string, marginRate: Number(r.margin_rate), commissionRate: Number(r.commission_rate),
+    decider: r.decider as string, note: (r.note as string) ?? null, effectiveFrom: r.effective_from as string,
+  };
+}
+
+export async function getCurrentFxMarginConfig(): Promise<FxMarginConfig | null> {
+  const res = await supabase.from("fx_margin_config_current").select("*").maybeSingle();
+  const row = mustNotError(res, "getCurrentFxMarginConfig");
+  return row ? toFxMarginConfig(row as Record<string, unknown>) : null;
+}
+
+// Password-gated the same way admin_grant_admin_role/admin_create_user's
+// admin-role path already are — see 0013_fx_margin_config_and_live_rates.sql
+// for why this reuses that gate rather than a separate "super admin" role.
+export async function updateFxMarginConfig(args: {
+  marginRate: number; commissionRate: number; decider: string; note?: string; password: string;
+}): Promise<FxMarginConfig> {
+  const res = await supabase.rpc("update_fx_margin_config", {
+    p_margin_rate: args.marginRate, p_commission_rate: args.commissionRate,
+    p_decider: args.decider, p_note: args.note ?? null, p_password: args.password,
+  });
+  return toFxMarginConfig(mustHaveData(res, "updateFxMarginConfig") as Record<string, unknown>);
+}
+
+export interface AppCurrency {
+  code: string;
+  ratePerUsd: number | null;
+}
+
+export async function listCurrenciesByCode(codes: string[]): Promise<AppCurrency[]> {
+  const res = await supabase.from("currencies").select("code, rate_per_usd").in("code", codes);
+  return mustHaveData(res, "listCurrenciesByCode").map((r) => ({ code: r.code as string, ratePerUsd: r.rate_per_usd === null ? null : Number(r.rate_per_usd) }));
+}
+
+export interface FxRateUpdate {
+  source: string;
+  currenciesUpdated: number;
+  fetchedAt: string;
+}
+
+export async function getLastFxRateUpdate(): Promise<FxRateUpdate | null> {
+  const res = await supabase.from("fx_rate_updates").select("*").order("fetched_at", { ascending: false }).limit(1).maybeSingle();
+  const row = mustNotError(res, "getLastFxRateUpdate") as Record<string, unknown> | null;
+  return row ? { source: row.source as string, currenciesUpdated: row.currencies_updated as number, fetchedAt: row.fetched_at as string } : null;
+}
+
+export interface BlockedTransfer {
+  transferId: string;
+  reference: string;
+  state: string;
+  amount: number;
+  currency: string;
+  userName: string | null;
+  userEmail: string | null;
+  createdAt: string;
+}
+
+export async function adminListBlockedTransfers(): Promise<BlockedTransfer[]> {
+  const res = await supabase.rpc("admin_list_blocked_transfers");
+  return mustHaveData(res, "adminListBlockedTransfers").map((r: Record<string, unknown>) => ({
+    transferId: r.transfer_id as string, reference: r.reference as string, state: r.state as string,
+    amount: Number(r.amount), currency: r.currency as string,
+    userName: (r.user_name as string) ?? null, userEmail: (r.user_email as string) ?? null, createdAt: r.created_at as string,
+  }));
+}
+
+export async function adminResolveTransfer(args: {
+  transferId: string; newState: string; reason?: string; password: string;
+}): Promise<void> {
+  const res = await supabase.rpc("admin_resolve_transfer", {
+    p_transfer_id: args.transferId, p_new_state: args.newState, p_reason: args.reason ?? null, p_password: args.password,
+  });
+  mustHaveData(res, "adminResolveTransfer");
+}
+
+export interface PendingProfile {
+  roleId: string;
+  userId: string;
+  role: string;
+  status: string;
+  kind: string;
+  userName: string | null;
+  userEmail: string | null;
+  createdAt: string;
+}
+
+export async function adminListPendingProfiles(): Promise<PendingProfile[]> {
+  const res = await supabase.rpc("admin_list_pending_profiles");
+  return mustHaveData(res, "adminListPendingProfiles").map((r: Record<string, unknown>) => ({
+    roleId: r.role_id as string, userId: r.user_id as string, role: r.role as string, status: r.status as string, kind: r.kind as string,
+    userName: (r.user_name as string) ?? null, userEmail: (r.user_email as string) ?? null, createdAt: r.created_at as string,
+  }));
+}
+
 export async function adminBackfillCardHolders(): Promise<number> {
   const res = await supabase.rpc("admin_backfill_card_holders");
   return mustHaveData(res, "adminBackfillCardHolders") as number;

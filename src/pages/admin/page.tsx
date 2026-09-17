@@ -7,12 +7,13 @@ import {
   ChevronRight, BarChart3, Users, Wifi, AlertTriangle,
   CheckCircle2, Clock, Layers, PieChart, Flag, Star,
   MonitorPlay, Building, Landmark, PiggyBank, Send, Plane,
-  HandHeart, CreditCard, History, Settings, Wallet, PlugZap, FileDown, UserCog
+  HandHeart, CreditCard, History, Settings, Wallet, PlugZap, FileDown, UserCog, SlidersHorizontal
 } from "lucide-react";
 import { cn } from "@/lib/utils.ts";
 import { useNavigate, useParams } from "react-router-dom";
 import { generateTechAnalysisPDF } from "./_components/tech-analysis-pdf.ts";
 import UsersPanel from "./_components/users-panel.tsx";
+import ConfigPanel from "./_components/config-panel.tsx";
 import { useProfile, getDefaultProfile } from "@/contexts/profile-context.tsx";
 import type { ProfileType } from "@/contexts/profile-context.tsx";
 import {
@@ -259,7 +260,7 @@ export default function AdminDashboard() {
   const [txCount, setTxCount] = useState(2648);
   const [avgMargin, setAvgMargin] = useState(7.3);
   const [newTxId, setNewTxId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"overview" | "transactions" | "fx" | "corridors" | "pilot" | "demo" | "users">("users");
+  const [activeTab, setActiveTab] = useState<"overview" | "transactions" | "fx" | "corridors" | "pilot" | "demo" | "users" | "config">("users");
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const navigate = useNavigate();
   const { lng } = useParams<{ lng: string }>();
@@ -290,6 +291,7 @@ export default function AdminDashboard() {
 
   const tabs = [
     { id: "users", label: "Manage Profiles", icon: UserCog },
+    { id: "config", label: "Configuration", icon: SlidersHorizontal },
     { id: "pilot", label: "Pilot Countries", icon: Flag },
     { id: "demo", label: "Demo Access", icon: MonitorPlay },
     { id: "overview", label: "Overview", icon: BarChart3 },
@@ -369,6 +371,13 @@ export default function AdminDashboard() {
         {activeTab === "users" && (
           <motion.div key="users" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
             <UsersPanel />
+          </motion.div>
+        )}
+
+        {/* ── CONFIGURATION ── */}
+        {activeTab === "config" && (
+          <motion.div key="config" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
+            <ConfigPanel />
           </motion.div>
         )}
 

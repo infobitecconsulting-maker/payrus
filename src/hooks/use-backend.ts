@@ -199,6 +199,46 @@ export function useAdminGrantAdminRoleMutation() {
   return mutation.mutateAsync;
 }
 
+export function useCurrenciesByCode(codes: string[]) {
+  return useReactQuery({
+    queryKey: ["currencies", ...codes],
+    queryFn: () => backend.listCurrenciesByCode(codes),
+  }).data;
+}
+
+export function useCurrentFxMarginConfig() {
+  return useReactQuery({
+    queryKey: ["fxMarginConfig"],
+    queryFn: backend.getCurrentFxMarginConfig,
+  }).data;
+}
+
+export function useUpdateFxMarginConfigMutation() {
+  const queryClient = useQueryClient();
+  const mutation = useReactMutation({
+    mutationFn: backend.updateFxMarginConfig,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["fxMarginConfig"] }),
+  });
+  return mutation.mutateAsync;
+}
+
+export function useAdminBlockedTransfers() {
+  return useReactQuery({ queryKey: ["adminBlockedTransfers"], queryFn: backend.adminListBlockedTransfers }).data;
+}
+
+export function useAdminResolveTransferMutation() {
+  const queryClient = useQueryClient();
+  const mutation = useReactMutation({
+    mutationFn: backend.adminResolveTransfer,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["adminBlockedTransfers"] }),
+  });
+  return mutation.mutateAsync;
+}
+
+export function useAdminPendingProfiles() {
+  return useReactQuery({ queryKey: ["adminPendingProfiles"], queryFn: backend.adminListPendingProfiles }).data;
+}
+
 export function useTestUsersCleanupMutation() {
   const invalidate = useInvalidateAdmin();
   const mutation = useReactMutation({ mutationFn: backend.testUsersCleanup, onSuccess: invalidate });

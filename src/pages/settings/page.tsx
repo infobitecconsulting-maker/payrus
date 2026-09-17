@@ -16,7 +16,9 @@ import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { changeLocale, setLocaleInPath, SUPPORTED_LOCALES, SUPPORTED_LOCALES_ARRAY, type SupportedLocale } from "@/i18n.ts";
 import { getAnonId } from "@/lib/anon-id.ts";
-import { useAddLinkedPaymentMethodMutation, useLinkedPaymentMethods, useSeedDefaultLinkedPaymentMethodsMutation } from "@/hooks/use-backend.ts";
+import { useAddLinkedPaymentMethodMutation, useLinkedPaymentMethods, useSeedDefaultLinkedPaymentMethodsMutation, useCurrenciesByCode } from "@/hooks/use-backend.ts";
+import { getLastFxRateUpdate, type FxRateUpdate } from "@/lib/backend.ts";
+import { useQuery as useReactQuery } from "@tanstack/react-query";
 import AddPaymentMethodSheet, { PAYMENT_PROVIDERS, type LinkedMethodProvider } from "@/components/ui/add-payment-method-sheet.tsx";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -452,13 +454,51 @@ function PrivacySection() {
 }
 
 // ── About Section ─────────────────────────────────────────────────────────────
+// FX pairs shown in the live-rate ticker below — a fixed spread of majors
+// plus the CEMAC/African currencies this app's own domain centers on.
+const FX_TICKER_CODES = ["USD", "EUR", "GBP", "XAF", "NGN", "ZAR"];
+
+function LiveFxTicker() {
+  const { t } = useTranslation("common");
+  const currencies = useCurrenciesByCode(FX_TICKER_CODES);
+  const { data: lastUpdate } = useReactQuery<FxRateUpdate | null>({
+    queryKey: ["lastFxRateUpdate"],
+    queryFn: getLastFxRateUpdate,
+  });
+  const usd = currencies?.find((c) => c.code === "USD");
+
+  return (
+    <div className="bg-card border border-border rounded-2xl p-4">
+      <div className="flex items-center justify-between mb-3">
+        <span className="text-xs font-semibold text-foreground">{t("settings.about.fxTickerTitle")}</span>
+        {lastUpdate && (
+          <span className="text-[10px] text-muted-foreground">
+            {t("settings.about.fxTickerUpdated", { time: new Date(lastUpdate.fetchedAt).toLocaleString() })}
+          </span>
+        )}
+      </div>
+      {!currencies && <div className="text-xs text-muted-foreground py-2">{t("settings.about.fxTickerLoading")}</div>}
+      {currencies && usd?.ratePerUsd && (
+        <div className="grid grid-cols-3 gap-2">
+          {currencies.filter((c) => c.code !== "USD" && c.ratePerUsd != null).map((c) => (
+            <div key={c.code} className="rounded-xl bg-secondary/40 px-2.5 py-2">
+              <div className="text-[10px] text-muted-foreground">USD/{c.code}</div>
+              <div className="text-xs font-mono font-bold text-foreground">{c.ratePerUsd!.toLocaleString(undefined, { maximumFractionDigits: 4 })}</div>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="text-[9px] text-muted-foreground mt-3">{t("settings.about.fxTickerAttribution")}</div>
+    </div>
+  );
+}
+
 function AboutSection() {
   const { t } = useTranslation("common");
 
   const infoRows = [
     { label: t("settings.about.appVersion"), value: "2.1.4 (build 241101)" },
     { label: t("settings.about.environment"), value: "Production · PayRus Cloud" },
-    { label: t("settings.about.region"), value: "Africa — af-central-1" },
     { label: t("settings.about.compliance"), value: "BCC · BEAC · BCEAO · ISO 27001" },
     { label: t("settings.about.encryption"), value: "TLS 1.3 · AES-256" },
   ];
@@ -470,9 +510,10 @@ function AboutSection() {
         <div className="text-center">
           <div className="text-base font-black text-foreground">PayRus</div>
           <div className="text-xs text-muted-foreground">{t("settings.about.tagline")}</div>
-          <div className="text-[11px] text-primary mt-1">{t("settings.about.serving")}</div>
         </div>
       </div>
+
+      <LiveFxTicker />
 
       <div className="bg-card border border-border rounded-2xl overflow-hidden divide-y divide-border">
         {infoRows.map(item => (

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Outlet, NavLink, useLocation, useParams, Navigate, useNavigate } from "react-router-dom";
-import { LayoutDashboard, CreditCard, ArrowLeftRight, History, Wallet, Bell, Settings, Users, Send, Landmark, PresentationIcon, ShieldCheck, PlugZap, PiggyBank, Plane, Heart, HandHeart, TrendingUp, Gamepad2, Menu, LogOut, LogIn, User, CircleDollarSign, ScanLine, Receipt, LifeBuoy, Store, Link2, BarChart3, Banknote, ShoppingBag } from "lucide-react";
+import { LayoutDashboard, CreditCard, ArrowLeftRight, History, Wallet, Bell, Settings, Users, Send, Landmark, PresentationIcon, ShieldCheck, PlugZap, PiggyBank, Plane, Heart, HandHeart, TrendingUp, Gamepad2, Menu, LogOut, LogIn, User, CircleDollarSign, ScanLine, Receipt, LifeBuoy, Store, Link2, BarChart3, Banknote, ShoppingBag, UserPlus } from "lucide-react";
 import { cn } from "@/lib/utils.ts";
 import { motion } from "motion/react";
 import { useTranslation } from "react-i18next";
@@ -105,6 +105,12 @@ export default function AppLayout() {
 
     // Financial institution profiles only
     ...(isFiProfile ? [{ to: `${base}/api-hub`, icon: PlugZap, label: t("nav.apiHub"), highlight: "fi" as const }] : []),
+
+    // Agent-assisted manual registration — for customers with no
+    // smartphone/data to self-register with. Admins already have this via
+    // the admin panel's own "Add profile" form, but it's surfaced here too
+    // for consistency/discoverability.
+    ...(profile?.type === "agent" || isAdmin ? [{ to: `${base}/register-customer`, icon: UserPlus, label: t("nav.registerCustomer") }] : []),
 
     // Always available
     { to: `${base}/investor`, icon: PresentationIcon, label: t("nav.investor") },
