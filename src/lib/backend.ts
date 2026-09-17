@@ -117,6 +117,13 @@ export interface AppTransfer {
   reference: string;
   note: string | null;
   createdAt: string;
+  // The commission fee, joined in from the transfer's quote (quotes.fee) —
+  // null when the transfer has no quote (e.g. a same-currency deposit) or
+  // when this row came from an RPC call that returns the bare `transfers`
+  // row with no embedded quote. Restores the fee/commission line the
+  // pre-migration Convex `transactions.commission` column used to show,
+  // see wallet-history-sheet.tsx.
+  fee: number | null;
 }
 
 export interface LinkedPaymentMethod {
@@ -307,20 +314,26 @@ export async function listWalletViewsForUser(userId: string): Promise<AppWallet[
 }
 
 function toAppTransfer(r: Record<string, unknown>): AppTransfer {
+  // The embedded `quotes` resource (PostgREST relationship syntax, see the
+  // two list* queries below) comes back as an object for a to-one FK, but as
+  // a single-element array in some PostgREST versions/configurations —
+  // handled defensively rather than assuming one shape.
+  const quote = Array.isArray(r.quotes) ? r.quotes[0] : r.quotes;
   return {
     id: r.id as string, userId: r.user_id as string, walletViewId: r.wallet_view_id as string, type: r.type as AppTransfer["type"],
     state: r.state as string, amount: Number(r.amount), currency: r.currency as string, partnerTxId: (r.partner_tx_id as string) ?? null,
     reference: r.reference as string, note: (r.note as string) ?? null, createdAt: r.created_at as string,
+    fee: quote && typeof quote === "object" && "fee" in quote ? Number((quote as { fee: unknown }).fee) : null,
   };
 }
 
 export async function listRecentTransfersForUser(userId: string, limit = 10): Promise<AppTransfer[]> {
-  const res = await supabase.from("transfers").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(limit);
+  const res = await supabase.from("transfers").select("*, quotes(fee)").eq("user_id", userId).order("created_at", { ascending: false }).limit(limit);
   return mustHaveData(res, "listRecentTransfersForUser").map(toAppTransfer);
 }
 
 export async function listTransfersForWallet(walletViewId: string): Promise<AppTransfer[]> {
-  const res = await supabase.from("transfers").select("*").eq("wallet_view_id", walletViewId).order("created_at", { ascending: false });
+  const res = await supabase.from("transfers").select("*, quotes(fee)").eq("wallet_view_id", walletViewId).order("created_at", { ascending: false });
   return mustHaveData(res, "listTransfersForWallet").map(toAppTransfer);
 }
 

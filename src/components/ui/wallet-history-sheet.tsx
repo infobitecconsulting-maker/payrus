@@ -11,11 +11,16 @@ export interface WalletSummary {
 
 // Credit vs. debit is inferred from `type` now, rather than the presence of
 // a Convex `credited` field — `transfers` (supabase/migrations/0005) doesn't
-// carry a separate debited/credited/commission/fxMargin breakdown per row
-// the way Convex's `transactions` did; that detail still exists (in
-// `quotes` and `partner_mock.ledger_entries`), just not joined into this
-// history view in this pass — a reasonable simplification, not a silent
-// data loss, but flagged here since a future pass may want to join it back.
+// carry a separate debited/credited breakdown per row the way Convex's
+// `transactions` did. The commission fee is restored via `backend.ts`'s
+// `quotes(fee)` join (`AppTransfer.fee`); the old FX-margin figure is not —
+// unlike `commission`, it was never stored as a standalone number even in
+// `quotes` (only the final `fx_rate` and a text `wholesale_rate_ref` are),
+// so showing it would mean re-deriving it client-side from the 10% margin
+// rate that's currently a constant inside `create_quote()` in
+// 0005_wallet_view_quote_transfer.sql — duplicating that constant here would
+// silently drift if the real one ever changes, which is worse than not
+// showing the figure.
 const CREDIT_TYPES = new Set(["deposit", "convert_in"]);
 
 export default function WalletHistorySheet({
@@ -73,13 +78,23 @@ export default function WalletHistorySheet({
                 </div>
                 <div className="text-right shrink-0">
                   {isCredit ? (
-                    <div className="text-sm font-bold text-primary flex items-center gap-1 justify-end">
-                      <ArrowDownLeft size={12} /> +{tx.currency} {tx.amount.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-                    </div>
+                    <>
+                      <div className="text-sm font-bold text-primary flex items-center gap-1 justify-end">
+                        <ArrowDownLeft size={12} /> +{tx.currency} {tx.amount.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                      </div>
+                      {!!tx.fee && tx.fee > 0 && (
+                        <div className="text-[10px] text-muted-foreground">fee {tx.currency} {tx.fee.toFixed(2)}</div>
+                      )}
+                    </>
                   ) : (
-                    <div className="text-sm font-bold text-destructive flex items-center gap-1 justify-end">
-                      <ArrowUpRight size={12} /> -{tx.currency} {tx.amount.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-                    </div>
+                    <>
+                      <div className="text-sm font-bold text-destructive flex items-center gap-1 justify-end">
+                        <ArrowUpRight size={12} /> -{tx.currency} {tx.amount.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                      </div>
+                      {!!tx.fee && tx.fee > 0 && (
+                        <div className="text-[10px] text-muted-foreground">commission {tx.currency} {tx.fee.toFixed(2)}</div>
+                      )}
+                    </>
                   )}
                 </div>
               </div>

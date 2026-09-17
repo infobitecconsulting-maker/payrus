@@ -3,7 +3,7 @@ import { motion } from "motion/react";
 import { toast } from "sonner";
 import {
   Search, ShieldCheck, Sparkles, Wallet, CreditCard, Save, X, Plus,
-  Trash2, CheckCircle2, Clock, AlertCircle,
+  Trash2, CheckCircle2, Clock, AlertCircle, KeyRound,
 } from "lucide-react";
 import { cn } from "@/lib/utils.ts";
 import type { AppUserRole, AdminUserRow } from "@/lib/backend.ts";
@@ -189,6 +189,7 @@ function CreateProfileForm({ onDone }: { onDone: () => void }) {
 export default function UsersPanel() {
   const rows = useAdminListUsers();
   const grantAdminRole = useAdminGrantAdminRoleMutation();
+  const createUser = useAdminCreateUserMutation();
   const cleanup = useTestUsersCleanupMutation();
   const [search, setSearch] = useState("");
   const [creating, setCreating] = useState(false);
@@ -207,6 +208,22 @@ export default function UsersPanel() {
   const handleCleanup = async () => {
     const deletedCount = await cleanup();
     toast.success(`Removed ${deletedCount} test profile(s)`);
+  };
+
+  // A single canonical admin profile (admin@payrus.app), gated by the demo
+  // admin password — separate from "Make admin" below, which grants the
+  // role to an existing profile the admin already picked.
+  const handleCreateAdminProfile = async () => {
+    const password = window.prompt("Set the admin password to create the admin profile:");
+    if (password === null) return;
+    try {
+      const result = await createUser({
+        name: "Admin", email: "admin@payrus.app", role: "admin", kind: "individual", password,
+      });
+      toast.success(result.alreadyExisted ? "Admin profile already exists" : "Admin profile created (admin@payrus.app)");
+    } catch {
+      toast.error("Incorrect admin password");
+    }
   };
 
   const handleMakeAdmin = async (userId: string) => {
@@ -237,6 +254,12 @@ export default function UsersPanel() {
           className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-semibold cursor-pointer"
         >
           <Plus size={13} /> Add profile
+        </button>
+        <button
+          onClick={() => void handleCreateAdminProfile()}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-primary/30 text-primary text-xs font-semibold cursor-pointer hover:bg-primary/5 whitespace-nowrap"
+        >
+          <KeyRound size={13} /> Create admin profile
         </button>
         <button
           onClick={() => void handleCleanup()}
