@@ -35,7 +35,7 @@ jobs:
         env:
           GITHUB_PAGES: "true"
           # Public/publishable values only (see .env.example) — never put a
-          # real secret (service role key, ANTHROPIC_API_KEY) in a VITE_
+          # real secret (service role key, GOOGLE_MAPS_API_KEY) in a VITE_
           # var or this workflow; those live only in Convex's own env store.
           VITE_SUPABASE_URL: "https://iqbsxyltixztmysqsbig.supabase.co"
           VITE_SUPABASE_ANON_KEY: "sb_publishable_F5j6JBm34JwQKJjbouvEBg_-KyCxYWv"

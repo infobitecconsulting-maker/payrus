@@ -4,11 +4,12 @@ import { api } from "./_generated/api";
 
 // The only HTTP routes in this app so far. ops-console — a separate app with
 // no Convex client of its own — hits these with a bare `fetch` to reuse
-// App/'s AI-backed address-suggestion actions (convex/addressSuggestions.ts),
-// the same way it already shares App/'s Supabase project rather than
-// standing up its own backend. httpAction handlers run in the default
-// (non-Node) runtime, so these delegate to the actual Node-runtime actions
-// via ctx.runAction rather than calling their Anthropic-SDK logic directly.
+// App/'s Google-Maps-backed address-suggestion actions
+// (convex/addressSuggestions.ts), the same way it already shares App/'s
+// Supabase project rather than standing up its own backend. These delegate
+// via ctx.runAction rather than importing the action's logic directly, which
+// also happens to be exactly the seam that would matter again if a future
+// change ever needed a Node-only package inside one of these actions.
 const http = httpRouter();
 
 const CORS_HEADERS = {
