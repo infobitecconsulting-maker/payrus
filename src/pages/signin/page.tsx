@@ -1,17 +1,15 @@
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { useConvex, useMutation } from "convex/react";
 import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
-import { api } from "@/convex/_generated/api.js";
-import type { Id } from "@/convex/_generated/dataModel.js";
 import LocaleSwitcher from "@/components/ui/locale-switcher.tsx";
 import { useProfile } from "@/contexts/profile-context.tsx";
 import { setLocalUserId } from "@/lib/local-user.ts";
 import { routeAfterIdentity } from "@/lib/post-auth-routing.ts";
 import { supabase } from "@/lib/supabase-client.ts";
 import { OAUTH_PROVIDERS, authCallbackUrl, signInWithOAuthProvider, type OAuthProviderId } from "@/lib/supabase-providers.ts";
+import { listUserRolesForUser, resolveEmailByIdentifier, upsertSupabaseUser as callUpsertSupabaseUser } from "@/lib/backend.ts";
 
 type SecondaryPanel = "magic" | "phone" | "sso" | null;
 
@@ -21,8 +19,6 @@ export default function SignIn() {
   const base = `/${lng}`;
   const navigate = useNavigate();
   const { setProfile } = useProfile();
-  const convex = useConvex();
-  const upsertSupabaseUser = useMutation(api.supabaseAuth.upsertSupabaseUser);
 
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
@@ -44,9 +40,9 @@ export default function SignIn() {
   const [ssoEmail, setSsoEmail] = useState("");
   const [ssoSending, setSsoSending] = useState(false);
 
-  const finishLogin = async (userId: Id<"users">, name: string) => {
+  const finishLogin = async (userId: string, name: string) => {
     setLocalUserId(userId);
-    const roles = await convex.query(api.userRoles.listForUser, { userId });
+    const roles = await listUserRolesForUser(userId);
     toast.success(t("signin.welcomeBack"));
     routeAfterIdentity({ userId, roles, navigate, base, setProfile, displayName: name });
   };
@@ -61,7 +57,7 @@ export default function SignIn() {
       // Supabase's own signInWithPassword only takes an email — resolve the
       // typed identifier (username/email/phone) to one first, the same way
       // "forgot my username" has always worked in this app.
-      const email = await convex.query(api.supabaseAuth.resolveEmailByIdentifier, { identifier: identifier.trim() });
+      const email = await resolveEmailByIdentifier(identifier.trim());
       if (!email) {
         toast.error(t("signin.accountNotFoundLogin"));
         return;
@@ -72,7 +68,7 @@ export default function SignIn() {
         return;
       }
       const meta = data.user.user_metadata ?? {};
-      const { userId, name } = await upsertSupabaseUser({
+      const { userId, name } = await callUpsertSupabaseUser({
         supabaseUserId: data.user.id,
         email: data.user.email ?? email,
         firstName: typeof meta.firstName === "string" ? meta.firstName : undefined,
@@ -108,7 +104,7 @@ export default function SignIn() {
     }
     setMagicSending(true);
     try {
-      const email = await convex.query(api.supabaseAuth.resolveEmailByIdentifier, { identifier: identifier.trim() });
+      const email = await resolveEmailByIdentifier(identifier.trim());
       if (!email) {
         toast.error(t("signin.accountNotFoundLogin"));
         return;
@@ -165,7 +161,7 @@ export default function SignIn() {
       // other account (same convention the old oauth.ts used for Facebook
       // profiles that withheld email).
       const email = data.user.email ?? `phone-${data.user.id}@phone.payrus.local`;
-      const { userId, name } = await upsertSupabaseUser({ supabaseUserId: data.user.id, email });
+      const { userId, name } = await callUpsertSupabaseUser({ supabaseUserId: data.user.id, email });
       await finishLogin(userId, name);
     } finally {
       setPhoneSending(false);

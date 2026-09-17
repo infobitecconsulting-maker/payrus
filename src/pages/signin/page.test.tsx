@@ -9,20 +9,14 @@ vi.mock("react-router-dom", async () => {
   return { ...actual, useNavigate: () => mockNavigate };
 });
 
-// upsertSupabaseUser is the only useMutation() call in this component now.
-// mockConvexQuery stands in for BOTH convex.query() calls in sequence
-// (resolveEmailByIdentifier, then userRoles.listForUser) — tests chain
-// mockResolvedValueOnce per call, in call order.
 const mockUpsertSupabaseUser = vi.fn();
-const mockConvexQuery = vi.fn();
-vi.mock("convex/react", async () => {
-  const actual = await vi.importActual<typeof import("convex/react")>("convex/react");
-  return {
-    ...actual,
-    useMutation: () => mockUpsertSupabaseUser,
-    useConvex: () => ({ query: mockConvexQuery }),
-  };
-});
+const mockResolveEmailByIdentifier = vi.fn();
+const mockListUserRolesForUser = vi.fn();
+vi.mock("@/lib/backend.ts", () => ({
+  upsertSupabaseUser: (...args: unknown[]) => mockUpsertSupabaseUser(...args),
+  resolveEmailByIdentifier: (...args: unknown[]) => mockResolveEmailByIdentifier(...args),
+  listUserRolesForUser: (...args: unknown[]) => mockListUserRolesForUser(...args),
+}));
 
 const mockSetProfile = vi.fn();
 vi.mock("@/contexts/profile-context.tsx", async () => {
@@ -95,9 +89,8 @@ describe("SignIn", () => {
   });
 
   it("logs in with username + password and activates a single existing role", async () => {
-    mockConvexQuery
-      .mockResolvedValueOnce("aicha.fofana@test.payrus.app") // resolveEmailByIdentifier
-      .mockResolvedValueOnce([{ role: "personal", complete: true }]); // userRoles.listForUser
+    mockResolveEmailByIdentifier.mockResolvedValueOnce("aicha.fofana@test.payrus.app");
+    mockListUserRolesForUser.mockResolvedValueOnce([{ role: "personal", complete: true }]);
     mockSignInWithPassword.mockResolvedValue({
       data: { user: { id: "sb-uid-1", email: "aicha.fofana@test.payrus.app", user_metadata: {} } },
       error: null,
@@ -116,9 +109,8 @@ describe("SignIn", () => {
   });
 
   it("routes a roleless login to onboarding", async () => {
-    mockConvexQuery
-      .mockResolvedValueOnce("new.user@test.payrus.app")
-      .mockResolvedValueOnce([]);
+    mockResolveEmailByIdentifier.mockResolvedValueOnce("new.user@test.payrus.app");
+    mockListUserRolesForUser.mockResolvedValueOnce([]);
     mockSignInWithPassword.mockResolvedValue({
       data: { user: { id: "sb-uid-2", email: "new.user@test.payrus.app", user_metadata: {} } },
       error: null,
@@ -136,7 +128,7 @@ describe("SignIn", () => {
   });
 
   it("surfaces an error when the identifier doesn't match any account", async () => {
-    mockConvexQuery.mockResolvedValueOnce(null); // resolveEmailByIdentifier finds nothing
+    mockResolveEmailByIdentifier.mockResolvedValueOnce(null);
     renderSignIn();
 
     fireEvent.change(screen.getByLabelText(/username/i), { target: { value: "ghost" } });
@@ -149,7 +141,7 @@ describe("SignIn", () => {
   });
 
   it("surfaces the specific error for a wrong password instead of a generic failure", async () => {
-    mockConvexQuery.mockResolvedValueOnce("aicha.fofana@test.payrus.app");
+    mockResolveEmailByIdentifier.mockResolvedValueOnce("aicha.fofana@test.payrus.app");
     mockSignInWithPassword.mockResolvedValue({ data: { user: null }, error: { message: "Invalid login credentials" } });
     renderSignIn();
 
@@ -183,7 +175,7 @@ describe("SignIn", () => {
   });
 
   it("sends a magic link to the resolved email", async () => {
-    mockConvexQuery.mockResolvedValueOnce("aicha.fofana@test.payrus.app");
+    mockResolveEmailByIdentifier.mockResolvedValueOnce("aicha.fofana@test.payrus.app");
     mockSignInWithOtp.mockResolvedValue({ error: null });
     renderSignIn();
 
@@ -202,7 +194,7 @@ describe("SignIn", () => {
     mockSignInWithOtp.mockResolvedValue({ error: null });
     mockVerifyOtp.mockResolvedValue({ data: { user: { id: "sb-uid-3", email: null } }, error: null });
     mockUpsertSupabaseUser.mockResolvedValue({ userId: "user_3", name: "Phone User" });
-    mockConvexQuery.mockResolvedValueOnce([{ role: "personal", complete: true }]);
+    mockListUserRolesForUser.mockResolvedValueOnce([{ role: "personal", complete: true }]);
     renderSignIn();
 
     fireEvent.click(screen.getByText("Sign in with phone"));

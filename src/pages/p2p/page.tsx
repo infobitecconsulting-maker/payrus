@@ -11,9 +11,8 @@ import {
 import { Button } from "@/components/ui/button.tsx";
 import { cn } from "@/lib/utils.ts";
 import { toast } from "sonner";
-import { useMutation, useQuery } from "convex/react";
+import { useApplyWalletTransferMutation, useWalletViewsForUser } from "@/hooks/use-backend.ts";
 import { PayRusLogo } from "@/pages/layout/AppLayout.tsx";
-import { api } from "@/convex/_generated/api.js";
 import { commissionFor, convertWithMargin, midMarketConvert } from "@/convex/fx.ts";
 import { useCurrentAppUser } from "@/hooks/use-current-app-user.ts";
 
@@ -124,8 +123,8 @@ export default function P2PTransfer() {
   const [sending, setSending] = useState(false);
 
   const currentUser = useCurrentAppUser();
-  const realWallets = useQuery(api.wallets.listForUser, currentUser ? { userId: currentUser._id } : "skip");
-  const applyTransaction = useMutation(api.wallets.applyTransaction);
+  const realWallets = useWalletViewsForUser(currentUser?.id);
+  const applyTransaction = useApplyWalletTransferMutation();
 
   // Default a new transaction's currency to the one the user registered
   // with (src/pages/register/page.tsx sets this from their country) rather
@@ -179,7 +178,7 @@ export default function P2PTransfer() {
     }
     setSending(true);
     try {
-      await applyTransaction({ userId: currentUser._id, amount: numAmt, currency, type: "transfer", note: note || undefined });
+      await applyTransaction({ userId: currentUser.id, amount: numAmt, currency, type: "transfer", note: note || undefined });
       setStep("success");
       toast.success(t("p2p.sendConfirmedToast", { currency, amount: numAmt.toLocaleString() }));
     } catch {

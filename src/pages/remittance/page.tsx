@@ -6,11 +6,10 @@ import { Input } from "@/components/ui/input.tsx";
 import { cn } from "@/lib/utils.ts";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
-import { useMutation } from "convex/react";
 import TransactionReceipt from "@/components/ui/transaction-receipt.tsx";
-import { api } from "@/convex/_generated/api.js";
 import { commissionFor, midMarketConvert } from "@/convex/fx.ts";
 import { useCurrentAppUser } from "@/hooks/use-current-app-user.ts";
+import { useApplyWalletTransferMutation } from "@/hooks/use-backend.ts";
 
 // Launch-phase priority corridors lead the list: XAF (CEMAC — Cameroon, Congo-Brazzaville,
 // CAR/Bangui, Gabon, Chad, Eq. Guinea) and AOA (Angola). AED and CNY are visible for
@@ -60,7 +59,7 @@ export default function Remittance() {
   const [showToPicker, setShowToPicker] = useState(false);
 
   const currentUser = useCurrentAppUser();
-  const applyTransaction = useMutation(api.wallets.applyTransaction);
+  const applyTransaction = useApplyWalletTransferMutation();
   const [sending, setSending] = useState(false);
 
   const fromCurr = currencies.find(c => c.code === fromCurrency)!;
@@ -83,7 +82,7 @@ export default function Remittance() {
     }
     setSending(true);
     try {
-      const result = await applyTransaction({ userId: currentUser._id, amount: numAmt, currency: fromCurrency, type: "remittance", note: recipient || undefined });
+      const result = await applyTransaction({ userId: currentUser.id, amount: numAmt, currency: fromCurrency, type: "remittance", note: recipient || undefined });
       setTxReference(result.reference);
       setStep("success");
       toast.success(t("common.success"));

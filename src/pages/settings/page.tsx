@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { useMutation, useQuery } from "convex/react";
 import PageHeader from "@/components/ui/page-header.tsx";
 import {
   User, Shield, Bell, Globe, CreditCard, Smartphone, Key,
@@ -16,8 +15,8 @@ import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { changeLocale, setLocaleInPath, SUPPORTED_LOCALES, SUPPORTED_LOCALES_ARRAY, type SupportedLocale } from "@/i18n.ts";
-import { api } from "@/convex/_generated/api.js";
 import { getAnonId } from "@/lib/anon-id.ts";
+import { useAddLinkedPaymentMethodMutation, useLinkedPaymentMethods, useSeedDefaultLinkedPaymentMethodsMutation } from "@/hooks/use-backend.ts";
 import AddPaymentMethodSheet, { PAYMENT_PROVIDERS, type LinkedMethodProvider } from "@/components/ui/add-payment-method-sheet.tsx";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -360,12 +359,12 @@ function PaymentsSection() {
   const [saveCards, setSaveCards] = useState(true);
   const [addMethodOpen, setAddMethodOpen] = useState(false);
   const ownerKey = useState(getAnonId)[0];
-  const linkedMethods = useQuery(api.linkedPaymentMethods.list, { ownerKey });
-  const addLinkedMethodMutation = useMutation(api.linkedPaymentMethods.add);
-  const seedDefaults = useMutation(api.linkedPaymentMethods.seedDefaults);
+  const linkedMethods = useLinkedPaymentMethods(ownerKey);
+  const addLinkedMethodMutation = useAddLinkedPaymentMethodMutation();
+  const seedDefaults = useSeedDefaultLinkedPaymentMethodsMutation();
 
   useEffect(() => {
-    if (linkedMethods?.length === 0) void seedDefaults({ ownerKey });
+    if (linkedMethods?.length === 0) void seedDefaults(ownerKey);
   }, [linkedMethods, ownerKey, seedDefaults]);
 
   const addLinkedMethod = (provider: LinkedMethodProvider) => {
@@ -387,7 +386,7 @@ function PaymentsSection() {
             linkedMethods.map(acc => {
               const Icon = PAYMENT_PROVIDERS.find(p => p.id === acc.provider)?.icon ?? CreditCard;
               return (
-                <div key={acc._id} className="flex items-center gap-3 px-4 py-3.5">
+                <div key={acc.id} className="flex items-center gap-3 px-4 py-3.5">
                   <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center shrink-0">
                     <Icon size={15} className="text-foreground" />
                   </div>

@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { motion, AnimatePresence } from "motion/react";
-import { useMutation, useQuery } from "convex/react";
 import {
   ShoppingBag, Star, Sparkles, ArrowUpRight, ChevronRight,
   Wallet, CreditCard, Smartphone, Nfc, Percent, Info,
@@ -12,8 +11,8 @@ import { toast } from "sonner";
 import PageHeader from "@/components/ui/page-header.tsx";
 import TransactionReceipt from "@/components/ui/transaction-receipt.tsx";
 import { PayRusLogo } from "@/pages/layout/AppLayout.tsx";
-import { api } from "@/convex/_generated/api.js";
 import { getAnonId } from "@/lib/anon-id.ts";
+import { useCreateShopOrderMutation, useMarketplacePartners } from "@/hooks/use-backend.ts";
 
 type Category = "all" | "general" | "electronics" | "fashion" | "wholesale" | "local";
 type Step = "browse" | "cart" | "method" | "confirm" | "success";
@@ -52,7 +51,7 @@ export default function Shop() {
     { id: "local", label: t("shop.category.local") },
   ];
 
-  const partnersQuery = useQuery(api.marketplacePartners.list);
+  const partnersQuery = useMarketplacePartners();
   const partners: Partner[] | undefined = partnersQuery
     ?.map((p): Partner => ({
       id: p.slug,
@@ -60,13 +59,13 @@ export default function Shop() {
       category: p.category as Exclude<Category, "all">,
       emoji: p.emoji,
       promoted: p.promoted,
-      discount: p.discountPercent,
+      discount: p.discountPercent ?? undefined,
       rating: p.rating,
       items: p.items,
     }))
     .sort((a, b) => Number(b.promoted) - Number(a.promoted));
   const visiblePartners = partners === undefined ? [] : category === "all" ? partners : partners.filter(p => p.category === category);
-  const createOrder = useMutation(api.shopOrders.create);
+  const createOrder = useCreateShopOrderMutation();
   const ownerKey = useState(getAnonId)[0];
 
   const methods: { id: ShopPaymentMethod; label: string; icon: typeof Wallet; color: string }[] = [

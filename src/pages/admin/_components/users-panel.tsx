@@ -1,27 +1,24 @@
 import { useState } from "react";
-import { useMutation, useQuery } from "convex/react";
 import { motion } from "motion/react";
 import { toast } from "sonner";
 import {
   Search, ShieldCheck, Sparkles, Wallet, CreditCard, Save, X, Plus,
-  Trash2, CheckCircle2, Clock, AlertCircle, KeyRound,
+  Trash2, CheckCircle2, Clock, AlertCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils.ts";
-import { api } from "@/convex/_generated/api.js";
-import type { Id } from "@/convex/_generated/dataModel.js";
+import type { AppUserRole, AdminUserRow } from "@/lib/backend.ts";
+import {
+  useAdminListUsers, useAdminUpdateUserRoleMutation, useAdminCreateUserMutation,
+  useAdminGrantAdminRoleMutation, useTestUsersCleanupMutation,
+} from "@/hooks/use-backend.ts";
 
 const ALL_ROLES = [
   "personal", "merchant", "agent", "treasury", "public_institution",
   "ngo", "group", "starter", "admin",
 ] as const;
 
-type Role = { _id: Id<"userRoles">; role: string; kind: "individual" | "organisation"; status: string; phone?: string; address?: string; orgName?: string; legalRepName?: string; legalRepIdNumber?: string; legalRepPhone?: string };
-type UserRow = {
-  user: { _id: Id<"users">; name?: string; email?: string; isTestData?: boolean };
-  roles: Role[];
-  wallets: { provider: string; currency: string; balance: number }[];
-  cards: { brand: string; last4: string; balance: number; currency: string }[];
-};
+type Role = AppUserRole;
+type UserRow = AdminUserRow;
 
 function StatusPill({ status }: { status: string }) {
   const map: Record<string, { icon: typeof CheckCircle2; cls: string }> = {
@@ -38,9 +35,9 @@ function StatusPill({ status }: { status: string }) {
   );
 }
 
-function EditRoleForm({ row, roleId, onDone }: { row: UserRow; roleId: Id<"userRoles">; onDone: () => void }) {
-  const role = row.roles.find((r) => r._id === roleId)!;
-  const updateUserRole = useMutation(api.admin.updateUserRole);
+function EditRoleForm({ row, roleId, onDone }: { row: UserRow; roleId: string; onDone: () => void }) {
+  const role = row.roles.find((r) => r.id === roleId)!;
+  const updateUserRole = useAdminUpdateUserRoleMutation();
   const [status, setStatus] = useState(role.status);
   const [phone, setPhone] = useState(role.phone ?? "");
   const [address, setAddress] = useState(role.address ?? "");
@@ -75,7 +72,7 @@ function EditRoleForm({ row, roleId, onDone }: { row: UserRow; roleId: Id<"userR
       <div className="grid grid-cols-2 gap-2">
         <label className="text-[10px] text-muted-foreground font-semibold uppercase">
           Status
-          <select value={status} onChange={(e) => setStatus(e.target.value)} className="mt-1 w-full rounded-lg border border-border bg-card px-2 py-1.5 text-xs">
+          <select value={status} onChange={(e) => setStatus(e.target.value as typeof status)} className="mt-1 w-full rounded-lg border border-border bg-card px-2 py-1.5 text-xs">
             <option value="incomplete">Incomplete</option>
             <option value="pending_verification">Pending verification</option>
             <option value="verified">Verified</option>
@@ -123,7 +120,7 @@ function EditRoleForm({ row, roleId, onDone }: { row: UserRow; roleId: Id<"userR
 }
 
 function CreateProfileForm({ onDone }: { onDone: () => void }) {
-  const createUser = useMutation(api.admin.createUser);
+  const createUser = useAdminCreateUserMutation();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<(typeof ALL_ROLES)[number]>("personal");
@@ -190,13 +187,12 @@ function CreateProfileForm({ onDone }: { onDone: () => void }) {
 }
 
 export default function UsersPanel() {
-  const rows = useQuery(api.admin.listUsers, {}) as UserRow[] | undefined;
-  const grantAdminRole = useMutation(api.admin.grantAdminRole);
-  const createAdminProfile = useMutation(api.admin.createAdminProfile);
-  const cleanup = useMutation(api.testUsers.cleanup);
+  const rows = useAdminListUsers();
+  const grantAdminRole = useAdminGrantAdminRoleMutation();
+  const cleanup = useTestUsersCleanupMutation();
   const [search, setSearch] = useState("");
   const [creating, setCreating] = useState(false);
-  const [editingRoleId, setEditingRoleId] = useState<Id<"userRoles"> | null>(null);
+  const [editingRoleId, setEditingRoleId] = useState<string | null>(null);
 
   const filtered = (rows ?? []).filter((row) => {
     if (!search.trim()) return true;
@@ -209,25 +205,11 @@ export default function UsersPanel() {
   });
 
   const handleCleanup = async () => {
-    const result = await cleanup({});
-    toast.success(`Removed ${result.deletedUsers} test profile(s)`);
+    const deletedCount = await cleanup();
+    toast.success(`Removed ${deletedCount} test profile(s)`);
   };
 
-  // A single canonical admin profile (admin@payrus.app), gated by the demo
-  // admin password — separate from "Make admin" below, which grants the
-  // role to an existing profile the admin already picked.
-  const handleCreateAdminProfile = async () => {
-    const password = window.prompt("Set the admin password to create the admin profile:");
-    if (password === null) return;
-    try {
-      const result = await createAdminProfile({ password });
-      toast.success(result.alreadyExisted ? "Admin profile already exists" : "Admin profile created (admin@payrus.app)");
-    } catch {
-      toast.error("Incorrect admin password");
-    }
-  };
-
-  const handleMakeAdmin = async (userId: Id<"users">) => {
+  const handleMakeAdmin = async (userId: string) => {
     const password = window.prompt("Enter the admin password to grant this role:");
     if (password === null) return;
     try {
@@ -257,12 +239,6 @@ export default function UsersPanel() {
           <Plus size={13} /> Add profile
         </button>
         <button
-          onClick={() => void handleCreateAdminProfile()}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-primary/30 text-primary text-xs font-semibold cursor-pointer hover:bg-primary/5 whitespace-nowrap"
-        >
-          <KeyRound size={13} /> Create admin profile
-        </button>
-        <button
           onClick={() => void handleCleanup()}
           className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-destructive/30 text-destructive text-xs font-semibold cursor-pointer hover:bg-destructive/5"
         >
@@ -284,7 +260,7 @@ export default function UsersPanel() {
           const totalBalance = row.wallets.reduce((sum, w) => sum + w.balance, 0);
           const primaryCard = row.cards[0];
           return (
-            <div key={row.user._id} className="bg-card border border-border rounded-2xl p-4">
+            <div key={row.user.id} className="bg-card border border-border rounded-2xl p-4">
               <div className="flex items-start justify-between gap-3 flex-wrap">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
@@ -315,7 +291,7 @@ export default function UsersPanel() {
                   </div>
                   {!row.roles.some((r) => r.role === "admin") && (
                     <button
-                      onClick={() => void handleMakeAdmin(row.user._id)}
+                      onClick={() => void handleMakeAdmin(row.user.id)}
                       className="text-[10px] font-semibold px-2.5 py-1.5 rounded-lg border border-border hover:bg-secondary cursor-pointer whitespace-nowrap"
                     >
                       Make admin
@@ -326,7 +302,7 @@ export default function UsersPanel() {
 
               <div className="mt-3 space-y-1.5">
                 {row.roles.map((role) => (
-                  <div key={role._id}>
+                  <div key={role.id}>
                     <div className="flex items-center justify-between gap-2 bg-secondary/30 rounded-lg px-3 py-2">
                       <div className="flex items-center gap-2 min-w-0">
                         <span className="text-xs font-semibold capitalize">{role.role.replace("_", " ")}</span>
@@ -334,14 +310,14 @@ export default function UsersPanel() {
                         <span className="text-[10px] text-muted-foreground">{role.kind}</span>
                       </div>
                       <button
-                        onClick={() => setEditingRoleId(editingRoleId === role._id ? null : role._id)}
+                        onClick={() => setEditingRoleId(editingRoleId === role.id ? null : role.id)}
                         className="text-[10px] font-semibold text-primary cursor-pointer shrink-0"
                       >
-                        {editingRoleId === role._id ? "Close" : "Edit"}
+                        {editingRoleId === role.id ? "Close" : "Edit"}
                       </button>
                     </div>
-                    {editingRoleId === role._id && (
-                      <EditRoleForm row={row} roleId={role._id} onDone={() => setEditingRoleId(null)} />
+                    {editingRoleId === role.id && (
+                      <EditRoleForm row={row} roleId={role.id} onDone={() => setEditingRoleId(null)} />
                     )}
                   </div>
                 ))}

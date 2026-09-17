@@ -9,20 +9,23 @@ vi.mock("react-router-dom", async () => {
   return { ...actual, useNavigate: () => mockNavigate, useLocation: () => ({ state: null }) };
 });
 
-// upsertSupabaseUser and completeRegistrationProfile are both distinct
-// useMutation() calls in the component; Convex's api.* references have no
-// stable identity to switch on (see signin/page.test.tsx's note), so one
-// shared mock stands in for both and tests assert on call order/shape.
-const mockMutation = vi.fn();
-const mockConvexQuery = vi.fn();
+const mockUpsertSupabaseUser = vi.fn();
+const mockCompleteRegistrationProfile = vi.fn();
+vi.mock("@/lib/backend.ts", () => ({
+  upsertSupabaseUser: (...args: unknown[]) => mockUpsertSupabaseUser(...args),
+  completeRegistrationProfile: (...args: unknown[]) => mockCompleteRegistrationProfile(...args),
+}));
+
 // Street- and postal-code-autosuggest useAction() calls — both default to no
 // suggestions so the existing tests (which never touch either dropdown) are
 // unaffected; only the dedicated autosuggest tests override these. The
 // component calls useAction(suggestStreets) then useAction(suggestPostalCodes)
 // in that fixed order on every render (React's rules of hooks guarantee the
-// order never changes), and — same as useMutation above — Convex's api.*
-// references have no stable identity to switch on, so parity of a call
-// counter (reset every test) stands in for "which action is this".
+// order never changes), and Convex's api.* references have no stable
+// identity to switch on, so parity of a call counter (reset every test)
+// stands in for "which action is this". This is the one remaining live
+// convex/react call site — the AI address-suggestion feature intentionally
+// stays on Convex (see register/page.tsx's own comment).
 const mockSuggestStreets = vi.fn().mockResolvedValue({ suggestions: [] });
 const mockSuggestPostalCodes = vi.fn().mockResolvedValue({ suggestions: [] });
 let useActionCallCount = 0;
@@ -30,9 +33,7 @@ vi.mock("convex/react", async () => {
   const actual = await vi.importActual<typeof import("convex/react")>("convex/react");
   return {
     ...actual,
-    useMutation: () => mockMutation,
     useAction: () => (useActionCallCount++ % 2 === 0 ? mockSuggestStreets : mockSuggestPostalCodes),
-    useConvex: () => ({ query: mockConvexQuery }),
   };
 });
 
@@ -136,9 +137,8 @@ describe("Register", () => {
 
   it("registers via Supabase, saves the profile, and shows the check-email step when confirmation is required", async () => {
     mockSignUp.mockResolvedValue({ data: { user: { id: "sb-uid-1" }, session: null }, error: null });
-    mockMutation
-      .mockResolvedValueOnce({ userId: "user_1", isNew: true, name: "Moussa Diallo" }) // upsertSupabaseUser
-      .mockResolvedValueOnce(undefined); // completeRegistrationProfile
+    mockUpsertSupabaseUser.mockResolvedValueOnce({ userId: "user_1", isNew: true, name: "Moussa Diallo" });
+    mockCompleteRegistrationProfile.mockResolvedValueOnce(undefined);
     renderRegister();
     fillDetails();
     fireEvent.click(screen.getByRole("button", { name: /create account/i }));
@@ -148,10 +148,10 @@ describe("Register", () => {
       email: "moussa@example.com", password: "Test1234",
       options: { data: { firstName: "Moussa", lastName: "Diallo" } },
     });
-    expect(mockMutation).toHaveBeenNthCalledWith(1, {
+    expect(mockUpsertSupabaseUser).toHaveBeenCalledWith({
       supabaseUserId: "sb-uid-1", email: "moussa@example.com", firstName: "Moussa", lastName: "Diallo",
     });
-    expect(mockMutation).toHaveBeenNthCalledWith(2, {
+    expect(mockCompleteRegistrationProfile).toHaveBeenCalledWith({
       userId: "user_1", phone: "+221 78 00 00 00", country: "SN",
       street: "Rue de la Paix", houseNumber: "12", city: "Dakar", province: "Dakar", postalCode: undefined,
     });
@@ -159,9 +159,8 @@ describe("Register", () => {
 
   it("routes straight into onboarding when Supabase returns an active session immediately (email confirmation off)", async () => {
     mockSignUp.mockResolvedValue({ data: { user: { id: "sb-uid-1" }, session: { access_token: "tok" } }, error: null });
-    mockMutation
-      .mockResolvedValueOnce({ userId: "user_1", isNew: true, name: "Moussa Diallo" })
-      .mockResolvedValueOnce(undefined);
+    mockUpsertSupabaseUser.mockResolvedValueOnce({ userId: "user_1", isNew: true, name: "Moussa Diallo" });
+    mockCompleteRegistrationProfile.mockResolvedValueOnce(undefined);
     renderRegister();
     fillDetails();
     fireEvent.click(screen.getByRole("button", { name: /create account/i }));
@@ -228,7 +227,7 @@ describe("Register", () => {
       provider: "google",
       options: { redirectTo: expect.stringContaining("/en/auth/callback") },
     }));
-    expect(mockMutation).not.toHaveBeenCalled();
+    expect(mockUpsertSupabaseUser).not.toHaveBeenCalled();
   });
 
   it("adapts the phone field's country code when a country is chosen, without overwriting a number already typed", () => {

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { useAction, useMutation } from "convex/react";
+import { useAction } from "convex/react";
 import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/convex/_generated/api.js";
@@ -15,6 +15,12 @@ import { useProfile } from "@/contexts/profile-context.tsx";
 import { routeAfterIdentity } from "@/lib/post-auth-routing.ts";
 import { supabase } from "@/lib/supabase-client.ts";
 import { OAUTH_PROVIDERS, signInWithOAuthProvider, type OAuthProviderId } from "@/lib/supabase-providers.ts";
+import { completeRegistrationProfile as callCompleteRegistrationProfile, upsertSupabaseUser as callUpsertSupabaseUser } from "@/lib/backend.ts";
+
+// suggestStreets/suggestPostalCodes below stay on Convex (convex/
+// addressSuggestions.ts, an AI feature calling Claude) — porting that to a
+// Supabase Edge Function is a separate, unstarted migration, not part of
+// this pass. Every other Convex call in this file is migrated.
 
 interface LocationState {
   email?: string;
@@ -31,8 +37,6 @@ export default function Register() {
   const location = useLocation();
   const state = (location.state ?? {}) as LocationState;
   const { setProfile } = useProfile();
-  const upsertSupabaseUser = useMutation(api.supabaseAuth.upsertSupabaseUser);
-  const completeRegistrationProfile = useMutation(api.supabaseAuth.completeRegistrationProfile);
   const suggestStreets = useAction(api.addressSuggestions.suggestStreets);
   const suggestPostalCodes = useAction(api.addressSuggestions.suggestPostalCodes);
   const [oauthPending, setOauthPending] = useState<OAuthProviderId | null>(null);
@@ -170,13 +174,13 @@ export default function Register() {
       // The Supabase auth.users row exists immediately regardless of email
       // confirmation status, so the submitted profile/address data can be
       // saved right away rather than waiting on confirmation.
-      const { userId, name } = await upsertSupabaseUser({
+      const { userId, name } = await callUpsertSupabaseUser({
         supabaseUserId: data.user.id,
         email: trimmedEmail,
         firstName: firstName.trim(),
         lastName: lastName.trim(),
       });
-      await completeRegistrationProfile({
+      await callCompleteRegistrationProfile({
         userId, phone: phone.trim(), country,
         street: street.trim(), houseNumber: houseNumber.trim(), city: city.trim(), province,
         postalCode: postalCode.trim() || undefined,

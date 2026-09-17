@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { useConvex, useMutation, useQuery } from "convex/react";
+import { useMutation } from "convex/react";
 import { useCurrentAppUser } from "@/hooks/use-current-app-user.ts";
 import {
   ChevronRight, CheckCircle2, ArrowLeft, Shield,
@@ -11,7 +11,6 @@ import {
 import { toast } from "sonner";
 import { cn } from "@/lib/utils.ts";
 import { api } from "@/convex/_generated/api.js";
-import type { Id } from "@/convex/_generated/dataModel.js";
 import { Button } from "@/components/ui/button.tsx";
 import { Input } from "@/components/ui/input.tsx";
 import { Label } from "@/components/ui/label.tsx";
@@ -19,6 +18,7 @@ import { Progress } from "@/components/ui/progress.tsx";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp.tsx";
 import { useProfile, type ProfileType, getDefaultProfile } from "@/contexts/profile-context.tsx";
 import { applyRealName } from "@/lib/post-auth-routing.ts";
+import { useAddressesForUser, useUpsertUserRoleMutation, useUserRolesForUser } from "@/hooks/use-backend.ts";
 
 const ORGANISATION_ROLES: ProfileType[] = ["merchant", "agent", "treasury", "public_institution", "ngo", "group", "admin"];
 
@@ -113,7 +113,7 @@ const ID_TYPES = ["national", "passport", "voter"] as const;
 type IdType = (typeof ID_TYPES)[number];
 
 interface ExistingRole {
-  _id: Id<"userRoles">;
+  id: string;
   role: string;
   kind: "individual" | "organisation";
   status: "incomplete" | "pending_verification" | "verified";
@@ -122,7 +122,7 @@ interface ExistingRole {
 }
 
 interface LocationState {
-  existingUserId?: Id<"users">;
+  existingUserId?: string;
   existingRoles?: ExistingRole[];
 }
 
@@ -135,27 +135,28 @@ export default function ProfileSelection() {
   const locationState = (location.state ?? {}) as LocationState;
 
   const currentUser = useCurrentAppUser();
-  const existingAddresses = useQuery(api.addresses.listForUser, currentUser ? { userId: currentUser._id } : "skip");
-  const convex = useConvex();
-  const upsertRole = useMutation(api.userRoles.upsertRole);
+  const existingAddresses = useAddressesForUser(currentUser?.id);
+  const upsertRole = useUpsertUserRoleMutation();
+  // Convex file storage for the org registration document is kept
+  // unchanged for now — it has no Supabase Storage equivalent in this pass
+  // (see src/lib/backend.ts's note on this); the returned storage id is
+  // persisted as an opaque reference string alongside everything else,
+  // which now lives in Supabase.
   const generateDocUploadUrl = useMutation(api.userRoles.generateRegistrationDocUploadUrl);
 
   // Present when this page was reached from the sign-in existence check
   // (found-but-incomplete, found-with-multiple-roles, or not-found) rather
   // than the plain "Get started" preview path — this is what lets onboarding
   // write real, persisted roles instead of just a local preview profile.
-  const [existingUserId] = useState<Id<"users"> | undefined>(locationState.existingUserId);
+  const [existingUserId] = useState<string | undefined>(locationState.existingUserId);
   const [existingRoles] = useState<ExistingRole[] | undefined>(locationState.existingRoles);
 
   // Reaching this page any other way (e.g. "Add another role" from an
   // already-logged-in session) carries no location.state at all — fall back
   // to the live session/roles so a returning user still gets the real,
   // persisted upsertRole path instead of the account-less preview one.
-  const effectiveUserId = existingUserId ?? currentUser?._id;
-  const liveRoles = useQuery(
-    api.userRoles.listForUser,
-    !existingRoles && currentUser ? { userId: currentUser._id } : "skip",
-  );
+  const effectiveUserId = existingUserId ?? currentUser?.id;
+  const liveRoles = useUserRolesForUser(!existingRoles && currentUser ? currentUser.id : undefined);
   const effectiveRoles = existingRoles ?? liveRoles;
 
   // The admin profile is unique: once verified as admin, every other role is
@@ -164,7 +165,7 @@ export default function ProfileSelection() {
   const isAdminUser = effectiveRoles?.some(r => r.role === "admin" && r.complete) ?? false;
   const roleLookup = (id: ProfileType): ExistingRole | undefined =>
     effectiveRoles?.find(r => r.role === id) ??
-    (isAdminUser ? { _id: "admin-virtual" as Id<"userRoles">, role: id, kind: "individual", status: "verified", complete: true } : undefined);
+    (isAdminUser ? { id: "admin-virtual", role: id, kind: "individual", status: "verified", complete: true } : undefined);
 
   const [step, setStep] = useState<Step>(existingRoles && existingRoles.length > 1 ? "chooseExisting" : "select");
   const [selected, setSelected] = useState<ProfileType | null>(null);
@@ -189,7 +190,7 @@ export default function ProfileSelection() {
   // Organisation-only onboarding fields — collected before KYC, registration
   // document first then the legal representative's identity, per the
   // requested order.
-  const [registrationDocId, setRegistrationDocId] = useState<Id<"_storage"> | null>(null);
+  const [registrationDocId, setRegistrationDocId] = useState<string | null>(null);
   const [registrationDocName, setRegistrationDocName] = useState("");
   const [uploadingDoc, setUploadingDoc] = useState(false);
   const [legalRepName, setLegalRepName] = useState("");
@@ -245,7 +246,7 @@ export default function ProfileSelection() {
       // Already onboarded for this role — activate it instead of re-running
       // the whole KYC wizard from scratch.
       const profile = getDefaultProfile(id);
-      applyRealName(profile, existing, currentUser?.name);
+      applyRealName(profile, existing, currentUser?.name ?? undefined);
       setProfile(profile);
       navigate(base);
       return;
@@ -279,7 +280,7 @@ export default function ProfileSelection() {
           phone: effectivePhone, dateOfBirth: effectiveDob, address: effectiveAddress, idType,
           ...(isOrgRole ? {
             orgName: orgName.trim(),
-            registrationDocId: registrationDocId ?? undefined,
+            registrationDocPath: registrationDocId ?? undefined,
             legalRepName, legalRepIdType, legalRepIdNumber, legalRepPhone,
           } : {}),
         });
@@ -769,10 +770,10 @@ export default function ProfileSelection() {
                     if (!config) return null;
                     return (
                       <button
-                        key={role._id}
+                        key={role.id}
                         onClick={() => {
                           const profile = getDefaultProfile(role.role as ProfileType);
-                          applyRealName(profile, role, currentUser?.name);
+                          applyRealName(profile, role, currentUser?.name ?? undefined);
                           setProfile(profile);
                           navigate(base);
                         }}

@@ -1,7 +1,7 @@
 import { motion } from "motion/react";
 import { Link, useParams, useNavigate } from "react-router-dom";
-import { useQuery } from "convex/react";
 import { useCurrentAppUser } from "@/hooks/use-current-app-user.ts";
+import { useCardsForUser, useLinkedPaymentMethods, useWalletViewsForUser } from "@/hooks/use-backend.ts";
 import {
   Send, ArrowDownLeft, QrCode, Building2,
   TrendingUp, Shield, Wifi, ChevronRight, Bell,
@@ -12,7 +12,6 @@ import { cn } from "@/lib/utils.ts";
 import { AreaChart, Area, XAxis, ResponsiveContainer, Tooltip } from "recharts";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { api } from "@/convex/_generated/api.js";
 import { getAnonId } from "@/lib/anon-id.ts";
 import { PAYMENT_PROVIDERS } from "@/components/ui/add-payment-method-sheet.tsx";
 import { useProfile } from "@/contexts/profile-context.tsx";
@@ -134,10 +133,10 @@ export default function Dashboard() {
   // preview visitors keep today's shared demo arrays — each query is scoped
   // by userId via a Convex index, so results can never cross between users.
   const currentUser = useCurrentAppUser();
-  const realWallets = useQuery(api.wallets.listForUser, currentUser ? { userId: currentUser._id } : "skip");
-  const realCards = useQuery(api.cards.listForUser, currentUser ? { userId: currentUser._id } : "skip");
+  const realWallets = useWalletViewsForUser(currentUser?.id);
+  const realCards = useCardsForUser(currentUser?.id);
   const primaryCard = realCards && realCards.length > 0 ? realCards[0] : null;
-  const linkedMethods = useQuery(api.linkedPaymentMethods.list, { ownerKey: getAnonId() });
+  const linkedMethods = useLinkedPaymentMethods(getAnonId());
   const walletsToShow = realWallets && realWallets.length > 0
     ? realWallets.map(w => ({ name: w.provider, balance: `${w.currency} ${w.balance.toLocaleString()}`, flag: w.flag, color: w.colorClass }))
     : wallets;
@@ -342,7 +341,7 @@ export default function Dashboard() {
                 {(linkedMethods ?? []).slice(0, 3).map((m) => {
                   const Icon = PAYMENT_PROVIDERS.find(p => p.id === m.provider)?.icon ?? CreditCard;
                   return (
-                    <div key={m._id} className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <div key={m.id} className="flex items-center gap-2 text-xs text-muted-foreground">
                       <Icon size={13} className="text-foreground shrink-0" />
                       <span className="truncate">{m.label}</span>
                     </div>

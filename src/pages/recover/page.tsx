@@ -1,10 +1,9 @@
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { useConvex } from "convex/react";
 import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
-import { api } from "@/convex/_generated/api.js";
+import { resolveEmailByIdentifier } from "@/lib/backend.ts";
 import LocaleSwitcher from "@/components/ui/locale-switcher.tsx";
 import { supabase } from "@/lib/supabase-client.ts";
 
@@ -16,7 +15,6 @@ export default function Recover() {
   const { lng = "en" } = useParams<{ lng?: string }>();
   const base = `/${lng}`;
   const navigate = useNavigate();
-  const convex = useConvex();
 
   const [identifier, setIdentifier] = useState("");
   const [saving, setSaving] = useState(false);
@@ -29,7 +27,7 @@ export default function Recover() {
     }
     setSaving(true);
     try {
-      const email = await convex.query(api.supabaseAuth.resolveEmailByIdentifier, { identifier: identifier.trim() });
+      const email = await resolveEmailByIdentifier(identifier.trim());
       if (!email) {
         toast.error(t("signin.accountNotFoundLogin"));
         return;

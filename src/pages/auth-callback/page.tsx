@@ -1,14 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { useConvex, useMutation } from "convex/react";
-import { api } from "@/convex/_generated/api.js";
-import type { Id } from "@/convex/_generated/dataModel.js";
 import LocaleSwitcher from "@/components/ui/locale-switcher.tsx";
 import { useProfile } from "@/contexts/profile-context.tsx";
 import { setLocalUserId } from "@/lib/local-user.ts";
 import { routeAfterIdentity } from "@/lib/post-auth-routing.ts";
 import { supabase } from "@/lib/supabase-client.ts";
+import { listUserRolesForUser, upsertSupabaseUser as callUpsertSupabaseUser } from "@/lib/backend.ts";
 
 type Status = "checking" | "error";
 
@@ -22,9 +20,7 @@ export default function AuthCallback() {
   const { lng = "en" } = useParams<{ lng?: string }>();
   const base = `/${lng}`;
   const navigate = useNavigate();
-  const convex = useConvex();
   const { setProfile } = useProfile();
-  const upsertSupabaseUser = useMutation(api.supabaseAuth.upsertSupabaseUser);
   const [status, setStatus] = useState<Status>("checking");
   const settledRef = useRef(false);
 
@@ -42,11 +38,11 @@ export default function AuthCallback() {
       return;
     }
 
-    const finish = async (userId: Id<"users">, name: string) => {
+    const finish = async (userId: string, name: string) => {
       if (settledRef.current) return;
       settledRef.current = true;
       setLocalUserId(userId);
-      const roles = await convex.query(api.userRoles.listForUser, { userId });
+      const roles = await listUserRolesForUser(userId);
       routeAfterIdentity({ userId, roles, navigate, base, setProfile, displayName: name });
     };
 
@@ -62,7 +58,7 @@ export default function AuthCallback() {
         (typeof meta.full_name === "string" && meta.full_name) ||
         (typeof meta.name === "string" && meta.name) ||
         undefined;
-      const { userId, name: resolvedName } = await upsertSupabaseUser({
+      const { userId, name: resolvedName } = await callUpsertSupabaseUser({
         supabaseUserId: session.user.id,
         email: session.user.email,
         name,

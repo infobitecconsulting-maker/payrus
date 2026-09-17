@@ -6,11 +6,10 @@ import { Button } from "@/components/ui/button.tsx";
 import { Input } from "@/components/ui/input.tsx";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
-import { useMutation } from "convex/react";
 import TransactionReceipt from "@/components/ui/transaction-receipt.tsx";
-import { api } from "@/convex/_generated/api.js";
 import { commissionFor, midMarketConvert } from "@/convex/fx.ts";
 import { useCurrentAppUser } from "@/hooks/use-current-app-user.ts";
+import { useApplyWalletTransferMutation } from "@/hooks/use-backend.ts";
 
 type PaymentMethod = "card" | "qr" | "mobile" | "cash" | "wallet";
 type Step = "method" | "amount" | "confirm" | "success";
@@ -31,7 +30,7 @@ export default function Payments() {
   const [paying, setPaying] = useState(false);
 
   const currentUser = useCurrentAppUser();
-  const applyTransaction = useMutation(api.wallets.applyTransaction);
+  const applyTransaction = useApplyWalletTransferMutation();
   const numAmt = parseFloat(amount) || 0;
   const commission = commissionFor(numAmt); // flat 3.5% commission, paid by the sender
 
@@ -57,7 +56,7 @@ export default function Payments() {
     }
     setPaying(true);
     try {
-      await applyTransaction({ userId: currentUser._id, amount: numAmt, currency: "USD", type: "payment" });
+      await applyTransaction({ userId: currentUser.id, amount: numAmt, currency: "USD", type: "payment" });
       setStep("success");
       toast.success(t("common.success"));
     } catch {

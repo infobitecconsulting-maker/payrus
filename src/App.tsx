@@ -58,7 +58,7 @@ export default function App() {
 
   return (
     <DefaultProviders>
-      <BrowserRouter>
+      <BrowserRouter basename={import.meta.env.BASE_URL}>
         <Suspense fallback={<div className="min-h-screen bg-background" />}>
           <Routes>
             <Route path="/" element={<RootRedirect />} />

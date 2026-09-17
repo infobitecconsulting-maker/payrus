@@ -10,12 +10,11 @@ import { Button } from "@/components/ui/button.tsx";
 import { Input } from "@/components/ui/input.tsx";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
-import { useMutation, useQuery } from "convex/react";
 import PageHeader from "@/components/ui/page-header.tsx";
 import TransactionReceipt from "@/components/ui/transaction-receipt.tsx";
-import { api } from "@/convex/_generated/api.js";
-import { RATES_PER_USD, convertWithMargin } from "@/convex/fx.ts";
+import { RATES_PER_USD, convertWithMargin, depositFeeFor } from "@/convex/fx.ts";
 import { useCurrentAppUser } from "@/hooks/use-current-app-user.ts";
+import { useDepositMutation, useConvertBetweenWalletsMutation, useRecentTransfersForUser, useWalletViewsForUser } from "@/hooks/use-backend.ts";
 
 type TopUpMethod = "bank" | "agent" | "crypto" | "card" | "mobile" | "apple_pay" | "google_pay";
 type Step = "balance" | "method" | "details" | "confirm" | "success";
@@ -34,10 +33,10 @@ export default function WalletPage() {
   const [mode, setMode] = useState<Mode>(searchParams.get("tab") === "convert" ? "convert" : "topup");
 
   const currentUser = useCurrentAppUser();
-  const realWallets = useQuery(api.wallets.listForUser, currentUser ? { userId: currentUser._id } : "skip");
-  const recentTx = useQuery(api.transactions.listRecentForUser, currentUser ? { userId: currentUser._id, limit: 10 } : "skip");
-  const depositMutation = useMutation(api.wallets.deposit);
-  const convertMutation = useMutation(api.wallets.convert);
+  const realWallets = useWalletViewsForUser(currentUser?.id);
+  const recentTx = useRecentTransfersForUser(currentUser?.id, 10);
+  const depositMutation = useDepositMutation();
+  const convertMutation = useConvertBetweenWalletsMutation();
 
   const heldCurrencies = realWallets?.map(w => w.currency) ?? [];
   const defaultCurrency = currentUser?.defaultCurrency ?? heldCurrencies[0] ?? "XAF";
@@ -78,8 +77,10 @@ export default function WalletPage() {
     }
     setDepositing(true);
     try {
-      const result = await depositMutation({ userId: currentUser._id, amount: parseFloat(amount), currency, method: method ?? undefined });
-      setLastDeposit({ credited: result.credited, fee: result.fee });
+      const grossAmount = parseFloat(amount);
+      const result = await depositMutation({ userId: currentUser.id, amount: grossAmount, currency, method: method ?? undefined });
+      const fee = depositFeeFor(method ?? undefined, grossAmount);
+      setLastDeposit({ credited: grossAmount - fee, fee });
       setTxReference(result.reference);
       setStep("success");
       toast.success(t("common.success"));
@@ -142,9 +143,10 @@ export default function WalletPage() {
     }
     setConverting(true);
     try {
-      const result = await convertMutation({ userId: currentUser._id, amount: convertNumAmt, fromCurrency, toCurrency });
-      setLastConverted({ converted: result.converted, fxMargin: result.fxMargin });
-      setConvertRef(result.reference);
+      const result = await convertMutation({ userId: currentUser.id, amount: convertNumAmt, fromCurrency, toCurrency });
+      const preview = convertWithMargin(convertNumAmt, fromCurrency, toCurrency);
+      setLastConverted({ converted: preview.converted, fxMargin: preview.fxMargin });
+      setConvertRef(result.fromTransfer.reference);
       setConvertStep("success");
       toast.success(t("common.success"));
     } catch {
@@ -213,7 +215,7 @@ export default function WalletPage() {
                 {showCurrencyPicker && (
                   <div className="absolute top-full left-0 mt-1 z-30 bg-popover border border-border rounded-xl shadow-xl overflow-hidden w-40 max-h-56 overflow-y-auto">
                     {realWallets.map(w => (
-                      <button key={w._id} onClick={() => { setCurrency(w.currency); setShowCurrencyPicker(false); }} className={cn("w-full px-3 py-2 text-sm font-medium text-left hover:bg-secondary transition-colors cursor-pointer flex justify-between", w.currency === currency && "text-primary bg-primary/5")}>
+                      <button key={w.id} onClick={() => { setCurrency(w.currency); setShowCurrencyPicker(false); }} className={cn("w-full px-3 py-2 text-sm font-medium text-left hover:bg-secondary transition-colors cursor-pointer flex justify-between", w.currency === currency && "text-primary bg-primary/5")}>
                         <span>{w.flag} {w.currency}</span>
                         <span className="text-xs text-muted-foreground">{w.balance.toLocaleString()}</span>
                       </button>
@@ -247,13 +249,13 @@ export default function WalletPage() {
                   {currentUser && recentDeposits.length > 0 ? (
                     <div className="space-y-2.5">
                       {recentDeposits.map((tx) => (
-                        <div key={tx._id} className="flex items-center justify-between py-2 border-b border-border/50 last:border-0">
+                        <div key={tx.id} className="flex items-center justify-between py-2 border-b border-border/50 last:border-0">
                           <div>
                             <p className="text-sm font-medium text-foreground">{tx.note ?? t("wallet.methodBank")}</p>
                             <p className="text-xs text-muted-foreground">{new Date(tx.createdAt).toLocaleDateString()}</p>
                           </div>
                           <div className="text-right">
-                            <p className="text-sm font-bold font-mono text-primary">+{tx.walletCurrency} {(tx.credited ?? 0).toLocaleString()}</p>
+                            <p className="text-sm font-bold font-mono text-primary">+{tx.currency} {tx.amount.toLocaleString()}</p>
                             <p className="text-[10px] text-primary">{t("wallet.completed")}</p>
                           </div>
                         </div>

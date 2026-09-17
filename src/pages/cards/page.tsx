@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { motion, AnimatePresence } from "motion/react";
-import { useMutation, useQuery } from "convex/react";
+import { useAddLinkedPaymentMethodMutation, useCardsForUser, useLinkedPaymentMethods, useSeedDefaultLinkedPaymentMethodsMutation } from "@/hooks/use-backend.ts";
 import { useCurrentAppUser } from "@/hooks/use-current-app-user.ts";
 import PageHeader from "@/components/ui/page-header.tsx";
 import {
@@ -12,7 +12,6 @@ import {
 import { Button } from "@/components/ui/button.tsx";
 import { cn } from "@/lib/utils.ts";
 import { toast } from "sonner";
-import { api } from "@/convex/_generated/api.js";
 import { getAnonId } from "@/lib/anon-id.ts";
 import { PayRusLogo } from "@/pages/layout/AppLayout.tsx";
 import AddPaymentMethodSheet, { PAYMENT_PROVIDERS, type LinkedMethodProvider } from "@/components/ui/add-payment-method-sheet.tsx";
@@ -286,19 +285,19 @@ export default function Cards() {
   const [activeTab, setActiveTab] = useState<"details" | "linked">("details");
   const [addMethodOpen, setAddMethodOpen] = useState(false);
   const ownerKey = useState(getAnonId)[0];
-  const linkedAccounts = useQuery(api.linkedPaymentMethods.list, { ownerKey });
-  const addLinkedMethod = useMutation(api.linkedPaymentMethods.add);
-  const seedDefaults = useMutation(api.linkedPaymentMethods.seedDefaults);
+  const linkedAccounts = useLinkedPaymentMethods(ownerKey);
+  const addLinkedMethod = useAddLinkedPaymentMethodMutation();
+  const seedDefaults = useSeedDefaultLinkedPaymentMethodsMutation();
 
   // Real per-user cards when signed in — falls back to the shared demo
   // deck above for anonymous/no-account preview visitors.
   const currentUser = useCurrentAppUser();
-  const realCards = useQuery(api.cards.listForUser, currentUser ? { userId: currentUser._id } : "skip");
+  const realCards = useCardsForUser(currentUser?.id);
 
   const card = cards[activeCard];
 
   useEffect(() => {
-    if (linkedAccounts?.length === 0) void seedDefaults({ ownerKey });
+    if (linkedAccounts?.length === 0) void seedDefaults(ownerKey);
   }, [linkedAccounts, ownerKey, seedDefaults]);
 
   useEffect(() => {
@@ -537,7 +536,7 @@ export default function Cards() {
                   const Icon = PAYMENT_PROVIDERS.find(p => p.id === acc.provider)?.icon ?? CreditCard;
                   return (
                     <button
-                      key={acc._id}
+                      key={acc.id}
                       type="button"
                       onClick={() => toast.info(t("cards.toast.accountDetailsSoon"))}
                       className="w-full flex items-center gap-3 p-3 rounded-2xl bg-secondary border border-border hover:bg-primary/5 transition-colors cursor-pointer text-left"

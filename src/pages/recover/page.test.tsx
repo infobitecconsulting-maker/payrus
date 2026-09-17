@@ -9,11 +9,10 @@ vi.mock("react-router-dom", async () => {
   return { ...actual, useNavigate: () => mockNavigate };
 });
 
-const mockConvexQuery = vi.fn();
-vi.mock("convex/react", async () => {
-  const actual = await vi.importActual<typeof import("convex/react")>("convex/react");
-  return { ...actual, useConvex: () => ({ query: mockConvexQuery }) };
-});
+const mockResolveEmailByIdentifier = vi.fn();
+vi.mock("@/lib/backend.ts", () => ({
+  resolveEmailByIdentifier: (...args: unknown[]) => mockResolveEmailByIdentifier(...args),
+}));
 
 const { mockResetPasswordForEmail } = vi.hoisted(() => ({ mockResetPasswordForEmail: vi.fn() }));
 vi.mock("@/lib/supabase-client.ts", () => ({
@@ -43,11 +42,11 @@ describe("Recover", () => {
     renderRecover();
     fireEvent.click(screen.getByRole("button", { name: /send reset link/i }));
 
-    await waitFor(() => expect(mockConvexQuery).not.toHaveBeenCalled());
+    await waitFor(() => expect(mockResolveEmailByIdentifier).not.toHaveBeenCalled());
   });
 
   it("resolves the identifier to an email and sends a real reset link via Supabase", async () => {
-    mockConvexQuery.mockResolvedValueOnce("aicha.fofana@test.payrus.app");
+    mockResolveEmailByIdentifier.mockResolvedValueOnce("aicha.fofana@test.payrus.app");
     mockResetPasswordForEmail.mockResolvedValue({ error: null });
     renderRecover();
 
@@ -62,7 +61,7 @@ describe("Recover", () => {
   });
 
   it("shows an error when the identifier doesn't match any account", async () => {
-    mockConvexQuery.mockResolvedValueOnce(null);
+    mockResolveEmailByIdentifier.mockResolvedValueOnce(null);
     renderRecover();
 
     fireEvent.change(screen.getByLabelText(/username, email or phone/i), { target: { value: "ghost" } });

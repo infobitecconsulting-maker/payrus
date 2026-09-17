@@ -1,10 +1,9 @@
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { useQuery } from "convex/react";
 import { useCurrentAppUser } from "@/hooks/use-current-app-user.ts";
+import { useCardsForUser, useLinkedPaymentMethods, useRecentTransfersForUser, useWalletViewsForUser } from "@/hooks/use-backend.ts";
 import { useProfile } from "@/contexts/profile-context.tsx";
-import { api } from "@/convex/_generated/api.js";
 import { getAnonId } from "@/lib/anon-id.ts";
 import { midMarketConvert } from "@/convex/fx.ts";
 import { PAYMENT_PROVIDERS } from "@/components/ui/add-payment-method-sheet.tsx";
@@ -26,6 +25,11 @@ import {
   Sparkles,
   Wallet,
 } from "lucide-react";
+
+// AppTransfer (supabase/migrations/0005) has no separate credited/debited
+// breakdown like Convex's transactions did — credit vs. debit is inferred
+// from `type` instead, same pattern as wallet-history-sheet.tsx.
+const CREDIT_TX_TYPES = new Set(["deposit", "convert_in"]);
 
 const wallets = [
   { code: "EUR", flag: "🇪🇺", balance: "€3,180.40", change: "▲ 0.6%", up: true, accent: "#0E7FB0" },
@@ -69,10 +73,10 @@ export default function Index() {
 
   const currentUser = useCurrentAppUser();
   const displayName = currentUser?.name ?? profile?.name;
-  const realWallets = useQuery(api.wallets.listForUser, currentUser ? { userId: currentUser._id } : "skip");
-  const realCards = useQuery(api.cards.listForUser, currentUser ? { userId: currentUser._id } : "skip");
-  const linkedMethods = useQuery(api.linkedPaymentMethods.list, { ownerKey: getAnonId() });
-  const recentTx = useQuery(api.transactions.listRecentForUser, currentUser ? { userId: currentUser._id, limit: 5 } : "skip");
+  const realWallets = useWalletViewsForUser(currentUser?.id);
+  const realCards = useCardsForUser(currentUser?.id);
+  const linkedMethods = useLinkedPaymentMethods(getAnonId());
+  const recentTx = useRecentTransfersForUser(currentUser?.id, 5);
 
   const displayCurrency = currentUser?.defaultCurrency ?? "USD";
   const hasRealWallets = !!realWallets && realWallets.length > 0;
@@ -82,7 +86,7 @@ export default function Index() {
 
   const walletsToShow = realWallets && realWallets.length > 0
     ? realWallets.map((w) => ({
-        id: w._id,
+        id: w.id,
         code: w.provider,
         flag: w.flag,
         balance: `${w.currency} ${w.balance.toLocaleString()}`,
@@ -230,13 +234,13 @@ export default function Index() {
               <div className="flex flex-col gap-2.5">
                 {currentUser && recentTx && recentTx.length > 0 ? (
                   recentTx.map((tx) => {
-                    const isCredit = tx.credited != null;
-                    const wallet = realWallets?.find(w => w._id === tx.walletId);
+                    const isCredit = CREDIT_TX_TYPES.has(tx.type);
+                    const wallet = realWallets?.find(w => w.id === tx.walletViewId);
                     const typeIcons: Record<string, typeof Send> = { transfer: Send, payment: CreditCard, remittance: Globe, deposit: Plus, convert_out: Repeat, convert_in: Repeat };
                     const Icon = isCredit ? ArrowDownLeft : (typeIcons[tx.type] ?? Send);
                     const typeLabels: Record<string, string> = { transfer: "Transfer", payment: "Payment", remittance: "Remittance", deposit: "Deposit", convert_out: "Conversion out", convert_in: "Conversion in" };
                     return (
-                      <div key={tx._id} className="rounded-[20px] bg-white border border-[#E4EAF0] p-3.5 flex items-center gap-3" style={{ boxShadow: "0 1px 2px rgba(10,42,74,0.06)" }}>
+                      <div key={tx.id} className="rounded-[20px] bg-white border border-[#E4EAF0] p-3.5 flex items-center gap-3" style={{ boxShadow: "0 1px 2px rgba(10,42,74,0.06)" }}>
                         <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: isCredit ? "#EAF3EC" : "#EDEBF7", color: isCredit ? "#3E8E3F" : "#0A2F5C" }}>
                           <Icon size={18} strokeWidth={1.8} />
                         </div>
@@ -245,7 +249,7 @@ export default function Index() {
                           <div className="text-[11.5px] text-[#9BAAB9]">{new Date(tx.createdAt).toLocaleString()}</div>
                         </div>
                         <div className="text-sm font-extrabold" style={{ color: isCredit ? "#3E8E3F" : "#0B2A4A" }}>
-                          {isCredit ? "+" : "-"}{tx.walletCurrency} {(isCredit ? tx.credited! : tx.debited).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                          {isCredit ? "+" : "-"}{tx.currency} {tx.amount.toLocaleString(undefined, { maximumFractionDigits: 2 })}
                         </div>
                       </div>
                     );

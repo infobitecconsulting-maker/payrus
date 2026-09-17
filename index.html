@@ -7,7 +7,7 @@
     <title>PayRus — Beyond Payments</title>
     <meta name="description" content="A BITEC Group Holding Fintech &amp; Digital Banking Solution, PayRus is targeting to become the pan-African payment and remittance layer that connects 54 nations, 30M+ diaspora, and every regional monetary union — cutting transfer costs from 8.2% to under 2%." />
     <meta name="author" content="PayRus" />
-    <link rel="icon" href="/icon/icon-192.png" />
+    <link rel="icon" href="%BASE_URL%icon/icon-192.png" />
     <meta property="og:title" content="PayRus, Beyond Payments..." />
     <meta property="og:description" content="A BITEC Group Holding Fintech &amp; Digital Banking Solution, PayRus is targeting to become the pan-African payment and remittance layer that connects 54 nations, 30M+ diaspora, and every regional monetary union — cutting transfer costs from 8.2% to under 2%." />
     <meta property="og:type" content="website" />
@@ -19,13 +19,13 @@
     <meta name="twitter:site" content="@usehercules" />
 
     <!-- PWA Configuration -->
-    <link rel="manifest" href="/site.webmanifest" />
+    <link rel="manifest" href="%BASE_URL%site.webmanifest" />
     <meta name="theme-color" content="#1B3A5C" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black" />
     <meta name="apple-mobile-web-app-title" content="PayRus" />
-    <link rel="apple-touch-icon" href="/icon/icon-192.png" />
+    <link rel="apple-touch-icon" href="%BASE_URL%icon/icon-192.png" />
 
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -51,6 +51,27 @@
     </script>
 
     <link href="/src/index.css" rel="stylesheet" />
+
+    <!-- GitHub Pages has no server-side rewrite for client-side routes, so a
+         deep-link/refresh 404s. 404.html redirects here encoding the intended
+         path in the query string (?/en/dashboard); this restores it via
+         history.replaceState before the router mounts. No-op on any other
+         host, where this query shape never occurs.
+         https://github.com/rafgraph/spa-github-pages -->
+    <script>
+      (function (l) {
+        if (l.search[1] === "/") {
+          var decoded = l.search
+            .slice(1)
+            .split("&")
+            .map(function (s) {
+              return s.replace(/~and~/g, "&");
+            })
+            .join("?");
+          window.history.replaceState(null, null, l.pathname.slice(0, -1) + decoded + l.hash);
+        }
+      })(window.location);
+    </script>
   </head>
   <body>
     <div id="root"></div>
