@@ -62,7 +62,7 @@ export default function RegisterCustomer() {
   };
 
   return (
-    <div className="max-w-lg">
+    <div className="max-w-lg pb-24 md:pb-6">
       <PageHeader title={t("registerCustomer.title")} className="mb-4 md:mb-6" />
       <p className="text-sm text-muted-foreground mb-6">{t("registerCustomer.subtitle")}</p>
 
