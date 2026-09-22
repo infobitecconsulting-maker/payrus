@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Outlet, NavLink, useLocation, useParams, Navigate, useNavigate } from "react-router-dom";
 import { LayoutDashboard, CreditCard, ArrowLeftRight, History, Wallet, Bell, Settings, Users, Send, Landmark, PresentationIcon, ShieldCheck, PlugZap, PiggyBank, Plane, Heart, HandHeart, TrendingUp, Gamepad2, Menu, LogOut, LogIn, User, CircleDollarSign, ScanLine, Receipt, LifeBuoy, Store, Link2, BarChart3, Banknote, ShoppingBag, UserPlus } from "lucide-react";
 import { cn } from "@/lib/utils.ts";
@@ -9,7 +9,9 @@ import ProfileSwitcher from "@/components/ui/profile-switcher.tsx";
 import { useProfile } from "@/contexts/profile-context.tsx";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet.tsx";
 import { useCurrentAppUser } from "@/hooks/use-current-app-user.ts";
-import { clearLocalUserId } from "@/lib/local-user.ts";
+import { clearLocalUserId, getLocalUserId } from "@/lib/local-user.ts";
+import { useProfileFeatures } from "@/hooks/use-backend.ts";
+import { supabase } from "@/lib/supabase-client.ts";
 
 export function PayRusLogo({ className }: { className?: string }) {
   return (
@@ -45,24 +47,55 @@ export default function AppLayout() {
   // "Logged in" for navigation purposes means having an active profile.
   const goHome = () => navigate(profile ? base : `${base}/signin`);
   const handleLogout = () => {
+    void supabase.auth.signOut();
     clearProfile();
     clearLocalUserId();
     navigate(`${base}/welcome`);
   };
 
+  // One-time-per-load freshness check: App/'s "who's logged in" state is a
+  // cached localUserId (src/lib/local-user.ts), resolved once at sign-in and
+  // never otherwise re-checked against the Supabase session — unlike
+  // ops-console, which re-validates getSession() on every load. If the
+  // cached id has no matching live session any more (revoked/expired
+  // elsewhere, or a stale id from a wiped browser profile), clear the cache
+  // instead of leaving the app silently "logged in" on stale local state.
+  useEffect(() => {
+    let cancelled = false;
+    void supabase.auth.getSession().then(({ data }) => {
+      if (cancelled) return;
+      const cachedUserId = getLocalUserId();
+      if (!cachedUserId) return;
+      const sessionUserId = data.session?.user?.id;
+      if (!sessionUserId || (currentUser && currentUser.authUserId !== sessionUserId)) {
+        clearProfile();
+        clearLocalUserId();
+        navigate(`${base}/welcome`, { replace: true });
+      }
+    });
+    return () => { cancelled = true; };
+    // Runs once per mount, matching this app's "resolve once" identity
+    // model rather than continuously re-syncing to auth state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const isAdmin = profile?.type === "admin";
+
+  // Feature visibility is DB-driven (public.profile_features, editable from
+  // the admin panel's Roles & Access tab) rather than hardcoded — admin
+  // always bypasses so a bad feature-table edit can't lock admins out of
+  // their own tools. While loading, gated items stay hidden (fail-closed).
+  // Called unconditionally (before the early-return guard below) per the
+  // Rules of Hooks.
+  const features = useProfileFeatures(profile?.type ?? undefined) ?? [];
+  const hasFeature = (key: string) => isAdmin || features.includes(key);
+
   // Guard: send anonymous/no-profile visitors to the welcome screen first
   const publicPaths = ["/welcome", "/profile", "/investor", "/fundraise", "/savings", "/wallet", "/payments"];
   const isPublicPath = publicPaths.some(p => location.pathname.endsWith(p));
-  const isAdmin = profile?.type === "admin";
   if (profile === null && !isPublicPath) {
     return <Navigate to={`${base}/welcome`} replace />;
   }
-
-  // Profile-based access logic
-  const isIndividual = profile?.type === "personal" || profile?.type === "starter";
-  const isOrganisation = !isIndividual && profile !== null;
-  const isGovProfile = isAdmin || profile?.type === "public_institution";
-  const isFiProfile = isAdmin || ["merchant", "agent", "treasury"].includes(profile?.type ?? "");
 
   // Build navigation based on profile type
   const navItems = [
@@ -77,47 +110,44 @@ export default function AppLayout() {
     { to: `${base}/bills`, icon: Receipt, label: t("nav.bills") },
     { to: `${base}/disputes`, icon: LifeBuoy, label: t("nav.disputes") },
 
-    // Individual-focused features
-    ...(isIndividual || isAdmin ? [
-      { to: `${base}/savings`, icon: PiggyBank, label: t("nav.savings") },
-      { to: `${base}/p2p`, icon: Send, label: t("nav.p2p") },
-      { to: `${base}/games`, icon: Gamepad2, label: t("nav.games") },
-      { to: `${base}/travel`, icon: Plane, label: t("nav.travel") },
-      { to: `${base}/shop`, icon: ShoppingBag, label: t("nav.shop") },
-      { to: `${base}/fundraise`, icon: HandHeart, label: t("nav.fundraise") },
-      { to: `${base}/invest`, icon: TrendingUp, label: t("nav.invest") },
-    ] : []),
-
-    // Organisation-focused features
-    ...(isOrganisation || isAdmin ? [
-      { to: `${base}/groups`, icon: Users, label: t("nav.groups") },
-      { to: `${base}/pos`, icon: Store, label: t("nav.pos") },
-      { to: `${base}/payment-links`, icon: Link2, label: t("nav.links") },
-      { to: `${base}/payouts`, icon: Banknote, label: t("nav.payouts") },
-      { to: `${base}/treasury`, icon: BarChart3, label: t("nav.treasury") },
-      ...(!isIndividual ? [{ to: `${base}/savings`, icon: PiggyBank, label: t("nav.savings") }] : []),
-      ...(!isIndividual ? [{ to: `${base}/fundraise`, icon: HandHeart, label: t("nav.fundraise") }] : []),
-      ...(!isIndividual ? [{ to: `${base}/invest`, icon: TrendingUp, label: t("nav.invest") }] : []),
-    ] : []),
-
-    // Government profiles only
-    ...(isGovProfile ? [{ to: `${base}/gov`, icon: Landmark, label: t("nav.govHub"), highlight: true as const }] : []),
-
-    // Financial institution profiles only
-    ...(isFiProfile ? [{ to: `${base}/api-hub`, icon: PlugZap, label: t("nav.apiHub"), highlight: "fi" as const }] : []),
+    // Everything below is gated per-item off public.profile_features (see
+    // hasFeature above) instead of the grouped isIndividual/isOrganisation/
+    // isGovProfile/isFiProfile booleans this used to be — each item now
+    // has its own admin-editable feature_key, matching the seed data
+    // migration 0014 inserted to reproduce this exact set on day one.
+    ...(hasFeature("savings") ? [{ to: `${base}/savings`, icon: PiggyBank, label: t("nav.savings") }] : []),
+    ...(hasFeature("p2p") ? [{ to: `${base}/p2p`, icon: Send, label: t("nav.p2p") }] : []),
+    ...(hasFeature("games") ? [{ to: `${base}/games`, icon: Gamepad2, label: t("nav.games") }] : []),
+    ...(hasFeature("travel") ? [{ to: `${base}/travel`, icon: Plane, label: t("nav.travel") }] : []),
+    ...(hasFeature("shop") ? [{ to: `${base}/shop`, icon: ShoppingBag, label: t("nav.shop") }] : []),
+    ...(hasFeature("fundraise") ? [{ to: `${base}/fundraise`, icon: HandHeart, label: t("nav.fundraise") }] : []),
+    ...(hasFeature("invest") ? [{ to: `${base}/invest`, icon: TrendingUp, label: t("nav.invest") }] : []),
+    ...(hasFeature("groups") ? [{ to: `${base}/groups`, icon: Users, label: t("nav.groups") }] : []),
+    ...(hasFeature("pos") ? [{ to: `${base}/pos`, icon: Store, label: t("nav.pos") }] : []),
+    ...(hasFeature("payment_links") ? [{ to: `${base}/payment-links`, icon: Link2, label: t("nav.links") }] : []),
+    ...(hasFeature("payouts") ? [{ to: `${base}/payouts`, icon: Banknote, label: t("nav.payouts") }] : []),
+    ...(hasFeature("treasury_hub") ? [{ to: `${base}/treasury`, icon: BarChart3, label: t("nav.treasury") }] : []),
+    ...(hasFeature("gov_hub") ? [{ to: `${base}/gov`, icon: Landmark, label: t("nav.govHub"), highlight: true as const }] : []),
+    ...(hasFeature("api_hub") ? [{ to: `${base}/api-hub`, icon: PlugZap, label: t("nav.apiHub"), highlight: "fi" as const }] : []),
 
     // Agent-assisted manual registration — for customers with no
     // smartphone/data to self-register with. Admins already have this via
     // the admin panel's own "Add profile" form, but it's surfaced here too
     // for consistency/discoverability.
-    ...(profile?.type === "agent" || isAdmin ? [{ to: `${base}/register-customer`, icon: UserPlus, label: t("nav.registerCustomer") }] : []),
+    ...(hasFeature("register_customer") ? [{ to: `${base}/register-customer`, icon: UserPlus, label: t("nav.registerCustomer") }] : []),
 
     // Always available
     { to: `${base}/investor`, icon: PresentationIcon, label: t("nav.investor") },
-    { to: `${base}/admin`, icon: ShieldCheck, label: t("nav.admin"), highlight: true as const },
+    // Gated — previously visible to every profile regardless of admin
+    // status; now requires the admin_panel feature (admin-only by default,
+    // seeded in 0014, adjustable from the Roles & Access tab).
+    ...(hasFeature("admin_panel") ? [{ to: `${base}/admin`, icon: ShieldCheck, label: t("nav.admin"), highlight: true as const }] : []),
   ];
 
-  // Mobile bottom nav — context-aware based on profile
+  // Mobile bottom nav — context-aware based on profile. Kept as simple
+  // hardcoded logic (unlike the desktop/full nav above) — only 4 always-safe
+  // items, not part of the admin-editable feature set.
+  const isIndividual = profile?.type === "personal" || profile?.type === "starter";
   const mobileNavItems = isIndividual ? [
     { to: base, icon: LayoutDashboard, label: t("nav.dashboard") },
     { to: `${base}/payments`, icon: CreditCard, label: t("nav.pay") },

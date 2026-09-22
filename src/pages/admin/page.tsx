@@ -7,13 +7,15 @@ import {
   ChevronRight, BarChart3, Users, Wifi, AlertTriangle,
   CheckCircle2, Clock, Layers, PieChart, Flag, Star,
   MonitorPlay, Building, Landmark, PiggyBank, Send, Plane,
-  HandHeart, CreditCard, History, Settings, Wallet, PlugZap, FileDown, UserCog, SlidersHorizontal
+  HandHeart, CreditCard, History, Settings, Wallet, PlugZap, FileDown, UserCog, SlidersHorizontal, ShieldCheck
 } from "lucide-react";
 import { cn } from "@/lib/utils.ts";
-import { useNavigate, useParams } from "react-router-dom";
+import { Navigate, useNavigate, useParams } from "react-router-dom";
+import { useProfileFeatures } from "@/hooks/use-backend.ts";
 import { generateTechAnalysisPDF } from "./_components/tech-analysis-pdf.ts";
 import UsersPanel from "./_components/users-panel.tsx";
 import ConfigPanel from "./_components/config-panel.tsx";
+import AccessPanel from "./_components/access-panel.tsx";
 import { useProfile, getDefaultProfile } from "@/contexts/profile-context.tsx";
 import type { ProfileType } from "@/contexts/profile-context.tsx";
 import {
@@ -260,12 +262,18 @@ export default function AdminDashboard() {
   const [txCount, setTxCount] = useState(2648);
   const [avgMargin, setAvgMargin] = useState(7.3);
   const [newTxId, setNewTxId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"overview" | "transactions" | "fx" | "corridors" | "pilot" | "demo" | "users" | "config">("users");
+  const [activeTab, setActiveTab] = useState<"overview" | "transactions" | "fx" | "corridors" | "pilot" | "demo" | "users" | "config" | "access">("users");
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const navigate = useNavigate();
   const { lng } = useParams<{ lng: string }>();
-  const { setProfile } = useProfile();
+  const { profile, setProfile } = useProfile();
   const base = `/${lng ?? "en"}`;
+
+  // Feature flag read unconditionally (before any early return) per the
+  // Rules of Hooks — the actual gate is applied further below, after every
+  // hook in this component has been called.
+  const isAdmin = profile?.type === "admin";
+  const features = useProfileFeatures(profile?.type ?? undefined) ?? [];
 
   // Simulate live tx stream
   useEffect(() => {
@@ -283,6 +291,18 @@ export default function AdminDashboard() {
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, []);
 
+  // Gate: /admin used to have no route-level guard at all — any profile
+  // could open the whole panel (list every user, pending profiles, blocked
+  // transfers, the current FX margin), even though the mutations inside
+  // were already password-gated. Mirrors AppLayout.tsx's own nav-item gate
+  // (same public.profile_features / admin_panel key, admin-only by default,
+  // adjustable from the Roles & Access tab) — while features are loading,
+  // this keeps the panel hidden rather than briefly flashing it open.
+  // Placed after every hook above so it stays Rules-of-Hooks-safe.
+  if (!isAdmin && !features.includes("admin_panel")) {
+    return <Navigate to={base} replace />;
+  }
+
   const formatCompact = (n: number) => {
     if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(2)}M`;
     if (n >= 1_000) return `$${(n / 1_000).toFixed(1)}K`;
@@ -292,6 +312,7 @@ export default function AdminDashboard() {
   const tabs = [
     { id: "users", label: "Manage Profiles", icon: UserCog },
     { id: "config", label: "Configuration", icon: SlidersHorizontal },
+    { id: "access", label: "Roles & Access", icon: ShieldCheck },
     { id: "pilot", label: "Pilot Countries", icon: Flag },
     { id: "demo", label: "Demo Access", icon: MonitorPlay },
     { id: "overview", label: "Overview", icon: BarChart3 },
@@ -378,6 +399,13 @@ export default function AdminDashboard() {
         {activeTab === "config" && (
           <motion.div key="config" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
             <ConfigPanel />
+          </motion.div>
+        )}
+
+        {/* ── ROLES & ACCESS ── */}
+        {activeTab === "access" && (
+          <motion.div key="access" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
+            <AccessPanel />
           </motion.div>
         )}
 

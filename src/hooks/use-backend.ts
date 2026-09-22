@@ -244,3 +244,41 @@ export function useTestUsersCleanupMutation() {
   const mutation = useReactMutation({ mutationFn: backend.testUsersCleanup, onSuccess: invalidate });
   return mutation.mutateAsync;
 }
+
+// ---------------------------------------------------------------------------
+// Roles & Access
+// ---------------------------------------------------------------------------
+
+export function useAdminReassignUserRoleMutation() {
+  const invalidate = useInvalidateAdmin();
+  const mutation = useReactMutation({ mutationFn: backend.adminReassignUserRole, onSuccess: invalidate });
+  return mutation.mutateAsync;
+}
+
+export function useAdminRemoveUserRoleMutation() {
+  const invalidate = useInvalidateAdmin();
+  const mutation = useReactMutation({ mutationFn: backend.adminRemoveUserRole, onSuccess: invalidate });
+  return mutation.mutateAsync;
+}
+
+export function useProfileFeatures(profileType: string | undefined) {
+  return useReactQuery({
+    queryKey: ["profileFeatures", profileType],
+    queryFn: () => backend.getProfileFeatures(profileType!),
+    enabled: !!profileType,
+  }).data;
+}
+
+export function useAdminSetProfileFeaturesMutation() {
+  const queryClient = useQueryClient();
+  const mutation = useReactMutation({
+    mutationFn: backend.adminSetProfileFeatures,
+    onSuccess: (_data, variables) => void queryClient.invalidateQueries({ queryKey: ["profileFeatures", variables.profileType] }),
+  });
+  return mutation.mutateAsync;
+}
+
+export function useAdminSetConsoleRoleTabsMutation() {
+  const mutation = useReactMutation({ mutationFn: backend.adminSetConsoleRoleTabs });
+  return mutation.mutateAsync;
+}

@@ -616,3 +616,50 @@ export async function testUsersCleanup(): Promise<number> {
   const res = await supabase.rpc("test_users_cleanup");
   return mustHaveData(res, "testUsersCleanup") as number;
 }
+
+// ============================================================================
+// Roles & Access — supabase/migrations/0014_role_access_management.sql.
+// Reassigning/removing a role, and the DB-driven feature-visibility tables
+// that replace AppLayout.tsx's/ops-console Console.tsx's hardcoded nav
+// gating (profile_features for this app, console_role_tabs for ops-console —
+// both editable from the same admin screen here, since this app already has
+// the one Supabase client both apps share).
+// ============================================================================
+
+export async function adminReassignUserRole(args: {
+  roleId: string; newRole: string; password: string;
+}): Promise<{ id: string; role: string }> {
+  const res = await supabase.rpc("admin_reassign_user_role", {
+    p_role_id: args.roleId, p_new_role: args.newRole, p_password: args.password,
+  });
+  const row = mustHaveData(res, "adminReassignUserRole") as Record<string, unknown>;
+  return { id: row.id as string, role: row.role as string };
+}
+
+export async function adminRemoveUserRole(args: { roleId: string; password: string }): Promise<void> {
+  const res = await supabase.rpc("admin_remove_user_role", { p_role_id: args.roleId, p_password: args.password });
+  if (res.error) throw new Error(`adminRemoveUserRole: ${res.error.message}`);
+}
+
+export async function getProfileFeatures(profileType: string): Promise<string[]> {
+  const res = await supabase.from("profile_features").select("feature_key").eq("profile_type", profileType);
+  return mustHaveData(res, "getProfileFeatures").map((r) => r.feature_key as string);
+}
+
+export async function adminSetProfileFeatures(args: {
+  profileType: string; featureKeys: string[]; password: string;
+}): Promise<void> {
+  const res = await supabase.rpc("admin_set_profile_features", {
+    p_profile_type: args.profileType, p_feature_keys: args.featureKeys, p_password: args.password,
+  });
+  if (res.error) throw new Error(`adminSetProfileFeatures: ${res.error.message}`);
+}
+
+export async function adminSetConsoleRoleTabs(args: {
+  role: string; tabKeys: string[]; password: string;
+}): Promise<void> {
+  const res = await supabase.rpc("admin_set_console_role_tabs", {
+    p_role: args.role, p_tab_keys: args.tabKeys, p_password: args.password,
+  });
+  if (res.error) throw new Error(`adminSetConsoleRoleTabs: ${res.error.message}`);
+}
