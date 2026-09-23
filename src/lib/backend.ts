@@ -857,11 +857,16 @@ export async function listGroupsForUser(userId: string): Promise<AppGroup[]> {
   return mustHaveData(res, "listGroupsForUser").map(toAppGroup);
 }
 
+// A plain client insert here would fail: groups has an audit trigger
+// (log_audit_event, 0003) that isn't SECURITY DEFINER, and audit_events has
+// RLS enabled with zero policies — every audited table's writes go through
+// a SECURITY DEFINER RPC for exactly this reason (see 0017's own comment,
+// added after this one was initially a plain insert and failed live).
 export async function createGroup(args: { ownerUserId: string; name: string; type: AppGroup["type"]; currency: string }): Promise<AppGroup> {
-  const res = await supabase.from("groups").insert({
-    owner_user_id: args.ownerUserId, name: args.name, type: args.type, currency: args.currency,
-  }).select("*").single();
-  return toAppGroup(mustHaveData(res, "createGroup"));
+  const res = await supabase.rpc("create_group", {
+    p_owner_user_id: args.ownerUserId, p_name: args.name, p_type: args.type, p_currency: args.currency,
+  });
+  return toAppGroup(mustHaveData(res, "createGroup") as Record<string, unknown>);
 }
 
 export interface AppGroupMember {
@@ -890,15 +895,19 @@ export async function addGroupMember(args: {
   return { id: row.id as string, groupId: row.group_id as string, userId: row.user_id as string, customAmount: row.custom_amount === null ? null : Number(row.custom_amount), maskedEmail: "" };
 }
 
-export async function removeGroupMember(memberId: string): Promise<void> {
-  const res = await supabase.from("group_members").delete().eq("id", memberId);
+// Same reasoning as createGroup above — group_members also has an audit
+// trigger, so a plain client-side delete fails RLS on audit_events.
+export async function removeGroupMember(args: { memberId: string; ownerUserId: string }): Promise<void> {
+  const res = await supabase.rpc("remove_group_member", { p_member_id: args.memberId, p_owner_user_id: args.ownerUserId });
   if (res.error) throw new Error(`removeGroupMember: ${res.error.message}`);
 }
 
 // ============================================================================
-// Disputes — supabase/migrations/0016. Creation is a plain owner-scoped
-// insert under RLS; resolution is admin-password-gated like every other
-// admin action in this codebase.
+// Disputes — supabase/migrations/0016/0017. Creation and resolution both go
+// through SECURITY DEFINER RPCs — dispute_cases has an audit trigger, so a
+// plain client insert fails RLS on audit_events (see createGroup's comment
+// above for the full explanation); resolution is admin-password-gated like
+// every other admin action in this codebase.
 // ============================================================================
 
 export interface AppDispute {
@@ -924,10 +933,8 @@ export async function listDisputesForUser(userId: string): Promise<AppDispute[]>
 }
 
 export async function createDispute(args: { userId: string; transferId?: string; reason: string }): Promise<AppDispute> {
-  const res = await supabase.from("dispute_cases").insert({
-    user_id: args.userId, transfer_id: args.transferId ?? null, reason: args.reason,
-  }).select("*").single();
-  return toAppDispute(mustHaveData(res, "createDispute"));
+  const res = await supabase.rpc("create_dispute", { p_user_id: args.userId, p_reason: args.reason, p_transfer_id: args.transferId ?? null });
+  return toAppDispute(mustHaveData(res, "createDispute") as Record<string, unknown>);
 }
 
 export async function adminResolveDispute(args: { caseId: string; resolution: string; password: string }): Promise<AppDispute> {
