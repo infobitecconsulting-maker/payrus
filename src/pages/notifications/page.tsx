@@ -11,6 +11,8 @@ import {
 import { cn } from "@/lib/utils.ts";
 import { useProfile } from "@/contexts/profile-context.tsx";
 import { toast } from "sonner";
+import { useCurrentAppUser } from "@/hooks/use-current-app-user.ts";
+import { useNotificationsForUser, useMarkNotificationReadMutation } from "@/hooks/use-backend.ts";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -124,6 +126,32 @@ function getProfileNotifs(profileType: string): Notification[] {
   return [...specific, ...base];
 }
 
+// ── Real notifications (supabase/migrations/0015) ────────────────────────────
+// Generated server-side by deposit_to_wallet/apply_wallet_transfer/
+// convert_between_wallets/redeem_payment_link with plain-text title/body
+// (not i18n keys) — reused here via titleKey/bodyKey since i18next's t()
+// returns an unrecognized key as-is, same fallback dashboard/page.tsx and
+// wallet-history-sheet.tsx already rely on for real transaction labels.
+const REAL_NOTIF_TYPE: Record<string, NotifType> = {
+  deposit: "credit", transfer: "debit", payment: "debit", remittance: "debit", convert: "system", payment_link: "credit",
+};
+const REAL_NOTIF_EMOJI: Record<string, string> = {
+  deposit: "➕", transfer: "↔️", payment: "💳", remittance: "🌍", convert: "🔁", payment_link: "🔗",
+};
+
+function toDisplayNotification(n: { id: string; kind: string; title: string; body: string; read: boolean; createdAt: string }): Notification {
+  return {
+    id: n.id,
+    type: REAL_NOTIF_TYPE[n.kind] ?? "system",
+    category: "transactions",
+    titleKey: n.title,
+    bodyKey: n.body,
+    minutesAgo: Math.max(0, Math.round((Date.now() - new Date(n.createdAt).getTime()) / 60000)),
+    read: n.read,
+    emoji: REAL_NOTIF_EMOJI[n.kind] ?? "🔔",
+  };
+}
+
 // ── Relative time formatting ─────────────────────────────────────────────────
 
 function formatRelativeTime(minutesAgo: number, t: TFunction): string {
@@ -154,9 +182,26 @@ export default function NotificationsPage() {
   const { t } = useTranslation("common");
   const { profile } = useProfile();
   const profileType = profile?.type ?? "personal";
-  const [allNotifs, setAllNotifs] = useState<Notification[]>(() => getProfileNotifs(profileType));
+  const [mockNotifs, setMockNotifs] = useState<Notification[]>(() => getProfileNotifs(profileType));
   const [activeCategory, setActiveCategory] = useState<NotifCategory>("all");
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [dismissedRealIds, setDismissedRealIds] = useState<Set<string>>(new Set());
+  const [realCleared, setRealCleared] = useState(false);
+
+  const currentUser = useCurrentAppUser();
+  const realNotifs = useNotificationsForUser(currentUser?.id);
+  const markRealRead = useMarkNotificationReadMutation(currentUser?.id);
+
+  // Real notifications when signed in with at least one; anonymous/no-
+  // activity-yet visitors keep the existing profile-adaptive mock feed —
+  // same fallback convention as dashboard/page.tsx's activity list. Dismiss/
+  // clear-all are local-only for real data (no delete RPC exists — out of
+  // scope, see the migration plan); markRead goes through the real mutation
+  // instead so it actually persists.
+  const hasReal = !!realNotifs && realNotifs.length > 0;
+  const allNotifs: Notification[] = hasReal
+    ? (realCleared ? [] : realNotifs.filter(n => !dismissedRealIds.has(n.id)).map(toDisplayNotification))
+    : mockNotifs;
 
   const unreadCount = allNotifs.filter(n => !n.read).length;
 
@@ -165,20 +210,36 @@ export default function NotificationsPage() {
   );
 
   const markAllRead = () => {
-    setAllNotifs(prev => prev.map(n => ({ ...n, read: true })));
+    if (hasReal) {
+      allNotifs.filter(n => !n.read).forEach(n => void markRealRead(n.id));
+    } else {
+      setMockNotifs(prev => prev.map(n => ({ ...n, read: true })));
+    }
     toast.success(t("notifications.markedAllRead"));
   };
 
   const markRead = (id: string) => {
-    setAllNotifs(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+    if (hasReal) {
+      void markRealRead(id);
+    } else {
+      setMockNotifs(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+    }
   };
 
   const dismiss = (id: string) => {
-    setAllNotifs(prev => prev.filter(n => n.id !== id));
+    if (hasReal) {
+      setDismissedRealIds(prev => new Set(prev).add(id));
+    } else {
+      setMockNotifs(prev => prev.filter(n => n.id !== id));
+    }
   };
 
   const clearAll = () => {
-    setAllNotifs([]);
+    if (hasReal) {
+      setRealCleared(true);
+    } else {
+      setMockNotifs([]);
+    }
     setShowClearConfirm(false);
     toast.success(t("notifications.clearedAll"));
   };

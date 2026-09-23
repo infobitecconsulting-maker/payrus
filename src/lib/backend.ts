@@ -663,3 +663,78 @@ export async function adminSetConsoleRoleTabs(args: {
   });
   if (res.error) throw new Error(`adminSetConsoleRoleTabs: ${res.error.message}`);
 }
+
+// ============================================================================
+// Notifications / payment links — supabase/migrations/0015_notifications_and_
+// payment_links.sql. Notifications are generated server-side (an additive
+// `perform create_notification(...)` inside deposit_to_wallet/apply_wallet_
+// transfer/convert_between_wallets), never inserted directly from here.
+// ============================================================================
+
+export interface AppNotification {
+  id: string;
+  userId: string;
+  kind: string;
+  title: string;
+  body: string;
+  read: boolean;
+  createdAt: string;
+}
+
+function toAppNotification(r: Record<string, unknown>): AppNotification {
+  return {
+    id: r.id as string, userId: r.user_id as string, kind: r.kind as string,
+    title: r.title as string, body: r.body as string, read: Boolean(r.read), createdAt: r.created_at as string,
+  };
+}
+
+export async function listNotificationsForUser(userId: string): Promise<AppNotification[]> {
+  const res = await supabase.from("notifications").select("*").eq("user_id", userId).order("created_at", { ascending: false });
+  return mustHaveData(res, "listNotificationsForUser").map(toAppNotification);
+}
+
+export async function markNotificationRead(notificationId: string): Promise<AppNotification> {
+  const res = await supabase.rpc("mark_notification_read", { p_notification_id: notificationId });
+  return toAppNotification(mustHaveData(res, "markNotificationRead") as Record<string, unknown>);
+}
+
+export interface AppPaymentLink {
+  id: string;
+  userId: string;
+  amount: number;
+  currency: string;
+  note: string | null;
+  slug: string;
+  status: "active" | "redeemed" | "expired";
+  createdAt: string;
+}
+
+function toAppPaymentLink(r: Record<string, unknown>): AppPaymentLink {
+  return {
+    id: r.id as string, userId: r.user_id as string, amount: Number(r.amount), currency: r.currency as string,
+    note: (r.note as string) ?? null, slug: r.slug as string, status: r.status as AppPaymentLink["status"], createdAt: r.created_at as string,
+  };
+}
+
+export async function createPaymentLink(args: { userId: string; amount: number; currency: string; note?: string }): Promise<AppPaymentLink> {
+  const res = await supabase.rpc("create_payment_link", {
+    p_user_id: args.userId, p_amount: args.amount, p_currency: args.currency, p_note: args.note ?? null,
+  });
+  return toAppPaymentLink(mustHaveData(res, "createPaymentLink") as Record<string, unknown>);
+}
+
+export async function listPaymentLinksForUser(userId: string): Promise<AppPaymentLink[]> {
+  const res = await supabase.from("payment_links").select("*").eq("user_id", userId).order("created_at", { ascending: false });
+  return mustHaveData(res, "listPaymentLinksForUser").map(toAppPaymentLink);
+}
+
+export async function getPaymentLinkBySlug(slug: string): Promise<AppPaymentLink | null> {
+  const res = await supabase.rpc("get_payment_link_by_slug", { p_slug: slug });
+  const row = mustNotError(res, "getPaymentLinkBySlug") as Record<string, unknown> | null;
+  return row ? toAppPaymentLink(row) : null;
+}
+
+export async function redeemPaymentLink(args: { slug: string; payerUserId: string }): Promise<AppTransfer> {
+  const res = await supabase.rpc("redeem_payment_link", { p_slug: args.slug, p_payer_user_id: args.payerUserId });
+  return toAppTransfer(mustHaveData(res, "redeemPaymentLink") as Record<string, unknown>);
+}

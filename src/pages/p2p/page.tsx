@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button.tsx";
 import { cn } from "@/lib/utils.ts";
 import { toast } from "sonner";
 import { useApplyWalletTransferMutation, useWalletViewsForUser } from "@/hooks/use-backend.ts";
+import { resolveEmailByIdentifier } from "@/lib/backend.ts";
 import { PayRusLogo } from "@/pages/layout/AppLayout.tsx";
 import { commissionFor, convertWithMargin, midMarketConvert } from "@/convex/fx.ts";
 import { useCurrentAppUser } from "@/hooks/use-current-app-user.ts";
@@ -121,6 +122,8 @@ export default function P2PTransfer() {
   const [withdrawMethod, setWithdrawMethod] = useState<string | null>(null);
   const [showCurrencyDrop, setShowCurrencyDrop] = useState(false);
   const [sending, setSending] = useState(false);
+  const [realQuery, setRealQuery] = useState("");
+  const [realSearching, setRealSearching] = useState(false);
 
   const currentUser = useCurrentAppUser();
   const realWallets = useWalletViewsForUser(currentUser?.id);
@@ -159,6 +162,41 @@ export default function P2PTransfer() {
   function handleSelectUser(user: PayRusUser) {
     setSelectedUser(user);
     setStep("amount");
+  }
+
+  // Real recipient lookup — reuses the same resolve_email_by_identifier RPC
+  // the recover/register pages already use, rather than a browsable
+  // directory of every registered user (a real privacy concern this demo's
+  // fictional PAYRUS_USERS directory never had to consider). Finds an exact
+  // match by email/username/phone only; browsing/discovery stays on the
+  // existing fictional list below.
+  async function handleRealSearch() {
+    const query = realQuery.trim();
+    if (!query) return;
+    setRealSearching(true);
+    try {
+      const email = await resolveEmailByIdentifier(query);
+      if (!email) {
+        toast.error(t("p2p.noUserFound", { query }));
+        return;
+      }
+      const masked = email.replace(/^(.{2}).*(@.*)$/, "$1***$2");
+      handleSelectUser({
+        id: `real:${email}`,
+        name: masked,
+        username: `@${email.split("@")[0]}`,
+        country: "PayRus network",
+        countryCode: "??",
+        flag: "🌐",
+        avatar: email.slice(0, 2).toUpperCase(),
+        currency: currentUser?.defaultCurrency ?? currency,
+        verified: true,
+        online: false,
+        role: "Real PayRus user",
+      });
+    } finally {
+      setRealSearching(false);
+    }
   }
 
   function handleSend() {
@@ -249,6 +287,32 @@ export default function P2PTransfer() {
               <button onClick={() => toast.info(t("p2p.inviteFriendSoonToast"))} className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-secondary border border-border text-xs font-medium text-muted-foreground hover:text-primary hover:border-primary/40 transition-colors cursor-pointer">
                 <UserPlus size={14} /> {t("p2p.inviteFriend")}
               </button>
+            </div>
+
+            {/* Real recipient lookup — a registered PayRus account, found by
+                exact email/username/phone (not browsable, unlike the
+                fictional directory below). */}
+            <div className="mb-5 rounded-xl border border-border bg-card p-3">
+              <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                <Globe size={11} className="text-primary" /> {t("p2p.findRealUser")}
+              </div>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={realQuery}
+                  onChange={e => setRealQuery(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter") void handleRealSearch(); }}
+                  placeholder={t("p2p.findRealUserPlaceholder")}
+                  className="flex-1 px-3 py-2 rounded-lg bg-secondary border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50 transition-colors"
+                />
+                <button
+                  onClick={() => void handleRealSearch()}
+                  disabled={realSearching || !realQuery.trim()}
+                  className="px-3 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-semibold cursor-pointer disabled:opacity-60 shrink-0"
+                >
+                  {realSearching ? t("signin.checking") : t("p2p.find")}
+                </button>
+              </div>
             </div>
 
             {/* Recent / search results */}

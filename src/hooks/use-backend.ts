@@ -282,3 +282,41 @@ export function useAdminSetConsoleRoleTabsMutation() {
   const mutation = useReactMutation({ mutationFn: backend.adminSetConsoleRoleTabs });
   return mutation.mutateAsync;
 }
+
+// ---------------------------------------------------------------------------
+// Notifications / payment links
+// ---------------------------------------------------------------------------
+
+export function useNotificationsForUser(userId: string | undefined) {
+  return useReactQuery({
+    queryKey: ["notifications", userId],
+    queryFn: () => backend.listNotificationsForUser(userId!),
+    enabled: !!userId,
+  }).data;
+}
+
+export function useMarkNotificationReadMutation(userId: string | undefined) {
+  const queryClient = useQueryClient();
+  const mutation = useReactMutation({
+    mutationFn: backend.markNotificationRead,
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["notifications", userId] }),
+  });
+  return mutation.mutateAsync;
+}
+
+export function usePaymentLinksForUser(userId: string | undefined) {
+  return useReactQuery({
+    queryKey: ["paymentLinks", userId],
+    queryFn: () => backend.listPaymentLinksForUser(userId!),
+    enabled: !!userId,
+  }).data;
+}
+
+export function useCreatePaymentLinkMutation() {
+  const queryClient = useQueryClient();
+  const mutation = useReactMutation({
+    mutationFn: backend.createPaymentLink,
+    onSuccess: (_data, variables) => void queryClient.invalidateQueries({ queryKey: ["paymentLinks", variables.userId] }),
+  });
+  return mutation.mutateAsync;
+}

@@ -1,7 +1,7 @@
 import { motion } from "motion/react";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import { useCurrentAppUser } from "@/hooks/use-current-app-user.ts";
-import { useCardsForUser, useLinkedPaymentMethods, useWalletViewsForUser } from "@/hooks/use-backend.ts";
+import { useCardsForUser, useLinkedPaymentMethods, useRecentTransfersForUser, useWalletViewsForUser } from "@/hooks/use-backend.ts";
 import {
   Send, ArrowDownLeft, QrCode, Building2,
   TrendingUp, Shield, Wifi, ChevronRight, Bell,
@@ -106,6 +106,15 @@ const DEFAULT_TRANSACTIONS = [
   { id: 4, name: "dashboard.tx.default4", type: "debit", amount: -30000, currency: "XAF", date: "Aug 9", icon: "🌍", bg: "bg-accent/15" },
 ];
 
+// Real transfers (from useRecentTransfersForUser) have no pre-baked
+// icon/color/label the way the hardcoded PROFILE_TRANSACTIONS/
+// DEFAULT_TRANSACTIONS arrays do — derived here the same way
+// wallet-history-sheet.tsx derives them for its own transfer rows.
+const REAL_TX_CREDIT_TYPES = new Set(["deposit", "convert_in"]);
+const REAL_TX_ICON: Record<string, string> = { transfer: "↔️", payment: "💳", deposit: "➕", remittance: "🌍", convert_out: "🔁", convert_in: "🔁" };
+const REAL_TX_BG: Record<string, string> = { transfer: "bg-accent/15", payment: "bg-blue-50", deposit: "bg-primary/15", remittance: "bg-accent/15", convert_out: "bg-violet-50", convert_in: "bg-violet-50" };
+const REAL_TX_LABEL: Record<string, string> = { transfer: "Transfer", payment: "Payment", deposit: "Deposit", remittance: "Remittance", convert_out: "Conversion out", convert_in: "Conversion in" };
+
 interface TooltipProps { active?: boolean; payload?: Array<{ value: number }>; label?: string; }
 function ChartTooltip({ active, payload, label }: TooltipProps) {
   if (active && payload?.length) {
@@ -135,6 +144,7 @@ export default function Dashboard() {
   const currentUser = useCurrentAppUser();
   const realWallets = useWalletViewsForUser(currentUser?.id);
   const realCards = useCardsForUser(currentUser?.id);
+  const realRecentTransfers = useRecentTransfersForUser(currentUser?.id, 4);
   const primaryCard = realCards && realCards.length > 0 ? realCards[0] : null;
   const linkedMethods = useLinkedPaymentMethods(getAnonId());
   const walletsToShow = realWallets && realWallets.length > 0
@@ -159,8 +169,20 @@ export default function Dashboard() {
   const displayName = profile?.name ?? "Jean Dupont";
   const displayTier = profile?.tier ?? "Premium ✦";
 
-  // Profile-adaptive transactions
-  const recentTransactions = PROFILE_TRANSACTIONS[profileType] ?? DEFAULT_TRANSACTIONS;
+  // Real recent activity when signed in with real transfers; anonymous/
+  // no-activity-yet visitors keep the existing profile-adaptive mock feed.
+  const recentTransactions = realRecentTransfers && realRecentTransfers.length > 0
+    ? realRecentTransfers.map((tr) => ({
+        id: tr.id,
+        name: REAL_TX_LABEL[tr.type] ?? tr.type,
+        type: REAL_TX_CREDIT_TYPES.has(tr.type) ? "credit" : "debit",
+        amount: REAL_TX_CREDIT_TYPES.has(tr.type) ? tr.amount : -tr.amount,
+        currency: tr.currency,
+        date: new Date(tr.createdAt).toLocaleString(),
+        icon: REAL_TX_ICON[tr.type] ?? "💳",
+        bg: REAL_TX_BG[tr.type] ?? "bg-secondary",
+      }))
+    : (PROFILE_TRANSACTIONS[profileType] ?? DEFAULT_TRANSACTIONS);
 
   // Profile-adaptive quick actions
   const defaultQuickActions = [

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Copy, Link2, Clock } from "lucide-react";
 import { cn } from "@/lib/utils.ts";
@@ -7,23 +7,46 @@ import { Input } from "@/components/ui/input.tsx";
 import { toast } from "sonner";
 import PageHeader from "@/components/ui/page-header.tsx";
 import { useProfile } from "@/contexts/profile-context.tsx";
+import { useCurrentAppUser } from "@/hooks/use-current-app-user.ts";
+import { useCreatePaymentLinkMutation } from "@/hooks/use-backend.ts";
 
 const ACCEPTED = ["Cards", "GIMAC", "M-Pesa", "SEPA", "Mobile Money"];
 
 export default function PaymentLinks() {
   const { t } = useTranslation("common");
   const { profile } = useProfile();
+  const currentUser = useCurrentAppUser();
+  const createPaymentLink = useCreatePaymentLinkMutation();
 
   const [amount, setAmount] = useState("");
   const [reference, setReference] = useState("");
   const [generated, setGenerated] = useState(false);
-
-  const slug = useMemo(() => {
-    const base = (profile?.name ?? "payrus").toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 18).replace(/^-|-$/g, "");
-    return `payrus.app/b/${base || "merchant"}-${new Date().getFullYear()}-${Math.floor(Math.random() * 900 + 100)}`;
-  }, [profile?.name]);
+  const [generating, setGenerating] = useState(false);
+  const [slug, setSlug] = useState("");
 
   const canGenerate = amount.trim().length > 0 && parseFloat(amount) > 0;
+
+  async function handleGenerate() {
+    if (!canGenerate) return;
+    const currency = profile?.currency ?? "EUR";
+    if (!currentUser) {
+      // Anonymous preview — no real link to persist, keep the existing demo flow.
+      const base = (profile?.name ?? "payrus").toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 18).replace(/^-|-$/g, "");
+      setSlug(`payrus.app/b/${base || "merchant"}-${new Date().getFullYear()}-${Math.floor(Math.random() * 900 + 100)}`);
+      setGenerated(true);
+      return;
+    }
+    setGenerating(true);
+    try {
+      const link = await createPaymentLink({ userId: currentUser.id, amount: parseFloat(amount), currency, note: reference || undefined });
+      setSlug(`payrus.app/l/${link.slug}`);
+      setGenerated(true);
+    } catch {
+      toast.error(t("links.generateFailed"));
+    } finally {
+      setGenerating(false);
+    }
+  }
 
   const handleCopy = () => {
     navigator.clipboard?.writeText(`https://${slug}`).catch(() => {});
@@ -63,8 +86,8 @@ export default function PaymentLinks() {
               ))}
             </div>
           </div>
-          <Button onClick={() => setGenerated(true)} disabled={!canGenerate} className="w-full h-12 text-base font-semibold rounded-xl">
-            <Link2 size={16} /> {t("links.generate")}
+          <Button onClick={() => void handleGenerate()} disabled={!canGenerate || generating} className="w-full h-12 text-base font-semibold rounded-xl">
+            <Link2 size={16} /> {generating ? t("signin.checking") : t("links.generate")}
           </Button>
         </div>
       ) : (
