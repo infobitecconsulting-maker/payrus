@@ -639,6 +639,14 @@ export function useInvestorLeaderboard(limit = 20) {
   return useReactQuery({ queryKey: ["investorLeaderboard", limit], queryFn: () => backend.getInvestorLeaderboard(limit) }).data;
 }
 
+export function usePlatformImpact() {
+  return useReactQuery({ queryKey: ["platformImpact"], queryFn: backend.getPlatformImpact }).data;
+}
+
+export function useSectorPopularity() {
+  return useReactQuery({ queryKey: ["sectorPopularity"], queryFn: backend.getSectorPopularity }).data;
+}
+
 // ---------------------------------------------------------------------------
 // Games
 // ---------------------------------------------------------------------------
@@ -670,6 +678,14 @@ export function useLoyaltyAccountsForUser(userId: string | undefined) {
     queryKey: ["loyaltyAccounts", userId],
     queryFn: () => backend.listLoyaltyAccountsForUser(userId!),
     enabled: !!userId,
+  }).data;
+}
+
+export function useLoyaltySpendHistory(accountId: string | undefined) {
+  return useReactQuery({
+    queryKey: ["loyaltySpendHistory", accountId],
+    queryFn: () => backend.listLoyaltySpendHistory(accountId!),
+    enabled: !!accountId,
   }).data;
 }
 
@@ -753,7 +769,10 @@ export function useBookTravelItemInstallmentsMutation() {
   const queryClient = useQueryClient();
   const mutation = useReactMutation({
     mutationFn: backend.bookTravelItemInstallments,
-    onSuccess: (_data, variables) => void queryClient.invalidateQueries({ queryKey: ["walletViews", variables.userId] }),
+    onSuccess: (_data, variables) => {
+      void queryClient.invalidateQueries({ queryKey: ["walletViews", variables.userId] });
+      void queryClient.invalidateQueries({ queryKey: ["travelInstallmentPlans", variables.userId] });
+    },
   });
   return mutation.mutateAsync;
 }
@@ -763,5 +782,13 @@ export function useTravelInstallments(planId: string | undefined) {
     queryKey: ["travelInstallments", planId],
     queryFn: () => backend.listTravelInstallments(planId!),
     enabled: !!planId,
+  }).data;
+}
+
+export function useTravelInstallmentPlansForUser(userId: string | undefined) {
+  return useReactQuery({
+    queryKey: ["travelInstallmentPlans", userId],
+    queryFn: () => backend.listTravelInstallmentPlansForUser(userId!),
+    enabled: !!userId,
   }).data;
 }

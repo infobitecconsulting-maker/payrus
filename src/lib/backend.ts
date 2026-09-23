@@ -1102,17 +1102,29 @@ export async function contributeToPot(args: { userId: string; potId: string; amo
 
 export interface AppTontineCircle {
   id: string; name: string; currency: string; potAmount: number; potBalance: number;
-  frequency: string; totalRounds: number; currentRound: number;
+  frequency: string; totalRounds: number; currentRound: number; nextPayoutDate: string | null;
 }
 
 function toAppTontineCircle(r: Record<string, unknown>): AppTontineCircle {
   return {
     id: r.id as string, name: r.name as string, currency: r.currency as string, potAmount: Number(r.pot_amount),
     potBalance: Number(r.pot_balance), frequency: r.frequency as string, totalRounds: r.total_rounds as number, currentRound: r.current_round as number,
+    nextPayoutDate: (r.next_payout_date as string) ?? null,
   };
 }
 
+// Opportunistic settlement (0020): every read of the circle list first
+// settles any circle whose payout is due — a global, not owner-scoped,
+// sweep (a rotating pot pays out regardless of which user's session
+// happens to trigger it). Best-effort: a settlement failure here must
+// never block the ordinary read that every page relying on this list
+// depends on.
 export async function listTontineCircles(): Promise<AppTontineCircle[]> {
+  try {
+    await supabase.rpc("process_due_tontine_payouts");
+  } catch {
+    // best-effort — the read below still returns whatever's current
+  }
   const res = await supabase.from("tontine_circles").select("*");
   return mustHaveData(res, "listTontineCircles").map(toAppTontineCircle);
 }
@@ -1162,38 +1174,68 @@ export async function investInProduct(args: { userId: string; productId: string;
 export interface AppPitch {
   id: string; ownerUserId: string | null; title: string; description: string | null; founder: string | null; category: string | null;
   goal: number; raised: number; currency: string; returnPct: number; timelineMonths: number; risk: "low" | "medium" | "high"; location: string | null;
+  impactJobs: number | null; impactHouseholds: number | null; impactCo2: number | null;
+}
+
+function toAppPitch(r: Record<string, unknown>): AppPitch {
+  return {
+    id: r.id as string, ownerUserId: r.owner_user_id as string | null, title: r.title as string, description: r.description as string | null,
+    founder: r.founder as string | null, category: r.category as string | null, goal: Number(r.goal), raised: Number(r.raised),
+    currency: r.currency as string, returnPct: Number(r.return_pct), timelineMonths: r.timeline_months as number,
+    risk: r.risk as "low" | "medium" | "high", location: r.location as string | null,
+    impactJobs: r.impact_jobs == null ? null : Number(r.impact_jobs), impactHouseholds: r.impact_households == null ? null : Number(r.impact_households),
+    impactCo2: r.impact_co2 == null ? null : Number(r.impact_co2),
+  };
 }
 
 export async function listPitches(): Promise<AppPitch[]> {
   const res = await supabase.from("investment_pitches").select("*");
-  return mustHaveData(res, "listPitches").map((r) => ({
-    id: r.id, ownerUserId: r.owner_user_id, title: r.title, description: r.description, founder: r.founder, category: r.category,
-    goal: Number(r.goal), raised: Number(r.raised), currency: r.currency, returnPct: Number(r.return_pct),
-    timelineMonths: r.timeline_months, risk: r.risk, location: r.location,
-  }));
+  return mustHaveData(res, "listPitches").map(toAppPitch);
 }
 
 export async function createPitch(args: {
   ownerUserId: string; title: string; description: string; founder: string; category: string;
   goal: number; currency: string; returnPct: number; timelineMonths: number; risk?: "low" | "medium" | "high"; location?: string;
+  impactJobs?: number; impactHouseholds?: number; impactCo2?: number;
 }): Promise<AppPitch> {
   const res = await supabase.rpc("create_pitch", {
     p_owner_user_id: args.ownerUserId, p_title: args.title, p_description: args.description, p_founder: args.founder,
     p_category: args.category, p_goal: args.goal, p_currency: args.currency, p_return_pct: args.returnPct,
     p_timeline_months: args.timelineMonths, p_risk: args.risk ?? "medium", p_location: args.location ?? null,
+    p_impact_jobs: args.impactJobs ?? null, p_impact_households: args.impactHouseholds ?? null, p_impact_co2: args.impactCo2 ?? null,
   });
-  const row = mustHaveData(res, "createPitch") as Record<string, unknown>;
+  return toAppPitch(mustHaveData(res, "createPitch") as Record<string, unknown>);
+}
+
+export interface AppPlatformImpact { totalRaised: number; totalBackers: number; totalJobs: number; totalHouseholds: number; totalCo2: number }
+
+export async function getPlatformImpact(): Promise<AppPlatformImpact> {
+  const res = await supabase.rpc("get_platform_impact");
+  const row = mustHaveData(res, "getPlatformImpact")[0] as Record<string, unknown> | undefined;
   return {
-    id: row.id as string, ownerUserId: row.owner_user_id as string, title: row.title as string, description: row.description as string | null,
-    founder: row.founder as string | null, category: row.category as string | null, goal: Number(row.goal), raised: Number(row.raised),
-    currency: row.currency as string, returnPct: Number(row.return_pct), timelineMonths: row.timeline_months as number,
-    risk: row.risk as "low" | "medium" | "high", location: row.location as string | null,
+    totalRaised: Number(row?.total_raised ?? 0), totalBackers: Number(row?.total_backers ?? 0),
+    totalJobs: Number(row?.total_jobs ?? 0), totalHouseholds: Number(row?.total_households ?? 0), totalCo2: Number(row?.total_co2 ?? 0),
   };
+}
+
+export interface AppSectorPopularity { sector: string; backers: number }
+
+export async function getSectorPopularity(): Promise<AppSectorPopularity[]> {
+  const res = await supabase.rpc("get_sector_popularity");
+  return mustHaveData(res, "getSectorPopularity").map((r: Record<string, unknown>) => ({ sector: r.sector as string, backers: Number(r.backers) }));
 }
 
 export interface AppPitchInvestment { id: string; userId: string; pitchId: string; amount: number; currency: string; returnPct: number; timelineMonths: number; investedAt: string }
 
+// Opportunistic settlement (0020): resolves this user's own overdue
+// repayments (crediting their wallet) before every read — best-effort,
+// never blocks the read itself if settlement fails.
 export async function listPitchInvestmentsForUser(userId: string): Promise<AppPitchInvestment[]> {
+  try {
+    await supabase.rpc("process_due_pitch_repayments", { p_user_id: userId });
+  } catch {
+    // best-effort
+  }
   const res = await supabase.from("pitch_investments").select("*").eq("user_id", userId);
   return mustHaveData(res, "listPitchInvestmentsForUser").map((r) => ({
     id: r.id, userId: r.user_id, pitchId: r.pitch_id, amount: Number(r.amount), currency: r.currency,
@@ -1296,6 +1338,35 @@ export async function redeemLoyaltyReward(args: { userId: string; accountId: str
   return toAppLoyaltyAccount(mustHaveData(res, "redeemLoyaltyReward") as Record<string, unknown>);
 }
 
+export interface AppLoyaltySpendMonth { m: string; spend: number }
+
+// Real month-by-month history from loyalty_spend_events (0020), one row
+// per record_venue_spend call — zero-filled for months with no spend
+// rather than only showing months that happened to have activity.
+export async function listLoyaltySpendHistory(accountId: string): Promise<AppLoyaltySpendMonth[]> {
+  const start = new Date();
+  start.setMonth(start.getMonth() - 5);
+  start.setDate(1);
+  const res = await supabase.from("loyalty_spend_events").select("amount, occurred_at").eq("account_id", accountId).gte("occurred_at", start.toISOString());
+  const rows = mustHaveData(res, "listLoyaltySpendHistory");
+
+  const months: { key: string; label: string }[] = [];
+  const cursor = new Date(start);
+  for (let i = 0; i < 6; i++) {
+    months.push({ key: `${cursor.getFullYear()}-${cursor.getMonth()}`, label: cursor.toLocaleDateString("en-US", { month: "short" }) });
+    cursor.setMonth(cursor.getMonth() + 1);
+  }
+
+  const totals = new Map(months.map((m) => [m.key, 0]));
+  for (const r of rows) {
+    const d = new Date(r.occurred_at as string);
+    const key = `${d.getFullYear()}-${d.getMonth()}`;
+    if (totals.has(key)) totals.set(key, (totals.get(key) ?? 0) + Number(r.amount));
+  }
+
+  return months.map((m) => ({ m: m.label, spend: totals.get(m.key) ?? 0 }));
+}
+
 export interface AppExpenseReport {
   id: string; userId: string; title: string; amount: number; currency: string; category: string;
   status: "pending" | "approved" | "rejected"; employeeName: string | null; project: string | null; submittedAt: string;
@@ -1368,6 +1439,28 @@ export async function listTravelInstallments(planId: string): Promise<AppTravelI
   const res = await supabase.from("travel_installments").select("*").eq("plan_id", planId).order("seq");
   return mustHaveData(res, "listTravelInstallments").map((r) => ({
     id: r.id, planId: r.plan_id, seq: r.seq, amount: Number(r.amount), currency: r.currency, dueDate: r.due_date, status: r.status,
+  }));
+}
+
+export interface AppTravelInstallmentPlanWithInstallments extends AppTravelInstallmentPlan { installments: AppTravelInstallment[] }
+
+// Opportunistic settlement (0020): charges any of this user's overdue
+// installments before every read — best-effort, never blocks the read.
+export async function listTravelInstallmentPlansForUser(userId: string): Promise<AppTravelInstallmentPlanWithInstallments[]> {
+  try {
+    await supabase.rpc("process_due_travel_installments", { p_user_id: userId });
+  } catch {
+    // best-effort
+  }
+  const res = await supabase.from("travel_installment_plans").select("*, travel_installments(*)").eq("user_id", userId).order("created_at", { ascending: false });
+  return mustHaveData(res, "listTravelInstallmentPlansForUser").map((r: Record<string, unknown>) => ({
+    ...toAppTravelInstallmentPlan(r),
+    installments: ((r.travel_installments as Record<string, unknown>[]) ?? [])
+      .map((i) => ({
+        id: i.id as string, planId: i.plan_id as string, seq: i.seq as number, amount: Number(i.amount),
+        currency: i.currency as string, dueDate: i.due_date as string, status: i.status as "pending" | "paid",
+      }))
+      .sort((a, b) => a.seq - b.seq),
   }));
 }
 

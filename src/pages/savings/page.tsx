@@ -21,7 +21,7 @@ import { useCurrentAppUser } from "@/hooks/use-current-app-user.ts";
 import {
   useContributeToPotMutation, useContributeToTontineMutation, useCreateSavingsPotMutation, useInvestInProductMutation,
   useInvestmentProducts, useJoinTontineMutation, useSavingsPotsForUser, useTontineCircles, useCreateTontineCircleMutation,
-  useLoyaltyAccountsForUser, useLinkLoyaltyVenueMutation, useRecordVenueSpendMutation, useRedeemLoyaltyRewardMutation,
+  useLoyaltyAccountsForUser, useLinkLoyaltyVenueMutation, useRecordVenueSpendMutation, useRedeemLoyaltyRewardMutation, useLoyaltySpendHistory,
   useExpenseReportsForUser, useSubmitExpenseReportMutation, useCorporateCardsForUser, useCreateCorporateCardMutation,
 } from "@/hooks/use-backend.ts";
 import type {
@@ -120,10 +120,14 @@ function toDisplayPot(p: AppSavingsPot): SavingsPot {
   };
 }
 
+// nextRecipient/myTurn stay "—" for real circles — who's at a given
+// rotation position is only owner-readable (tontine_members' RLS policy),
+// an intentional privacy boundary, not a gap. nextPayout is real: 0020's
+// process_due_tontine_payouts settles automatically once it passes.
 function toDisplayTontine(c: AppTontineCircle, myContrib: number): TontineCircle {
   return {
     id: c.id, name: c.name, members: 1, potAmount: c.potAmount, currency: c.currency, frequency: c.frequency as "weekly" | "monthly",
-    myContrib, nextPayout: "—", nextRecipient: "—", myTurn: "—", round: c.currentRound, totalRounds: c.totalRounds,
+    myContrib, nextPayout: c.nextPayoutDate ?? "—", nextRecipient: "—", myTurn: "—", round: c.currentRound, totalRounds: c.totalRounds,
     color: "bg-primary/15 border-primary/25 text-primary",
   };
 }
@@ -889,8 +893,9 @@ const EXPENSE_CATEGORIES: Record<ExpenseReport["category"], { labelKey: string; 
 
 /* ─── Loyalty sub-components ─────────────────────────────────── */
 
-function LoyaltyCard({ pot, index, onSpend, onRedeem }: {
-  pot: LoyaltyPot; index: number; onSpend: (pot: LoyaltyPot) => void; onRedeem: (pot: LoyaltyPot, reward: LoyaltyPot["rewardOptions"][number]) => void;
+function LoyaltyCard({ pot, index, isReal, onSpend, onRedeem }: {
+  pot: LoyaltyPot; index: number; isReal: boolean;
+  onSpend: (pot: LoyaltyPot) => void; onRedeem: (pot: LoyaltyPot, reward: LoyaltyPot["rewardOptions"][number]) => void;
 }) {
   const { t } = useTranslation("common");
   const [expanded, setExpanded] = useState(false);
@@ -898,6 +903,12 @@ function LoyaltyCard({ pot, index, onSpend, onRedeem }: {
   const cashValue = pot.points * pot.pointsValue;
   const progressToNext = Math.min(100, Math.round((pot.points / pot.nextReward) * 100));
   const overBudget = pot.monthlySpend > pot.spendLimit;
+  // Real month-by-month history (0020) — each account is its own
+  // component instance, so fetching it here (rather than in a loop in
+  // the parent) is the correct hooks pattern, same as RealInvestmentRow
+  // in invest/page.tsx.
+  const realHistory = useLoyaltySpendHistory(isReal ? pot.id : undefined);
+  const monthHistory = isReal && realHistory ? realHistory : pot.monthHistory;
 
   return (
     <motion.div
@@ -1016,7 +1027,7 @@ function LoyaltyCard({ pot, index, onSpend, onRedeem }: {
               <div className="pt-4 border-t border-border mt-4 space-y-3">
                 <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">{t("savings.spendingHistory")}</div>
                 <ResponsiveContainer width="100%" height={60}>
-                  <AreaChart data={pot.monthHistory} margin={{ top: 2, right: 0, bottom: 0, left: 0 }}>
+                  <AreaChart data={monthHistory} margin={{ top: 2, right: 0, bottom: 0, left: 0 }}>
                     <defs>
                       <linearGradient id={`lg-${pot.id}`} x1="0" y1="0" x2="0" y2="1">
                         <stop offset="0%" stopColor="oklch(0.66 0.20 138)" stopOpacity={0.3} />
@@ -1652,7 +1663,7 @@ export default function SavingsPage() {
             </div>
 
             {displayLoyalty.map((pot, i) => (
-              <LoyaltyCard key={pot.id} pot={pot} index={i} onSpend={(p) => setSpendingAt(p)} onRedeem={handleRedeem} />
+              <LoyaltyCard key={pot.id} pot={pot} index={i} isReal={hasRealLoyalty} onSpend={(p) => setSpendingAt(p)} onRedeem={handleRedeem} />
             ))}
 
             {/* Tip */}

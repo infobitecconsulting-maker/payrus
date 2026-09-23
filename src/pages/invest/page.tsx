@@ -21,8 +21,11 @@ import { Input } from "@/components/ui/input.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import { toast } from "sonner";
 import { useCurrentAppUser } from "@/hooks/use-current-app-user.ts";
-import { usePitches, usePitchInvestmentsForUser, usePitchRepayments, useInvestInPitchMutation, useCreatePitchMutation, useInvestorLeaderboard } from "@/hooks/use-backend.ts";
-import type { AppPitch, AppPitchInvestment, AppLeaderboardRow } from "@/lib/backend.ts";
+import {
+  usePitches, usePitchInvestmentsForUser, usePitchRepayments, useInvestInPitchMutation, useCreatePitchMutation,
+  useInvestorLeaderboard, useSectorPopularity, usePlatformImpact,
+} from "@/hooks/use-backend.ts";
+import type { AppPitch, AppPitchInvestment, AppLeaderboardRow, AppSectorPopularity, AppPlatformImpact } from "@/lib/backend.ts";
 
 // ─── TYPES ────────────────────────────────────────────────────────────────────
 
@@ -376,7 +379,7 @@ function toDisplayPitch(p: AppPitch): Pitch {
     id: p.id, title: p.title, description: p.description ?? "", founder: p.founder ?? "PayRus Ventures",
     founderVerified: true, category, goal: p.goal, raised: p.raised, backers: 0, daysLeft: 30,
     currency: p.currency, location: p.location ?? "", country: "🌍", returnPct: p.returnPct, timelineMonths: p.timelineMonths,
-    useOfFunds: [], impact: { jobs: 0, households: 0, detail: "" }, risk: p.risk, riskNote: "",
+    useOfFunds: [], impact: { jobs: p.impactJobs ?? 0, households: p.impactHouseholds ?? 0, co2Saved: p.impactCo2 ?? undefined, detail: "" }, risk: p.risk, riskNote: "",
     milestones: [], emoji: "💼", gradientFrom: "from-primary/70", gradientTo: "to-emerald-600/40",
   };
 }
@@ -1302,7 +1305,19 @@ function levelForXaf(n: number): string {
   return "Starter";
 }
 
-function LeaderboardView({ realLeaderboard, currentUserId }: { realLeaderboard: AppLeaderboardRow[] | undefined; currentUserId: string | undefined }) {
+const MOCK_SECTOR_DATA = [
+  { sector: "Agriculture", total: 42 },
+  { sector: "Energy", total: 38 },
+  { sector: "Tech", total: 27 },
+  { sector: "Retail", total: 19 },
+  { sector: "Manufacturing", total: 15 },
+  { sector: "Real Estate", total: 11 },
+];
+
+function LeaderboardView({ realLeaderboard, currentUserId, realSectorPopularity, realPlatformImpact }: {
+  realLeaderboard: AppLeaderboardRow[] | undefined; currentUserId: string | undefined;
+  realSectorPopularity: AppSectorPopularity[] | undefined; realPlatformImpact: AppPlatformImpact | undefined;
+}) {
   const levelColor: Record<string, string> = {
     "Anchor": "text-amber-700 bg-amber-50 border-amber-200",
     "Senior": "text-accent-foreground bg-accent/10 border-accent/30",
@@ -1312,9 +1327,7 @@ function LeaderboardView({ realLeaderboard, currentUserId }: { realLeaderboard: 
 
   // Real ranking once signed in with at least one real investment on the
   // books — normalized into XAF via get_investor_leaderboard (0019), same
-  // cross-currency rate formula create_quote() uses. Sector popularity and
-  // collective-impact stats stay decorative below — nothing in the real
-  // schema tracks jobs/households/CO2 per investment.
+  // cross-currency rate formula create_quote() uses.
   const hasRealLeaderboard = !!currentUserId && !!realLeaderboard && realLeaderboard.length > 0;
   const displayRows = hasRealLeaderboard
     ? realLeaderboard.map((r, i) => ({
@@ -1325,15 +1338,29 @@ function LeaderboardView({ realLeaderboard, currentUserId }: { realLeaderboard: 
       }))
     : LEADERBOARD.map(r => ({ ...r, isYou: r.name === "You" }));
 
-  // Top investors by sector bar chart
-  const sectorData = [
-    { sector: "Agriculture", total: 42 },
-    { sector: "Energy", total: 38 },
-    { sector: "Tech", total: 27 },
-    { sector: "Retail", total: 19 },
-    { sector: "Manufacturing", total: 15 },
-    { sector: "Real Estate", sector2: "Real Est.", total: 11 },
-  ];
+  // Real distinct-backer counts per sector (0020's get_sector_popularity),
+  // whatever category values actually exist in the data — not forced
+  // into the mock's fixed 6-category list.
+  const hasRealSectors = !!currentUserId && !!realSectorPopularity && realSectorPopularity.length > 0;
+  const sectorData = hasRealSectors ? realSectorPopularity.map(s => ({ sector: s.sector, total: s.backers })) : MOCK_SECTOR_DATA;
+
+  // Real platform-wide totals (0020's get_platform_impact) — sourced from
+  // pitches' own impact_jobs/impact_households/impact_co2 columns, only
+  // summed across pitches that have actually been funded.
+  const hasRealImpact = !!currentUserId && !!realPlatformImpact && realPlatformImpact.totalBackers > 0;
+  const impactStats = hasRealImpact
+    ? [
+        { label: "Total raised", value: formatXafTotal(realPlatformImpact.totalRaised), icon: CircleDollarSign },
+        { label: "Jobs created", value: realPlatformImpact.totalJobs.toLocaleString(), icon: Briefcase },
+        { label: "Households", value: realPlatformImpact.totalHouseholds.toLocaleString(), icon: Heart },
+        { label: "CO₂ saved", value: `${realPlatformImpact.totalCo2.toLocaleString()}t/yr`, icon: Leaf },
+      ]
+    : [
+        { label: "Total raised", value: "183.3M XAF", icon: CircleDollarSign },
+        { label: "Jobs created", value: "3,655", icon: Briefcase },
+        { label: "Households", value: "42,750", icon: Heart },
+        { label: "CO₂ saved", value: "1,805t/yr", icon: Leaf },
+      ];
 
   return (
     <div className="p-5 space-y-5">
@@ -1396,12 +1423,7 @@ function LeaderboardView({ realLeaderboard, currentUserId }: { realLeaderboard: 
           <h3 className="font-bold text-sm text-emerald-700">Collective Impact — All Investors</h3>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {[
-            { label: "Total raised", value: "183.3M XAF", icon: CircleDollarSign },
-            { label: "Jobs created", value: "3,655", icon: Briefcase },
-            { label: "Households", value: "42,750", icon: Heart },
-            { label: "CO₂ saved", value: "1,805t/yr", icon: Leaf },
-          ].map(s => (
+          {impactStats.map(s => (
             <div key={s.label} className="bg-emerald-50 rounded-xl px-3 py-2.5">
               <s.icon size={13} className="text-emerald-700 mb-1" />
               <div className="font-black text-sm text-emerald-700 font-mono">{s.value}</div>
@@ -1447,7 +1469,10 @@ const SUBMIT_CATEGORIES: { value: SubmitCategory; label: string }[] = [
 
 function SubmitPitch({ onBack, currentUserId, onSubmit }: {
   onBack: () => void; currentUserId: string | undefined;
-  onSubmit: (args: { ownerUserId: string; title: string; description: string; founder: string; category: string; goal: number; currency: string; returnPct: number; timelineMonths: number; location?: string }) => Promise<unknown>;
+  onSubmit: (args: {
+    ownerUserId: string; title: string; description: string; founder: string; category: string; goal: number; currency: string;
+    returnPct: number; timelineMonths: number; location?: string; impactJobs?: number; impactHouseholds?: number; impactCo2?: number;
+  }) => Promise<unknown>;
 }) {
   const [form, setForm] = useState({
     title: "",
@@ -1459,6 +1484,9 @@ function SubmitPitch({ onBack, currentUserId, onSubmit }: {
     org: "",
     location: "",
     impact: "",
+    impactJobs: "",
+    impactHouseholds: "",
+    impactCo2: "",
   });
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -1481,6 +1509,9 @@ function SubmitPitch({ onBack, currentUserId, onSubmit }: {
         description: form.impact ? `${form.description}\n\nImpact: ${form.impact}` : form.description,
         founder: form.org || "Independent founder", category: form.category, goal: Number(form.goal), currency: "XAF",
         returnPct: Number(form.returnPct), timelineMonths: Number(form.timelineMonths), location: form.location || undefined,
+        impactJobs: form.impactJobs ? Number(form.impactJobs) : undefined,
+        impactHouseholds: form.impactHouseholds ? Number(form.impactHouseholds) : undefined,
+        impactCo2: form.impactCo2 ? Number(form.impactCo2) : undefined,
       });
       setSubmitted(true);
       toast.success("Pitch submitted!");
@@ -1621,8 +1652,23 @@ function SubmitPitch({ onBack, currentUserId, onSubmit }: {
 
         <div className="space-y-1">
           <label className="text-xs font-semibold text-muted-foreground">Social impact (optional)</label>
-          <Input placeholder="e.g. 200 jobs created, 1,200 families served" value={form.impact} onChange={e => setForm(f => ({ ...f, impact: e.target.value }))} />
+          <Input placeholder="e.g. Direct export lines to specialty roasters" value={form.impact} onChange={e => setForm(f => ({ ...f, impact: e.target.value }))} />
           <p className="text-[10px] text-muted-foreground">Ventures with clear social impact receive a Leaf badge and rank higher in search.</p>
+        </div>
+
+        <div className="grid grid-cols-3 gap-3">
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-muted-foreground">Jobs created</label>
+            <Input type="number" className="font-mono" placeholder="0" value={form.impactJobs} onChange={e => setForm(f => ({ ...f, impactJobs: e.target.value }))} />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-muted-foreground">Households</label>
+            <Input type="number" className="font-mono" placeholder="0" value={form.impactHouseholds} onChange={e => setForm(f => ({ ...f, impactHouseholds: e.target.value }))} />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-muted-foreground">CO₂ saved (t/yr)</label>
+            <Input type="number" className="font-mono" placeholder="0" value={form.impactCo2} onChange={e => setForm(f => ({ ...f, impactCo2: e.target.value }))} />
+          </div>
         </div>
 
         <div className="space-y-1">
@@ -1663,6 +1709,8 @@ export default function InvestPage() {
   const investInPitchMutation = useInvestInPitchMutation();
   const createPitchMutation = useCreatePitchMutation();
   const realLeaderboard = useInvestorLeaderboard();
+  const realSectorPopularity = useSectorPopularity();
+  const realPlatformImpact = usePlatformImpact();
 
   // Real catalog once signed in with data to show; anonymous/no-data
   // visitors keep the existing rich mock catalog — same fallback
@@ -1856,7 +1904,10 @@ export default function InvestPage() {
           {/* ── LEADERBOARD ── */}
           {tab === "leaderboard" && (
             <motion.div key="leaderboard" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-              <LeaderboardView realLeaderboard={realLeaderboard} currentUserId={currentUser?.id} />
+              <LeaderboardView
+                realLeaderboard={realLeaderboard} currentUserId={currentUser?.id}
+                realSectorPopularity={realSectorPopularity} realPlatformImpact={realPlatformImpact}
+              />
             </motion.div>
           )}
 

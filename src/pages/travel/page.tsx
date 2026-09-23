@@ -13,12 +13,12 @@ import { cn } from "@/lib/utils.ts";
 import { PayRusLogo } from "@/pages/layout/AppLayout.tsx";
 import { toast } from "sonner";
 import { useCurrentAppUser } from "@/hooks/use-current-app-user.ts";
-import { useBookTravelItemMutation, useBookTravelItemInstallmentsMutation, useFlights, useHotels } from "@/hooks/use-backend.ts";
+import { useBookTravelItemMutation, useBookTravelItemInstallmentsMutation, useTravelInstallmentPlansForUser, useFlights, useHotels } from "@/hooks/use-backend.ts";
 import type { AppFlight, AppHotel } from "@/lib/backend.ts";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type SearchTab = "flights" | "hotels";
+type SearchTab = "flights" | "hotels" | "bookings";
 type FlightClass = "economy" | "business" | "first";
 
 interface Flight {
@@ -522,6 +522,7 @@ export default function TravelPage() {
   const realHotels = useHotels();
   const bookTravelItem = useBookTravelItemMutation();
   const bookTravelItemInstallments = useBookTravelItemInstallmentsMutation();
+  const installmentPlans = useTravelInstallmentPlansForUser(currentUser?.id);
 
   // Real catalog once signed in with data to show; anonymous/no-data
   // visitors keep the existing rich mock catalog — same fallback
@@ -620,6 +621,7 @@ export default function TravelPage() {
           {([
             { id: "flights" as const, label: t("travel.tabFlights"), icon: Plane },
             { id: "hotels" as const, label: t("travel.tabHotels"), icon: Hotel },
+            ...(currentUser ? [{ id: "bookings" as const, label: t("travel.tabBookings"), icon: CreditCard }] : []),
           ]).map(tab => (
             <button key={tab.id} onClick={() => setActiveTab(tab.id)}
               className={cn(
@@ -1034,6 +1036,57 @@ export default function TravelPage() {
                   ))}
                 </div>
               </div>
+            </motion.div>
+          )}
+
+          {/* ── My Bookings (installment plans) ── */}
+          {activeTab === "bookings" && (
+            <motion.div key="bookings" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }}
+              className="p-4 md:p-5 space-y-4 max-w-3xl mx-auto">
+              <div>
+                <h2 className="text-sm font-bold text-foreground">{t("travel.myBookings")}</h2>
+                <p className="text-[11px] text-muted-foreground">{t("travel.myBookingsSubtitle")}</p>
+              </div>
+
+              {!installmentPlans || installmentPlans.length === 0 ? (
+                <div className="text-center py-16 text-muted-foreground text-sm">{t("travel.noBookingsYet")}</div>
+              ) : (
+                installmentPlans.map((plan) => {
+                  const paidCount = plan.installments.filter(i => i.status === "paid").length;
+                  const progress = Math.round((paidCount / plan.installments.length) * 100);
+                  return (
+                    <div key={plan.id} className="rounded-2xl bg-card border border-border p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="text-sm font-bold text-foreground font-mono">{formatCurrency(plan.totalAmount, plan.currency)}</div>
+                        <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-primary/15 text-primary">
+                          {t("travel.installmentsPaidOf", { paid: paidCount, total: plan.installments.length })}
+                        </span>
+                      </div>
+                      <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
+                        <div className="h-full rounded-full bg-primary" style={{ width: `${progress}%` }} />
+                      </div>
+                      <div className="space-y-2">
+                        {plan.installments.map((inst) => (
+                          <div key={inst.id} className="flex items-center justify-between text-xs">
+                            <div className="flex items-center gap-2">
+                              <div className={cn(
+                                "w-6 h-6 rounded-full border flex items-center justify-center",
+                                inst.status === "paid" ? "bg-primary/10 border-primary/30 text-primary" : "bg-secondary border-border text-muted-foreground"
+                              )}>
+                                {inst.status === "paid" ? <CheckCircle2 size={12} /> : <Clock size={11} />}
+                              </div>
+                              <span className="text-muted-foreground">{t("travel.installmentSeq", { seq: inst.seq })} · {inst.dueDate}</span>
+                            </div>
+                            <span className={cn("font-bold font-mono", inst.status === "paid" ? "text-primary" : "text-foreground")}>
+                              {formatCurrency(inst.amount, inst.currency)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </motion.div>
           )}
         </AnimatePresence>
