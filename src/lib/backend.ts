@@ -1128,6 +1128,16 @@ export async function contributeToTontine(args: { userId: string; circleId: stri
   return toAppTontineCircle(mustHaveData(res, "contributeToTontine") as Record<string, unknown>);
 }
 
+export async function createTontineCircle(args: {
+  ownerUserId: string; name: string; currency: string; potAmount: number; frequency: "weekly" | "monthly"; totalRounds: number;
+}): Promise<AppTontineCircle> {
+  const res = await supabase.rpc("create_tontine_circle", {
+    p_owner_user_id: args.ownerUserId, p_name: args.name, p_currency: args.currency,
+    p_pot_amount: args.potAmount, p_frequency: args.frequency, p_total_rounds: args.totalRounds,
+  });
+  return toAppTontineCircle(mustHaveData(res, "createTontineCircle") as Record<string, unknown>);
+}
+
 export interface AppInvestmentProduct { id: string; name: string; description: string | null; apy: number; minAmount: number; currency: string; duration: string | null; risk: "low" | "medium" | "high" }
 
 export async function listInvestmentProducts(): Promise<AppInvestmentProduct[]> {
@@ -1150,17 +1160,35 @@ export async function investInProduct(args: { userId: string; productId: string;
 // ============================================================================
 
 export interface AppPitch {
-  id: string; title: string; description: string | null; founder: string | null; category: string | null;
+  id: string; ownerUserId: string | null; title: string; description: string | null; founder: string | null; category: string | null;
   goal: number; raised: number; currency: string; returnPct: number; timelineMonths: number; risk: "low" | "medium" | "high"; location: string | null;
 }
 
 export async function listPitches(): Promise<AppPitch[]> {
   const res = await supabase.from("investment_pitches").select("*");
   return mustHaveData(res, "listPitches").map((r) => ({
-    id: r.id, title: r.title, description: r.description, founder: r.founder, category: r.category,
+    id: r.id, ownerUserId: r.owner_user_id, title: r.title, description: r.description, founder: r.founder, category: r.category,
     goal: Number(r.goal), raised: Number(r.raised), currency: r.currency, returnPct: Number(r.return_pct),
     timelineMonths: r.timeline_months, risk: r.risk, location: r.location,
   }));
+}
+
+export async function createPitch(args: {
+  ownerUserId: string; title: string; description: string; founder: string; category: string;
+  goal: number; currency: string; returnPct: number; timelineMonths: number; risk?: "low" | "medium" | "high"; location?: string;
+}): Promise<AppPitch> {
+  const res = await supabase.rpc("create_pitch", {
+    p_owner_user_id: args.ownerUserId, p_title: args.title, p_description: args.description, p_founder: args.founder,
+    p_category: args.category, p_goal: args.goal, p_currency: args.currency, p_return_pct: args.returnPct,
+    p_timeline_months: args.timelineMonths, p_risk: args.risk ?? "medium", p_location: args.location ?? null,
+  });
+  const row = mustHaveData(res, "createPitch") as Record<string, unknown>;
+  return {
+    id: row.id as string, ownerUserId: row.owner_user_id as string, title: row.title as string, description: row.description as string | null,
+    founder: row.founder as string | null, category: row.category as string | null, goal: Number(row.goal), raised: Number(row.raised),
+    currency: row.currency as string, returnPct: Number(row.return_pct), timelineMonths: row.timeline_months as number,
+    risk: row.risk as "low" | "medium" | "high", location: row.location as string | null,
+  };
 }
 
 export interface AppPitchInvestment { id: string; userId: string; pitchId: string; amount: number; currency: string; returnPct: number; timelineMonths: number; investedAt: string }
@@ -1218,4 +1246,137 @@ export async function placeBet(args: { userId: string; kind: AppGameBet["kind"];
 export async function resolveBet(args: { betId: string; userId: string }): Promise<AppGameBet> {
   const res = await supabase.rpc("resolve_bet", { p_bet_id: args.betId, p_user_id: args.userId });
   return toAppGameBet(mustHaveData(res, "resolveBet") as Record<string, unknown>);
+}
+
+// ============================================================================
+// Phase 4 (0019) — fills the gaps deliberately deferred from Phase 3:
+// savings' loyalty/expense-report/corporate-card sub-domain, travel's
+// 3-installment split payment, and the invest leaderboard. Tontine
+// creation and pitch submission are added above, alongside their
+// existing sections.
+// ============================================================================
+
+export interface AppLoyaltyAccount {
+  id: string; userId: string; venueName: string; venueCategory: string; points: number; pointsValue: number;
+  currency: string; monthlySpend: number; spendLimit: number; cashbackRate: number;
+}
+
+function toAppLoyaltyAccount(r: Record<string, unknown>): AppLoyaltyAccount {
+  return {
+    id: r.id as string, userId: r.user_id as string, venueName: r.venue_name as string, venueCategory: r.venue_category as string,
+    points: Number(r.points), pointsValue: Number(r.points_value), currency: r.currency as string,
+    monthlySpend: Number(r.monthly_spend), spendLimit: Number(r.spend_limit), cashbackRate: Number(r.cashback_rate),
+  };
+}
+
+export async function listLoyaltyAccountsForUser(userId: string): Promise<AppLoyaltyAccount[]> {
+  const res = await supabase.from("loyalty_accounts").select("*").eq("user_id", userId);
+  return mustHaveData(res, "listLoyaltyAccountsForUser").map(toAppLoyaltyAccount);
+}
+
+export async function linkLoyaltyVenue(args: {
+  userId: string; venueName: string; venueCategory: string; currency: string; spendLimit?: number; cashbackRate?: number;
+}): Promise<AppLoyaltyAccount> {
+  const res = await supabase.rpc("link_loyalty_venue", {
+    p_user_id: args.userId, p_venue_name: args.venueName, p_venue_category: args.venueCategory, p_currency: args.currency,
+    p_spend_limit: args.spendLimit ?? 50000, p_cashback_rate: args.cashbackRate ?? 8,
+  });
+  return toAppLoyaltyAccount(mustHaveData(res, "linkLoyaltyVenue") as Record<string, unknown>);
+}
+
+export async function recordVenueSpend(args: { userId: string; accountId: string; amount: number }): Promise<AppLoyaltyAccount> {
+  const res = await supabase.rpc("record_venue_spend", { p_user_id: args.userId, p_account_id: args.accountId, p_amount: args.amount });
+  return toAppLoyaltyAccount(mustHaveData(res, "recordVenueSpend") as Record<string, unknown>);
+}
+
+export async function redeemLoyaltyReward(args: { userId: string; accountId: string; pointsCost: number; rewardLabel: string }): Promise<AppLoyaltyAccount> {
+  const res = await supabase.rpc("redeem_loyalty_reward", {
+    p_user_id: args.userId, p_account_id: args.accountId, p_points_cost: args.pointsCost, p_reward_label: args.rewardLabel,
+  });
+  return toAppLoyaltyAccount(mustHaveData(res, "redeemLoyaltyReward") as Record<string, unknown>);
+}
+
+export interface AppExpenseReport {
+  id: string; userId: string; title: string; amount: number; currency: string; category: string;
+  status: "pending" | "approved" | "rejected"; employeeName: string | null; project: string | null; submittedAt: string;
+}
+
+function toAppExpenseReport(r: Record<string, unknown>): AppExpenseReport {
+  return {
+    id: r.id as string, userId: r.user_id as string, title: r.title as string, amount: Number(r.amount), currency: r.currency as string,
+    category: r.category as string, status: r.status as AppExpenseReport["status"], employeeName: (r.employee_name as string) ?? null,
+    project: (r.project as string) ?? null, submittedAt: r.submitted_at as string,
+  };
+}
+
+export async function listExpenseReportsForUser(userId: string): Promise<AppExpenseReport[]> {
+  const res = await supabase.from("expense_reports").select("*").eq("user_id", userId).order("submitted_at", { ascending: false });
+  return mustHaveData(res, "listExpenseReportsForUser").map(toAppExpenseReport);
+}
+
+export async function submitExpenseReport(args: {
+  userId: string; title: string; amount: number; currency: string; category: string; project?: string; employeeName?: string;
+}): Promise<AppExpenseReport> {
+  const res = await supabase.rpc("submit_expense_report", {
+    p_user_id: args.userId, p_title: args.title, p_amount: args.amount, p_currency: args.currency, p_category: args.category,
+    p_project: args.project ?? null, p_employee_name: args.employeeName ?? null,
+  });
+  return toAppExpenseReport(mustHaveData(res, "submitExpenseReport") as Record<string, unknown>);
+}
+
+export interface AppCorporateCard {
+  id: string; ownerUserId: string; holderName: string; role: string; limitAmount: number; spentAmount: number; currency: string;
+}
+
+function toAppCorporateCard(r: Record<string, unknown>): AppCorporateCard {
+  return {
+    id: r.id as string, ownerUserId: r.owner_user_id as string, holderName: r.holder_name as string, role: r.role as string,
+    limitAmount: Number(r.limit_amount), spentAmount: Number(r.spent_amount), currency: r.currency as string,
+  };
+}
+
+export async function listCorporateCardsForUser(ownerUserId: string): Promise<AppCorporateCard[]> {
+  const res = await supabase.from("corporate_cards").select("*").eq("owner_user_id", ownerUserId);
+  return mustHaveData(res, "listCorporateCardsForUser").map(toAppCorporateCard);
+}
+
+export async function createCorporateCard(args: {
+  ownerUserId: string; holderName: string; role: string; limitAmount: number; currency: string;
+}): Promise<AppCorporateCard> {
+  const res = await supabase.rpc("create_corporate_card", {
+    p_owner_user_id: args.ownerUserId, p_holder_name: args.holderName, p_role: args.role, p_limit_amount: args.limitAmount, p_currency: args.currency,
+  });
+  return toAppCorporateCard(mustHaveData(res, "createCorporateCard") as Record<string, unknown>);
+}
+
+export interface AppTravelInstallment { id: string; planId: string; seq: number; amount: number; currency: string; dueDate: string; status: "pending" | "paid" }
+export interface AppTravelInstallmentPlan { id: string; bookingId: string; userId: string; totalAmount: number; currency: string; feeAmount: number }
+
+function toAppTravelInstallmentPlan(r: Record<string, unknown>): AppTravelInstallmentPlan {
+  return {
+    id: r.id as string, bookingId: r.booking_id as string, userId: r.user_id as string,
+    totalAmount: Number(r.total_amount), currency: r.currency as string, feeAmount: Number(r.fee_amount),
+  };
+}
+
+export async function bookTravelItemInstallments(args: { userId: string; kind: "flight" | "hotel"; itemId: string; note?: string }): Promise<AppTravelInstallmentPlan> {
+  const res = await supabase.rpc("book_travel_item_installments", { p_user_id: args.userId, p_kind: args.kind, p_item_id: args.itemId, p_note: args.note ?? null });
+  return toAppTravelInstallmentPlan(mustHaveData(res, "bookTravelItemInstallments") as Record<string, unknown>);
+}
+
+export async function listTravelInstallments(planId: string): Promise<AppTravelInstallment[]> {
+  const res = await supabase.from("travel_installments").select("*").eq("plan_id", planId).order("seq");
+  return mustHaveData(res, "listTravelInstallments").map((r) => ({
+    id: r.id, planId: r.plan_id, seq: r.seq, amount: Number(r.amount), currency: r.currency, dueDate: r.due_date, status: r.status,
+  }));
+}
+
+export interface AppLeaderboardRow { userId: string; username: string | null; pitchesCount: number; avgReturnPct: number; totalXaf: number }
+
+export async function getInvestorLeaderboard(limit = 20): Promise<AppLeaderboardRow[]> {
+  const res = await supabase.rpc("get_investor_leaderboard", { p_limit: limit });
+  return mustHaveData(res, "getInvestorLeaderboard").map((r: Record<string, unknown>) => ({
+    userId: r.user_id as string, username: r.username as string | null, pitchesCount: Number(r.pitches_count),
+    avgReturnPct: Number(r.avg_return_pct), totalXaf: Number(r.total_xaf),
+  }));
 }

@@ -20,9 +20,13 @@ import { Button } from "@/components/ui/button.tsx";
 import { useCurrentAppUser } from "@/hooks/use-current-app-user.ts";
 import {
   useContributeToPotMutation, useContributeToTontineMutation, useCreateSavingsPotMutation, useInvestInProductMutation,
-  useInvestmentProducts, useJoinTontineMutation, useSavingsPotsForUser, useTontineCircles,
+  useInvestmentProducts, useJoinTontineMutation, useSavingsPotsForUser, useTontineCircles, useCreateTontineCircleMutation,
+  useLoyaltyAccountsForUser, useLinkLoyaltyVenueMutation, useRecordVenueSpendMutation, useRedeemLoyaltyRewardMutation,
+  useExpenseReportsForUser, useSubmitExpenseReportMutation, useCorporateCardsForUser, useCreateCorporateCardMutation,
 } from "@/hooks/use-backend.ts";
-import type { AppInvestmentProduct, AppSavingsPot, AppTontineCircle } from "@/lib/backend.ts";
+import type {
+  AppInvestmentProduct, AppSavingsPot, AppTontineCircle, AppLoyaltyAccount, AppExpenseReport, AppCorporateCard,
+} from "@/lib/backend.ts";
 
 /* ─── Types ─────────────────────────────────────────────────── */
 
@@ -129,6 +133,41 @@ function toDisplayProduct(p: AppInvestmentProduct): InvestmentProduct {
     id: p.id, name: p.name, type: "fixed_term", description: p.description ?? "", apy: p.apy, minAmount: p.minAmount,
     currency: p.currency, duration: p.duration ?? "", risk: p.risk, flag: "💰", color: "from-primary to-emerald-400",
   };
+}
+
+const LOYALTY_REWARD_TEMPLATE = [
+  { label: "savings.reward.smallPerk", points: 1000, icon: Gift },
+  { label: "savings.reward.mediumPerk", points: 3000, icon: Star },
+  { label: "savings.reward.bigPerk", points: 8000, icon: Trophy },
+];
+
+// Real loyalty accounts (0019) don't carry a specific emoji/gradient/
+// reward catalog/spend-history — generic defaults, same toDisplayX()
+// pattern. The month-by-month spend chart stays flat/decorative for real
+// accounts: only a running `monthlySpend` counter exists, not
+// month-bucketed history.
+function toDisplayLoyaltyPot(a: AppLoyaltyAccount): LoyaltyPot {
+  const category = (["restaurant", "bar", "club", "pub", "hotel", "cafe"].includes(a.venueCategory) ? a.venueCategory : "restaurant") as VenueCategory;
+  return {
+    id: a.id, venueName: a.venueName, venueCategory: category, points: a.points, pointsValue: a.pointsValue,
+    currency: a.currency, monthlySpend: a.monthlySpend, spendLimit: a.spendLimit, cashbackRate: a.cashbackRate,
+    nextReward: Math.max(1000, Math.ceil((a.points + 1) / 1000) * 1000), color: "from-primary to-emerald-400", emoji: "🏪",
+    rewardOptions: LOYALTY_REWARD_TEMPLATE,
+    monthHistory: [{ m: "This month", spend: a.monthlySpend }],
+  };
+}
+
+function toDisplayExpense(e: AppExpenseReport): ExpenseReport {
+  return {
+    id: e.id, title: e.title, date: new Date(e.submittedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
+    amount: e.amount, currency: e.currency, category: (["transport", "meals", "hotel", "fuel"].includes(e.category) ? e.category : "other") as ExpenseReport["category"],
+    status: e.status === "pending" ? "pending" : e.status === "approved" ? "approved" : "rejected",
+    employee: e.employeeName ?? "—", project: e.project ?? "—",
+  };
+}
+
+function toDisplayCard(c: AppCorporateCard): CorporateCard {
+  return { id: c.id, holder: c.holderName, role: c.role, limit: c.limitAmount, spent: c.spentAmount, currency: c.currency, color: "from-primary to-emerald-400" };
 }
 
 const growthData = [
@@ -514,6 +553,201 @@ function NewPotModal({ open, onClose, onCreate }: {
   );
 }
 
+/* ─── New Tontine Circle Modal ────────────────────────────────── */
+
+function NewCircleModal({ currency, creating, onCreate, onClose }: {
+  currency: string; creating: boolean; onCreate: (args: { name: string; potAmount: number; frequency: "weekly" | "monthly"; totalRounds: number }) => void; onClose: () => void;
+}) {
+  const { t } = useTranslation("common");
+  const [name, setName] = useState("");
+  const [potAmount, setPotAmount] = useState("");
+  const [frequency, setFrequency] = useState<"weekly" | "monthly">("monthly");
+  const [totalRounds, setTotalRounds] = useState("10");
+
+  const valid = !!name && Number(potAmount) > 0 && Number(totalRounds) > 0;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={onClose}>
+      <motion.div initial={{ opacity: 0, y: 40, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 40, scale: 0.97 }}
+        transition={{ duration: 0.22, ease: "easeOut" as const }}
+        className="bg-card border border-border rounded-2xl w-full max-w-md shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        <div className="p-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="font-bold text-sm">{t("savings.createCircle")}</h3>
+            <button onClick={onClose} className="text-muted-foreground hover:text-foreground cursor-pointer"><X size={18} /></button>
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground mb-1 block">{t("savings.circleNameLabel")}</label>
+            <Input value={name} onChange={e => setName(e.target.value)} placeholder={t("savings.circleNamePlaceholder")} />
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground mb-1 block">{t("savings.amountLabel", { currency })}</label>
+            <Input type="number" placeholder="0" value={potAmount} onChange={e => setPotAmount(e.target.value)} className="font-mono" />
+          </div>
+          <div className="flex gap-2">
+            {(["weekly", "monthly"] as const).map(f => (
+              <button key={f} onClick={() => setFrequency(f)}
+                className={cn("flex-1 py-2 rounded-xl text-xs font-bold border capitalize transition-colors cursor-pointer",
+                  frequency === f ? "bg-primary text-primary-foreground border-primary" : "bg-secondary border-border text-muted-foreground hover:text-foreground")}>
+                {t(f === "weekly" ? "savings.weekly" : "savings.monthly")}
+              </button>
+            ))}
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground mb-1 block">{t("savings.totalRoundsLabel")}</label>
+            <Input type="number" value={totalRounds} onChange={e => setTotalRounds(e.target.value)} className="font-mono" />
+          </div>
+          <Button className="w-full font-bold" disabled={!valid || creating} onClick={() => onCreate({ name, potAmount: Number(potAmount), frequency, totalRounds: Number(totalRounds) })}>
+            {creating ? t("signin.checking") : t("savings.createCircle")}
+          </Button>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
+/* ─── Link Venue Modal ────────────────────────────────────────── */
+
+function LinkVenueModal({ creating, onCreate, onClose }: {
+  creating: boolean; onCreate: (args: { venueName: string; venueCategory: VenueCategory }) => void; onClose: () => void;
+}) {
+  const { t } = useTranslation("common");
+  const [venueName, setVenueName] = useState("");
+  const [venueCategory, setVenueCategory] = useState<VenueCategory>("restaurant");
+  const categories: VenueCategory[] = ["restaurant", "bar", "club", "pub", "hotel", "cafe"];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={onClose}>
+      <motion.div initial={{ opacity: 0, y: 40, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 40, scale: 0.97 }}
+        transition={{ duration: 0.22, ease: "easeOut" as const }}
+        className="bg-card border border-border rounded-2xl w-full max-w-md shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        <div className="p-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="font-bold text-sm">{t("savings.linkVenue")}</h3>
+            <button onClick={onClose} className="text-muted-foreground hover:text-foreground cursor-pointer"><X size={18} /></button>
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground mb-1 block">{t("savings.venueNameLabel")}</label>
+            <Input value={venueName} onChange={e => setVenueName(e.target.value)} placeholder={t("savings.venueNamePlaceholder")} />
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            {categories.map(c => {
+              const Icon = VENUE_ICONS[c];
+              return (
+                <button key={c} onClick={() => setVenueCategory(c)}
+                  className={cn("flex flex-col items-center gap-1 py-2.5 rounded-xl border text-[10px] font-semibold capitalize cursor-pointer transition-colors",
+                    venueCategory === c ? "bg-primary/10 border-primary text-primary" : "bg-secondary border-border text-muted-foreground hover:text-foreground")}>
+                  <Icon size={14} /> {c}
+                </button>
+              );
+            })}
+          </div>
+          <Button className="w-full font-bold" disabled={!venueName || creating} onClick={() => onCreate({ venueName, venueCategory })}>
+            {creating ? t("signin.checking") : t("savings.linkVenue")}
+          </Button>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
+/* ─── New Corporate Card Modal ────────────────────────────────── */
+
+function NewCardModal({ currency, creating, onCreate, onClose }: {
+  currency: string; creating: boolean; onCreate: (args: { holderName: string; role: string; limitAmount: number }) => void; onClose: () => void;
+}) {
+  const { t } = useTranslation("common");
+  const [holderName, setHolderName] = useState("");
+  const [role, setRole] = useState("");
+  const [limitAmount, setLimitAmount] = useState("");
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={onClose}>
+      <motion.div initial={{ opacity: 0, y: 40, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 40, scale: 0.97 }}
+        transition={{ duration: 0.22, ease: "easeOut" as const }}
+        className="bg-card border border-border rounded-2xl w-full max-w-md shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        <div className="p-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="font-bold text-sm">{t("savings.newCard")}</h3>
+            <button onClick={onClose} className="text-muted-foreground hover:text-foreground cursor-pointer"><X size={18} /></button>
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground mb-1 block">{t("savings.cardHolderLabel")}</label>
+            <Input value={holderName} onChange={e => setHolderName(e.target.value)} placeholder={t("savings.cardHolderPlaceholder")} />
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground mb-1 block">{t("savings.cardRoleLabel")}</label>
+            <Input value={role} onChange={e => setRole(e.target.value)} placeholder={t("savings.cardRolePlaceholder")} />
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground mb-1 block">{t("savings.cardLimitLabel", { currency })}</label>
+            <Input type="number" value={limitAmount} onChange={e => setLimitAmount(e.target.value)} className="font-mono" />
+          </div>
+          <Button className="w-full font-bold" disabled={!holderName || !role || Number(limitAmount) <= 0 || creating}
+            onClick={() => onCreate({ holderName, role, limitAmount: Number(limitAmount) })}>
+            {creating ? t("signin.checking") : t("savings.newCard")}
+          </Button>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
+/* ─── Submit Expense Report Modal ─────────────────────────────── */
+
+function SubmitExpenseModal({ currency, submitting, onSubmit, onClose }: {
+  currency: string; submitting: boolean; onSubmit: (args: { title: string; amount: number; category: ExpenseReport["category"]; project: string }) => void; onClose: () => void;
+}) {
+  const { t } = useTranslation("common");
+  const [title, setTitle] = useState("");
+  const [amount, setAmount] = useState("");
+  const [category, setCategory] = useState<ExpenseReport["category"]>("transport");
+  const [project, setProject] = useState("");
+  const categories: ExpenseReport["category"][] = ["transport", "meals", "hotel", "fuel", "other"];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={onClose}>
+      <motion.div initial={{ opacity: 0, y: 40, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 40, scale: 0.97 }}
+        transition={{ duration: 0.22, ease: "easeOut" as const }}
+        className="bg-card border border-border rounded-2xl w-full max-w-md shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        <div className="p-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="font-bold text-sm">{t("savings.submit")}</h3>
+            <button onClick={onClose} className="text-muted-foreground hover:text-foreground cursor-pointer"><X size={18} /></button>
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground mb-1 block">{t("savings.expenseTitleLabel")}</label>
+            <Input value={title} onChange={e => setTitle(e.target.value)} placeholder={t("savings.expenseTitlePlaceholder")} />
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground mb-1 block">{t("savings.amountLabel", { currency })}</label>
+            <Input type="number" value={amount} onChange={e => setAmount(e.target.value)} className="font-mono" />
+          </div>
+          <div className="flex gap-2 flex-wrap">
+            {categories.map(c => {
+              const cfg = EXPENSE_CATEGORIES[c];
+              return (
+                <button key={c} onClick={() => setCategory(c)}
+                  className={cn("flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-xl border transition-colors cursor-pointer",
+                    category === c ? "bg-primary text-primary-foreground border-primary" : "bg-secondary border-border text-muted-foreground hover:text-foreground")}>
+                  <cfg.icon size={11} /> {t(cfg.labelKey)}
+                </button>
+              );
+            })}
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground mb-1 block">{t("savings.expenseProjectLabel")}</label>
+            <Input value={project} onChange={e => setProject(e.target.value)} placeholder={t("savings.expenseProjectPlaceholder")} />
+          </div>
+          <Button className="w-full font-bold" disabled={!title || Number(amount) <= 0 || submitting} onClick={() => onSubmit({ title, amount: Number(amount), category, project })}>
+            {submitting ? t("signin.checking") : t("savings.submit")}
+          </Button>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
 /* ─── Loyalty & Corporate T&E Types ─────────────────────────── */
 
 type VenueCategory = "restaurant" | "bar" | "club" | "pub" | "hotel" | "cafe";
@@ -655,7 +889,9 @@ const EXPENSE_CATEGORIES: Record<ExpenseReport["category"], { labelKey: string; 
 
 /* ─── Loyalty sub-components ─────────────────────────────────── */
 
-function LoyaltyCard({ pot, index }: { pot: LoyaltyPot; index: number }) {
+function LoyaltyCard({ pot, index, onSpend, onRedeem }: {
+  pot: LoyaltyPot; index: number; onSpend: (pot: LoyaltyPot) => void; onRedeem: (pot: LoyaltyPot, reward: LoyaltyPot["rewardOptions"][number]) => void;
+}) {
   const { t } = useTranslation("common");
   const [expanded, setExpanded] = useState(false);
   const VenueIcon = VENUE_ICONS[pot.venueCategory];
@@ -738,13 +974,21 @@ function LoyaltyCard({ pot, index }: { pot: LoyaltyPot; index: number }) {
           </div>
         </div>
 
+        {/* Spend here */}
+        <button
+          onClick={() => onSpend(pot)}
+          className="w-full mb-3 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-primary/10 border border-primary/25 text-primary text-xs font-bold cursor-pointer hover:bg-primary/15 transition-colors"
+        >
+          <CreditCard size={12} /> {t("savings.spendHere")}
+        </button>
+
         {/* Reward options */}
         <div className="flex gap-2 overflow-x-auto pb-0.5">
           {pot.rewardOptions.map(r => (
             <button
               key={r.label}
               disabled={pot.points < r.points}
-              onClick={() => toast.success(t("savings.rewardRedeemed", { label: t(r.label) }))}
+              onClick={() => onRedeem(pot, r)}
               className={cn(
                 "shrink-0 flex items-center gap-1.5 text-[10px] font-bold px-3 py-2 rounded-xl border transition-colors cursor-pointer",
                 pot.points >= r.points
@@ -915,6 +1159,16 @@ export default function SavingsPage() {
   const joinTontineMutation = useJoinTontineMutation();
   const contributeToTontineMutation = useContributeToTontineMutation();
   const investInProductMutation = useInvestInProductMutation();
+  const createTontineCircleMutation = useCreateTontineCircleMutation();
+
+  const realLoyalty = useLoyaltyAccountsForUser(currentUser?.id);
+  const realExpenses = useExpenseReportsForUser(currentUser?.id);
+  const realCards = useCorporateCardsForUser(currentUser?.id);
+  const linkLoyaltyVenueMutation = useLinkLoyaltyVenueMutation();
+  const recordVenueSpendMutation = useRecordVenueSpendMutation();
+  const redeemLoyaltyRewardMutation = useRedeemLoyaltyRewardMutation();
+  const submitExpenseReportMutation = useSubmitExpenseReportMutation();
+  const createCorporateCardMutation = useCreateCorporateCardMutation();
 
   // Real data once signed in with something to show; anonymous/no-data
   // visitors keep the existing rich mock catalog — same fallback
@@ -922,10 +1176,16 @@ export default function SavingsPage() {
   const hasRealPots = !!currentUser && !!realPots && realPots.length > 0;
   const hasRealTontines = !!currentUser && !!realTontines && realTontines.length > 0;
   const hasRealProducts = !!currentUser && !!realProducts && realProducts.length > 0;
+  const hasRealLoyalty = !!currentUser && !!realLoyalty && realLoyalty.length > 0;
+  const hasRealExpenses = !!currentUser && !!realExpenses && realExpenses.length > 0;
+  const hasRealCards = !!currentUser && !!realCards && realCards.length > 0;
 
   const displayPots: SavingsPot[] = hasRealPots ? realPots.map(toDisplayPot) : MY_POTS;
   const displayTontines: TontineCircle[] = hasRealTontines ? realTontines.map((c) => toDisplayTontine(c, 0)) : TONTINES;
   const displayProducts: InvestmentProduct[] = hasRealProducts ? realProducts.map(toDisplayProduct) : INVESTMENT_PRODUCTS;
+  const displayLoyalty: LoyaltyPot[] = hasRealLoyalty ? realLoyalty.map(toDisplayLoyaltyPot) : LOYALTY_POTS;
+  const displayExpenses: ExpenseReport[] = hasRealExpenses ? realExpenses.map(toDisplayExpense) : EXPENSE_REPORTS;
+  const displayCards: CorporateCard[] = hasRealCards ? realCards.map(toDisplayCard) : CORPORATE_CARDS;
 
   const totalSaved = displayPots.reduce((s, p) => s + p.current, 0);
   const totalTarget = displayPots.reduce((s, p) => s + p.target, 0);
@@ -981,10 +1241,125 @@ export default function SavingsPage() {
     toast.success(t("savings.potCreated", { name: args.name }));
   }
 
-  const totalLoyaltyPoints = LOYALTY_POTS.reduce((s, p) => s + p.points, 0);
-  const totalLoyaltyCash = LOYALTY_POTS.reduce((s, p) => s + p.points * p.pointsValue, 0);
-  const totalExpenses = EXPENSE_REPORTS.reduce((s, e) => s + e.amount, 0);
-  const pendingExpenses = EXPENSE_REPORTS.filter(e => e.status === "pending").reduce((s, e) => s + e.amount, 0);
+  const [newCircleOpen, setNewCircleOpen] = useState(false);
+  const [creatingCircle, setCreatingCircle] = useState(false);
+  async function handleCreateCircle(args: { name: string; potAmount: number; frequency: "weekly" | "monthly"; totalRounds: number }) {
+    if (!currentUser) {
+      toast.success(t("savings.circleCreated", { name: args.name }));
+      setNewCircleOpen(false);
+      return;
+    }
+    setCreatingCircle(true);
+    try {
+      await createTontineCircleMutation({ ownerUserId: currentUser.id, name: args.name, currency, potAmount: args.potAmount, frequency: args.frequency, totalRounds: args.totalRounds });
+      toast.success(t("savings.circleCreated", { name: args.name }));
+      setNewCircleOpen(false);
+    } catch {
+      toast.error(t("savings.circleCreationFailed"));
+    } finally {
+      setCreatingCircle(false);
+    }
+  }
+
+  const [linkVenueOpen, setLinkVenueOpen] = useState(false);
+  const [linkingVenue, setLinkingVenue] = useState(false);
+  async function handleLinkVenue(args: { venueName: string; venueCategory: VenueCategory }) {
+    if (!currentUser) {
+      toast.success(t("savings.venueLinked", { name: args.venueName }));
+      setLinkVenueOpen(false);
+      return;
+    }
+    setLinkingVenue(true);
+    try {
+      await linkLoyaltyVenueMutation({ userId: currentUser.id, venueName: args.venueName, venueCategory: args.venueCategory, currency });
+      toast.success(t("savings.venueLinked", { name: args.venueName }));
+      setLinkVenueOpen(false);
+    } catch {
+      toast.error(t("savings.venueLinkFailed"));
+    } finally {
+      setLinkingVenue(false);
+    }
+  }
+
+  const [spendingAt, setSpendingAt] = useState<LoyaltyPot | null>(null);
+  const [spending, setSpending] = useState(false);
+  async function handleConfirmSpend(amount: number) {
+    if (!spendingAt) return;
+    const pot = spendingAt;
+    if (!currentUser || !hasRealLoyalty) {
+      toast.success(t("savings.spendRecorded", { currency: pot.currency, amount: amount.toLocaleString(), name: pot.venueName }));
+      setSpendingAt(null);
+      return;
+    }
+    setSpending(true);
+    try {
+      await recordVenueSpendMutation({ userId: currentUser.id, accountId: pot.id, amount });
+      toast.success(t("savings.spendRecorded", { currency: pot.currency, amount: amount.toLocaleString(), name: pot.venueName }));
+      setSpendingAt(null);
+    } catch {
+      toast.error(t("savings.spendFailed"));
+    } finally {
+      setSpending(false);
+    }
+  }
+
+  async function handleRedeem(pot: LoyaltyPot, reward: LoyaltyPot["rewardOptions"][number]) {
+    if (!currentUser || !hasRealLoyalty) {
+      toast.success(t("savings.rewardRedeemed", { label: t(reward.label) }));
+      return;
+    }
+    try {
+      await redeemLoyaltyRewardMutation({ userId: currentUser.id, accountId: pot.id, pointsCost: reward.points, rewardLabel: t(reward.label) });
+      toast.success(t("savings.rewardRedeemed", { label: t(reward.label) }));
+    } catch {
+      toast.error(t("savings.rewardRedeemFailed"));
+    }
+  }
+
+  const [newCardOpen, setNewCardOpen] = useState(false);
+  const [creatingCard, setCreatingCard] = useState(false);
+  async function handleCreateCard(args: { holderName: string; role: string; limitAmount: number }) {
+    if (!currentUser) {
+      toast.success(t("savings.cardCreated", { name: args.holderName }));
+      setNewCardOpen(false);
+      return;
+    }
+    setCreatingCard(true);
+    try {
+      await createCorporateCardMutation({ ownerUserId: currentUser.id, holderName: args.holderName, role: args.role, limitAmount: args.limitAmount, currency });
+      toast.success(t("savings.cardCreated", { name: args.holderName }));
+      setNewCardOpen(false);
+    } catch {
+      toast.error(t("savings.cardCreationFailed"));
+    } finally {
+      setCreatingCard(false);
+    }
+  }
+
+  const [submitExpenseOpen, setSubmitExpenseOpen] = useState(false);
+  const [submittingExpense, setSubmittingExpense] = useState(false);
+  async function handleSubmitExpense(args: { title: string; amount: number; category: ExpenseReport["category"]; project: string }) {
+    if (!currentUser) {
+      toast.success(t("savings.expenseSubmitted", { title: args.title }));
+      setSubmitExpenseOpen(false);
+      return;
+    }
+    setSubmittingExpense(true);
+    try {
+      await submitExpenseReportMutation({ userId: currentUser.id, title: args.title, amount: args.amount, currency, category: args.category, project: args.project || undefined });
+      toast.success(t("savings.expenseSubmitted", { title: args.title }));
+      setSubmitExpenseOpen(false);
+    } catch {
+      toast.error(t("savings.expenseSubmitFailed"));
+    } finally {
+      setSubmittingExpense(false);
+    }
+  }
+
+  const totalLoyaltyPoints = displayLoyalty.reduce((s, p) => s + p.points, 0);
+  const totalLoyaltyCash = displayLoyalty.reduce((s, p) => s + p.points * p.pointsValue, 0);
+  const totalExpenses = displayExpenses.reduce((s, e) => s + e.amount, 0);
+  const pendingExpenses = displayExpenses.filter(e => e.status === "pending").reduce((s, e) => s + e.amount, 0);
 
   const isCorporate = profile && ["merchant", "treasury", "ngo", "group"].includes(profile.type);
 
@@ -1147,7 +1522,7 @@ export default function SavingsPage() {
                 <h2 className="text-sm font-bold text-foreground">{t("savings.savingsCircles", { count: displayTontines.length })}</h2>
                 <p className="text-[10px] text-muted-foreground">{t("savings.tontineSubtitle")}</p>
               </div>
-              <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary/10 border border-primary/20 text-xs font-semibold text-primary cursor-pointer hover:bg-primary/15 transition-colors">
+              <button onClick={() => setNewCircleOpen(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary/10 border border-primary/20 text-xs font-semibold text-primary cursor-pointer hover:bg-primary/15 transition-colors">
                 <Plus size={12} /> {t("savings.createCircle")}
               </button>
             </div>
@@ -1267,16 +1642,18 @@ export default function SavingsPage() {
             </div>
 
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-bold text-foreground">{t("savings.myVenues", { count: LOYALTY_POTS.length })}</h2>
+              <h2 className="text-sm font-bold text-foreground">{t("savings.myVenues", { count: displayLoyalty.length })}</h2>
               <button
-                onClick={() => toast.info(t("savings.linkVenueComingSoon"))}
+                onClick={() => setLinkVenueOpen(true)}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary/10 border border-primary/20 text-xs font-semibold text-primary cursor-pointer hover:bg-primary/15 transition-colors"
               >
                 <Plus size={12} /> {t("savings.linkVenue")}
               </button>
             </div>
 
-            {LOYALTY_POTS.map((pot, i) => <LoyaltyCard key={pot.id} pot={pot} index={i} />)}
+            {displayLoyalty.map((pot, i) => (
+              <LoyaltyCard key={pot.id} pot={pot} index={i} onSpend={(p) => setSpendingAt(p)} onRedeem={handleRedeem} />
+            ))}
 
             {/* Tip */}
             <div className="bg-card border border-border rounded-2xl p-4 space-y-2">
@@ -1331,16 +1708,16 @@ export default function SavingsPage() {
             {/* Corporate cards */}
             <div>
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-bold">{t("savings.employeeCards", { count: CORPORATE_CARDS.length })}</h3>
+                <h3 className="text-sm font-bold">{t("savings.employeeCards", { count: displayCards.length })}</h3>
                 <button
-                  onClick={() => toast.info(t("savings.newCardComingSoon"))}
+                  onClick={() => setNewCardOpen(true)}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary/10 border border-primary/20 text-xs font-semibold text-primary cursor-pointer hover:bg-primary/15 transition-colors"
                 >
                   <Plus size={12} /> {t("savings.newCard")}
                 </button>
               </div>
               <div className="grid md:grid-cols-3 gap-3">
-                {CORPORATE_CARDS.map((card, i) => <CorporateCardWidget key={card.id} card={card} index={i} />)}
+                {displayCards.map((card, i) => <CorporateCardWidget key={card.id} card={card} index={i} />)}
               </div>
             </div>
 
@@ -1370,13 +1747,13 @@ export default function SavingsPage() {
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-sm font-bold">{t("savings.recentReports")}</h3>
                 <button
-                  onClick={() => toast.info(t("savings.submitReportComingSoon"))}
+                  onClick={() => setSubmitExpenseOpen(true)}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary/10 border border-primary/20 text-xs font-semibold text-primary cursor-pointer hover:bg-primary/15 transition-colors"
                 >
                   <Plus size={12} /> {t("savings.submit")}
                 </button>
               </div>
-              {EXPENSE_REPORTS.map(exp => <ExpenseRow key={exp.id} exp={exp} />)}
+              {displayExpenses.map(exp => <ExpenseRow key={exp.id} exp={exp} />)}
             </div>
 
             {/* Policy info */}
@@ -1403,6 +1780,33 @@ export default function SavingsPage() {
           onConfirm={handleConfirmContribute}
           onClose={() => setContributing(null)}
         />
+      )}
+
+      {newCircleOpen && (
+        <NewCircleModal currency={currency} creating={creatingCircle} onCreate={handleCreateCircle} onClose={() => setNewCircleOpen(false)} />
+      )}
+
+      {linkVenueOpen && (
+        <LinkVenueModal creating={linkingVenue} onCreate={handleLinkVenue} onClose={() => setLinkVenueOpen(false)} />
+      )}
+
+      {spendingAt && (
+        <ContributeModal
+          title={`${t("savings.spendHere")} — ${spendingAt.venueName}`}
+          currency={spendingAt.currency}
+          presets={presetsFor()}
+          confirming={spending}
+          onConfirm={handleConfirmSpend}
+          onClose={() => setSpendingAt(null)}
+        />
+      )}
+
+      {newCardOpen && (
+        <NewCardModal currency={currency} creating={creatingCard} onCreate={handleCreateCard} onClose={() => setNewCardOpen(false)} />
+      )}
+
+      {submitExpenseOpen && (
+        <SubmitExpenseModal currency={currency} submitting={submittingExpense} onSubmit={handleSubmitExpense} onClose={() => setSubmitExpenseOpen(false)} />
       )}
     </div>
   );

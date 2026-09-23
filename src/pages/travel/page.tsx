@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils.ts";
 import { PayRusLogo } from "@/pages/layout/AppLayout.tsx";
 import { toast } from "sonner";
 import { useCurrentAppUser } from "@/hooks/use-current-app-user.ts";
-import { useBookTravelItemMutation, useFlights, useHotels } from "@/hooks/use-backend.ts";
+import { useBookTravelItemMutation, useBookTravelItemInstallmentsMutation, useFlights, useHotels } from "@/hooks/use-backend.ts";
 import type { AppFlight, AppHotel } from "@/lib/backend.ts";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -318,16 +318,36 @@ interface SplitPaymentModalProps {
   price: number;
   currency: string;
   item: string;
+  flightId: string;
+  isReal: boolean;
+  currentUserId: string | undefined;
+  onBookInstallments: (args: { userId: string; kind: "flight"; itemId: string; note?: string }) => Promise<{ id: string }>;
   onClose: () => void;
 }
 
-function SplitPaymentModal({ price, currency, item, onClose }: SplitPaymentModalProps) {
+function SplitPaymentModal({ price, currency, item, flightId, isReal, currentUserId, onBookInstallments, onClose }: SplitPaymentModalProps) {
   const { t } = useTranslation("common");
   const [step, setStep] = useState<"choose" | "confirm" | "success">("choose");
+  const [booking, setBooking] = useState(false);
+  const [reference, setReference] = useState(() => "PYR-" + Math.random().toString(36).slice(2, 8).toUpperCase());
   const term1 = Math.round(price * 0.34);
   const term2 = Math.round(price * 0.33);
   const term3 = price - term1 - term2;
   const fee = Math.round(price * 0.025);
+
+  async function handleConfirm() {
+    if (!isReal || !currentUserId) { setStep("success"); return; }
+    setBooking(true);
+    try {
+      const plan = await onBookInstallments({ userId: currentUserId, kind: "flight", itemId: flightId, note: item });
+      setReference("PYR-" + plan.id.slice(0, 8).toUpperCase());
+      setStep("success");
+    } catch {
+      toast.error(t("travel.splitPayment.bookingFailed"));
+    } finally {
+      setBooking(false);
+    }
+  }
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -401,9 +421,9 @@ function SplitPaymentModal({ price, currency, item, onClose }: SplitPaymentModal
               <div className="text-sm text-muted-foreground">{t("travel.splitPayment.confirmInitialLabel")}</div>
               <div className="text-3xl font-black text-primary font-mono text-center py-4">{formatCurrency(term1 + fee, currency)}</div>
               <div className="text-[11px] text-muted-foreground text-center">{t("travel.splitPayment.debitedNow")}</div>
-              <button onClick={() => setStep("success")}
-                className="w-full py-3 rounded-2xl bg-primary text-primary-foreground text-sm font-bold cursor-pointer hover:bg-primary/90 transition-colors">
-                {t("travel.splitPayment.payNowButton", { amount: formatCurrency(term1 + fee, currency) })}
+              <button onClick={handleConfirm} disabled={booking}
+                className="w-full py-3 rounded-2xl bg-primary text-primary-foreground text-sm font-bold cursor-pointer hover:bg-primary/90 transition-colors disabled:opacity-60">
+                {booking ? t("signin.checking") : t("travel.splitPayment.payNowButton", { amount: formatCurrency(term1 + fee, currency) })}
               </button>
               <button onClick={() => setStep("choose")} className="w-full text-[12px] text-muted-foreground hover:text-foreground cursor-pointer transition-colors">{t("common.back")}</button>
             </motion.div>
@@ -423,7 +443,7 @@ function SplitPaymentModal({ price, currency, item, onClose }: SplitPaymentModal
               <div className="rounded-2xl bg-secondary/50 p-4 text-left space-y-2">
                 <div className="flex justify-between text-xs">
                   <span className="text-muted-foreground">{t("travel.splitPayment.reference")}</span>
-                  <span className="font-mono font-semibold text-foreground">PYR-{Math.random().toString(36).slice(2, 8).toUpperCase()}</span>
+                  <span className="font-mono font-semibold text-foreground">{reference}</span>
                 </div>
                 <div className="flex justify-between text-xs">
                   <span className="text-muted-foreground">{t("travel.splitPayment.firstInstallment")}</span>
@@ -492,7 +512,7 @@ export default function TravelPage() {
   const { t } = useTranslation("common");
   const [activeTab, setActiveTab] = useState<SearchTab>("flights");
   const [selectedFlight, setSelectedFlight] = useState<Flight | null>(null);
-  const [splitPaymentFor, setSplitPaymentFor] = useState<{ price: number; currency: string; item: string } | null>(null);
+  const [splitPaymentFor, setSplitPaymentFor] = useState<{ price: number; currency: string; item: string; flightId: string } | null>(null);
   const [showReviewForm, setShowReviewForm] = useState(false);
   const [likedItems, setLikedItems] = useState<Set<string>>(new Set());
   const [booking, setBooking] = useState<string | null>(null);
@@ -501,6 +521,7 @@ export default function TravelPage() {
   const realFlights = useFlights();
   const realHotels = useHotels();
   const bookTravelItem = useBookTravelItemMutation();
+  const bookTravelItemInstallments = useBookTravelItemInstallmentsMutation();
 
   // Real catalog once signed in with data to show; anonymous/no-data
   // visitors keep the existing rich mock catalog — same fallback
@@ -758,7 +779,7 @@ export default function TravelPage() {
                           <div className="border-t border-border px-4 pb-4 pt-3 space-y-3">
                             <div className="grid grid-cols-2 gap-3">
                               <button
-                                onClick={e => { e.stopPropagation(); setSplitPaymentFor({ price: flight.price, currency: flight.currency, item: `${flight.airline} · ${flight.origin}→${flight.destination}` }); }}
+                                onClick={e => { e.stopPropagation(); setSplitPaymentFor({ price: flight.price, currency: flight.currency, item: `${flight.airline} · ${flight.origin}→${flight.destination}`, flightId: flight.id }); }}
                                 className="flex items-center justify-center gap-2 py-3 rounded-2xl border-2 border-primary/30 bg-primary/5 text-primary text-sm font-bold cursor-pointer hover:bg-primary/15 transition-colors"
                               >
                                 <CreditCard size={15} /> {t("travel.payInThreeButton")}
@@ -1023,6 +1044,9 @@ export default function TravelPage() {
         {splitPaymentFor && (
           <SplitPaymentModal
             {...splitPaymentFor}
+            isReal={hasRealFlights}
+            currentUserId={currentUser?.id}
+            onBookInstallments={bookTravelItemInstallments}
             onClose={() => setSplitPaymentFor(null)}
           />
         )}

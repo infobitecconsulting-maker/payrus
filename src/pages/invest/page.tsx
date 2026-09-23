@@ -21,8 +21,8 @@ import { Input } from "@/components/ui/input.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import { toast } from "sonner";
 import { useCurrentAppUser } from "@/hooks/use-current-app-user.ts";
-import { usePitches, usePitchInvestmentsForUser, usePitchRepayments, useInvestInPitchMutation } from "@/hooks/use-backend.ts";
-import type { AppPitch, AppPitchInvestment } from "@/lib/backend.ts";
+import { usePitches, usePitchInvestmentsForUser, usePitchRepayments, useInvestInPitchMutation, useCreatePitchMutation, useInvestorLeaderboard } from "@/hooks/use-backend.ts";
+import type { AppPitch, AppPitchInvestment, AppLeaderboardRow } from "@/lib/backend.ts";
 
 // ─── TYPES ────────────────────────────────────────────────────────────────────
 
@@ -1288,13 +1288,42 @@ function PortfolioView({ onBrowse, currentUserId, realInvestments, realPitches }
 
 // ─── LEADERBOARD ──────────────────────────────────────────────────────────────
 
-function LeaderboardView() {
+function formatXafTotal(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M XAF`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(0)}K XAF`;
+  return `${n.toLocaleString()} XAF`;
+}
+
+// Same thresholds the "Investor Levels" card below already states in XAF.
+function levelForXaf(n: number): string {
+  if (n >= 10_000_000) return "Anchor";
+  if (n >= 5_000_000) return "Senior";
+  if (n >= 500_000) return "Growth";
+  return "Starter";
+}
+
+function LeaderboardView({ realLeaderboard, currentUserId }: { realLeaderboard: AppLeaderboardRow[] | undefined; currentUserId: string | undefined }) {
   const levelColor: Record<string, string> = {
     "Anchor": "text-amber-700 bg-amber-50 border-amber-200",
     "Senior": "text-accent-foreground bg-accent/10 border-accent/30",
     "Growth": "text-primary bg-primary/10 border-primary/30",
     "Starter": "text-muted-foreground bg-muted border-border",
   };
+
+  // Real ranking once signed in with at least one real investment on the
+  // books — normalized into XAF via get_investor_leaderboard (0019), same
+  // cross-currency rate formula create_quote() uses. Sector popularity and
+  // collective-impact stats stay decorative below — nothing in the real
+  // schema tracks jobs/households/CO2 per investment.
+  const hasRealLeaderboard = !!currentUserId && !!realLeaderboard && realLeaderboard.length > 0;
+  const displayRows = hasRealLeaderboard
+    ? realLeaderboard.map((r, i) => ({
+        rank: i + 1, name: r.username ?? "Investor", country: r.userId === currentUserId ? "🌍" : "🌍",
+        badge: r.userId === currentUserId ? "👤" : i === 0 ? "🏆" : i === 1 ? "🥈" : i === 2 ? "🥉" : "⭐",
+        total: formatXafTotal(r.totalXaf), pitches: r.pitchesCount, avgReturn: `${r.avgReturnPct}%`, level: levelForXaf(r.totalXaf),
+        isYou: r.userId === currentUserId,
+      }))
+    : LEADERBOARD.map(r => ({ ...r, isYou: r.name === "You" }));
 
   // Top investors by sector bar chart
   const sectorData = [
@@ -1322,17 +1351,17 @@ function LeaderboardView() {
 
       {/* Leaderboard table */}
       <div className="bg-card border border-border rounded-2xl overflow-hidden">
-        {LEADERBOARD.map((inv, i) => (
+        {displayRows.map((inv, i) => (
           <div
             key={inv.rank}
             className={cn(
               "flex items-center gap-3 px-4 py-3 border-b border-border/50 last:border-b-0",
-              inv.name === "You" ? "bg-primary/5" : i < 3 ? "bg-amber-50" : ""
+              inv.isYou ? "bg-primary/5" : i < 3 ? "bg-amber-50" : ""
             )}
           >
             <div className="w-8 text-center text-sm font-black">{inv.badge}</div>
             <div className="flex-1 min-w-0">
-              <div className={cn("font-bold text-sm", inv.name === "You" ? "text-primary" : "text-foreground")}>
+              <div className={cn("font-bold text-sm", inv.isYou ? "text-primary" : "text-foreground")}>
                 {inv.name} <span className="text-base">{inv.country}</span>
               </div>
               <div className="text-[10px] text-muted-foreground">{inv.pitches} ventures backed · avg {inv.avgReturn} return</div>
@@ -1416,7 +1445,10 @@ const SUBMIT_CATEGORIES: { value: SubmitCategory; label: string }[] = [
   { value: "energy", label: "Energy" },
 ];
 
-function SubmitPitch({ onBack }: { onBack: () => void }) {
+function SubmitPitch({ onBack, currentUserId, onSubmit }: {
+  onBack: () => void; currentUserId: string | undefined;
+  onSubmit: (args: { ownerUserId: string; title: string; description: string; founder: string; category: string; goal: number; currency: string; returnPct: number; timelineMonths: number; location?: string }) => Promise<unknown>;
+}) {
   const [form, setForm] = useState({
     title: "",
     description: "",
@@ -1429,14 +1461,34 @@ function SubmitPitch({ onBack }: { onBack: () => void }) {
     impact: "",
   });
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const isReal = !!currentUserId;
 
-  function handleSubmit() {
+  async function handleSubmit() {
     if (!form.title || !form.description || !form.goal || !form.returnPct || !form.timelineMonths) {
       toast.error("Please fill in all required fields");
       return;
     }
-    setSubmitted(true);
-    toast.success("Pitch submitted for review!");
+    if (!isReal || !currentUserId) {
+      setSubmitted(true);
+      toast.success("Pitch submitted for review!");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await onSubmit({
+        ownerUserId: currentUserId, title: form.title,
+        description: form.impact ? `${form.description}\n\nImpact: ${form.impact}` : form.description,
+        founder: form.org || "Independent founder", category: form.category, goal: Number(form.goal), currency: "XAF",
+        returnPct: Number(form.returnPct), timelineMonths: Number(form.timelineMonths), location: form.location || undefined,
+      });
+      setSubmitted(true);
+      toast.success("Pitch submitted!");
+    } catch {
+      toast.error("Couldn't submit the pitch — try again");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   if (submitted) {
@@ -1449,9 +1501,11 @@ function SubmitPitch({ onBack }: { onBack: () => void }) {
         <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring" as const, stiffness: 300, delay: 0.1 }}>
           <CheckCircle size={64} className="text-primary" />
         </motion.div>
-        <h2 className="font-black text-xl">Pitch Submitted!</h2>
+        <h2 className="font-black text-xl">{isReal ? "Pitch Live!" : "Pitch Submitted!"}</h2>
         <p className="text-muted-foreground text-sm max-w-xs">
-          Your investment pitch is under review. Our team will respond within 48 hours once verified and listed on PayRus Invest.
+          {isReal
+            ? "Your venture is now listed on PayRus Invest and open to investors."
+            : "Your investment pitch is under review. Our team will respond within 48 hours once verified and listed on PayRus Invest."}
         </p>
         <div className="bg-secondary/50 border border-border rounded-2xl p-4 text-left w-full max-w-xs space-y-2">
           <div className="text-xs text-muted-foreground">Venture</div>
@@ -1584,8 +1638,8 @@ function SubmitPitch({ onBack }: { onBack: () => void }) {
           </p>
         </div>
 
-        <Button className="w-full font-bold" onClick={handleSubmit}>
-          <Plus size={15} className="mr-2" /> Submit Pitch for Review
+        <Button className="w-full font-bold" onClick={handleSubmit} disabled={submitting}>
+          <Plus size={15} className="mr-2" /> {submitting ? "Submitting…" : "Submit Pitch for Review"}
         </Button>
       </div>
     </motion.div>
@@ -1607,6 +1661,8 @@ export default function InvestPage() {
   const realPitches = usePitches();
   const realInvestments = usePitchInvestmentsForUser(currentUser?.id);
   const investInPitchMutation = useInvestInPitchMutation();
+  const createPitchMutation = useCreatePitchMutation();
+  const realLeaderboard = useInvestorLeaderboard();
 
   // Real catalog once signed in with data to show; anonymous/no-data
   // visitors keep the existing rich mock catalog — same fallback
@@ -1800,14 +1856,14 @@ export default function InvestPage() {
           {/* ── LEADERBOARD ── */}
           {tab === "leaderboard" && (
             <motion.div key="leaderboard" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-              <LeaderboardView />
+              <LeaderboardView realLeaderboard={realLeaderboard} currentUserId={currentUser?.id} />
             </motion.div>
           )}
 
           {/* ── SUBMIT ── */}
           {tab === "submit" && (
             <motion.div key="submit" className="h-full" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-              <SubmitPitch onBack={() => setTab("browse")} />
+              <SubmitPitch onBack={() => setTab("browse")} currentUserId={currentUser?.id} onSubmit={createPitchMutation} />
             </motion.div>
           )}
 
