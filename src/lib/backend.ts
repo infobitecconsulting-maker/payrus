@@ -982,3 +982,240 @@ export async function revokeApiKey(args: { keyId: string; userId: string }): Pro
     status: row.status as AppApiKey["status"], createdAt: row.created_at as string, lastUsedAt: (row.last_used_at as string) ?? null,
   };
 }
+
+// ============================================================================
+// Fundraise — supabase/migrations/0018. Donations reuse applyWalletTransfer
+// internally (inside donate_to_campaign) and atomically bump `raised`.
+// ============================================================================
+
+export interface AppCampaign {
+  id: string;
+  ownerUserId: string;
+  title: string;
+  story: string;
+  category: string;
+  goal: number;
+  currency: string;
+  raised: number;
+  deadline: string | null;
+  createdAt: string;
+}
+
+function toAppCampaign(r: Record<string, unknown>): AppCampaign {
+  return {
+    id: r.id as string, ownerUserId: r.owner_user_id as string, title: r.title as string, story: r.story as string,
+    category: r.category as string, goal: Number(r.goal), currency: r.currency as string, raised: Number(r.raised),
+    deadline: (r.deadline as string) ?? null, createdAt: r.created_at as string,
+  };
+}
+
+export async function listCampaigns(): Promise<AppCampaign[]> {
+  const res = await supabase.from("fundraise_campaigns").select("*").order("created_at", { ascending: false });
+  return mustHaveData(res, "listCampaigns").map(toAppCampaign);
+}
+
+export async function createCampaign(args: {
+  ownerUserId: string; title: string; story: string; category: string; goal: number; currency: string; deadline?: string;
+}): Promise<AppCampaign> {
+  const res = await supabase.rpc("create_campaign", {
+    p_owner_user_id: args.ownerUserId, p_title: args.title, p_story: args.story, p_category: args.category,
+    p_goal: args.goal, p_currency: args.currency, p_deadline: args.deadline ?? null,
+  });
+  return toAppCampaign(mustHaveData(res, "createCampaign") as Record<string, unknown>);
+}
+
+export async function donateToCampaign(args: { userId: string; campaignId: string; amount: number; note?: string }): Promise<AppCampaign> {
+  const res = await supabase.rpc("donate_to_campaign", { p_user_id: args.userId, p_campaign_id: args.campaignId, p_amount: args.amount, p_note: args.note ?? null });
+  return toAppCampaign(mustHaveData(res, "donateToCampaign") as Record<string, unknown>);
+}
+
+// ============================================================================
+// Travel — supabase/migrations/0018. book_travel_item looks up the price
+// server-side, never trusts the client's displayed price.
+// ============================================================================
+
+export interface AppFlight { id: string; airline: string; origin: string; destination: string; departure: string; arrival: string; duration: string; price: number; currency: string; class: string }
+export interface AppHotel { id: string; name: string; location: string; stars: number; pricePerNight: number; currency: string }
+export interface AppTravelBooking { id: string; userId: string; kind: "flight" | "hotel"; itemId: string; amount: number; currency: string; bookedAt: string }
+
+export async function listFlights(): Promise<AppFlight[]> {
+  const res = await supabase.from("travel_flights").select("*");
+  return mustHaveData(res, "listFlights").map((r) => ({
+    id: r.id, airline: r.airline, origin: r.origin, destination: r.destination, departure: r.departure,
+    arrival: r.arrival, duration: r.duration, price: Number(r.price), currency: r.currency, class: r.class,
+  }));
+}
+
+export async function listHotels(): Promise<AppHotel[]> {
+  const res = await supabase.from("travel_hotels").select("*");
+  return mustHaveData(res, "listHotels").map((r) => ({
+    id: r.id, name: r.name, location: r.location, stars: r.stars, pricePerNight: Number(r.price_per_night), currency: r.currency,
+  }));
+}
+
+export async function bookTravelItem(args: { userId: string; kind: "flight" | "hotel"; itemId: string; note?: string }): Promise<AppTravelBooking> {
+  const res = await supabase.rpc("book_travel_item", { p_user_id: args.userId, p_kind: args.kind, p_item_id: args.itemId, p_note: args.note ?? null });
+  const row = mustHaveData(res, "bookTravelItem") as Record<string, unknown>;
+  return {
+    id: row.id as string, userId: row.user_id as string, kind: row.kind as AppTravelBooking["kind"], itemId: row.item_id as string,
+    amount: Number(row.amount), currency: row.currency as string, bookedAt: row.booked_at as string,
+  };
+}
+
+// ============================================================================
+// Savings — supabase/migrations/0018. Pots/tontines/investment products.
+// ============================================================================
+
+export interface AppSavingsPot {
+  id: string; userId: string; name: string; category: string | null; targetAmount: number; currentAmount: number;
+  currency: string; monthlyContrib: number; interestRate: number; dueDate: string | null;
+}
+
+function toAppSavingsPot(r: Record<string, unknown>): AppSavingsPot {
+  return {
+    id: r.id as string, userId: r.user_id as string, name: r.name as string, category: (r.category as string) ?? null,
+    targetAmount: Number(r.target_amount), currentAmount: Number(r.current_amount), currency: r.currency as string,
+    monthlyContrib: Number(r.monthly_contrib ?? 0), interestRate: Number(r.interest_rate ?? 0), dueDate: (r.due_date as string) ?? null,
+  };
+}
+
+export async function listSavingsPotsForUser(userId: string): Promise<AppSavingsPot[]> {
+  const res = await supabase.from("savings_pots").select("*").eq("user_id", userId);
+  return mustHaveData(res, "listSavingsPotsForUser").map(toAppSavingsPot);
+}
+
+export async function createSavingsPot(args: {
+  userId: string; name: string; category?: string; targetAmount: number; currency: string;
+  monthlyContrib?: number; interestRate?: number; dueDate?: string;
+}): Promise<AppSavingsPot> {
+  const res = await supabase.rpc("create_savings_pot", {
+    p_user_id: args.userId, p_name: args.name, p_category: args.category ?? null, p_target_amount: args.targetAmount,
+    p_currency: args.currency, p_monthly_contrib: args.monthlyContrib ?? 0, p_interest_rate: args.interestRate ?? 0, p_due_date: args.dueDate ?? null,
+  });
+  return toAppSavingsPot(mustHaveData(res, "createSavingsPot") as Record<string, unknown>);
+}
+
+export async function contributeToPot(args: { userId: string; potId: string; amount: number }): Promise<AppSavingsPot> {
+  const res = await supabase.rpc("contribute_to_pot", { p_user_id: args.userId, p_pot_id: args.potId, p_amount: args.amount });
+  return toAppSavingsPot(mustHaveData(res, "contributeToPot") as Record<string, unknown>);
+}
+
+export interface AppTontineCircle {
+  id: string; name: string; currency: string; potAmount: number; potBalance: number;
+  frequency: string; totalRounds: number; currentRound: number;
+}
+
+function toAppTontineCircle(r: Record<string, unknown>): AppTontineCircle {
+  return {
+    id: r.id as string, name: r.name as string, currency: r.currency as string, potAmount: Number(r.pot_amount),
+    potBalance: Number(r.pot_balance), frequency: r.frequency as string, totalRounds: r.total_rounds as number, currentRound: r.current_round as number,
+  };
+}
+
+export async function listTontineCircles(): Promise<AppTontineCircle[]> {
+  const res = await supabase.from("tontine_circles").select("*");
+  return mustHaveData(res, "listTontineCircles").map(toAppTontineCircle);
+}
+
+export async function joinTontine(args: { userId: string; circleId: string }): Promise<{ id: string; position: number }> {
+  const res = await supabase.rpc("join_tontine", { p_user_id: args.userId, p_circle_id: args.circleId });
+  const row = mustHaveData(res, "joinTontine") as Record<string, unknown>;
+  return { id: row.id as string, position: row.position as number };
+}
+
+export async function contributeToTontine(args: { userId: string; circleId: string; amount: number }): Promise<AppTontineCircle> {
+  const res = await supabase.rpc("contribute_to_tontine", { p_user_id: args.userId, p_circle_id: args.circleId, p_amount: args.amount });
+  return toAppTontineCircle(mustHaveData(res, "contributeToTontine") as Record<string, unknown>);
+}
+
+export interface AppInvestmentProduct { id: string; name: string; description: string | null; apy: number; minAmount: number; currency: string; duration: string | null; risk: "low" | "medium" | "high" }
+
+export async function listInvestmentProducts(): Promise<AppInvestmentProduct[]> {
+  const res = await supabase.from("investment_products").select("*");
+  return mustHaveData(res, "listInvestmentProducts").map((r) => ({
+    id: r.id, name: r.name, description: r.description, apy: Number(r.apy), minAmount: Number(r.min_amount),
+    currency: r.currency, duration: r.duration, risk: r.risk,
+  }));
+}
+
+export async function investInProduct(args: { userId: string; productId: string; amount: number }): Promise<{ id: string; amount: number }> {
+  const res = await supabase.rpc("invest_in_product", { p_user_id: args.userId, p_product_id: args.productId, p_amount: args.amount });
+  const row = mustHaveData(res, "investInProduct") as Record<string, unknown>;
+  return { id: row.id as string, amount: Number(row.amount) };
+}
+
+// ============================================================================
+// Invest — supabase/migrations/0018. Pitches + investments; repayment
+// schedule generated at investment time, resolution stays manual/admin.
+// ============================================================================
+
+export interface AppPitch {
+  id: string; title: string; description: string | null; founder: string | null; category: string | null;
+  goal: number; raised: number; currency: string; returnPct: number; timelineMonths: number; risk: "low" | "medium" | "high"; location: string | null;
+}
+
+export async function listPitches(): Promise<AppPitch[]> {
+  const res = await supabase.from("investment_pitches").select("*");
+  return mustHaveData(res, "listPitches").map((r) => ({
+    id: r.id, title: r.title, description: r.description, founder: r.founder, category: r.category,
+    goal: Number(r.goal), raised: Number(r.raised), currency: r.currency, returnPct: Number(r.return_pct),
+    timelineMonths: r.timeline_months, risk: r.risk, location: r.location,
+  }));
+}
+
+export interface AppPitchInvestment { id: string; userId: string; pitchId: string; amount: number; currency: string; returnPct: number; timelineMonths: number; investedAt: string }
+
+export async function listPitchInvestmentsForUser(userId: string): Promise<AppPitchInvestment[]> {
+  const res = await supabase.from("pitch_investments").select("*").eq("user_id", userId);
+  return mustHaveData(res, "listPitchInvestmentsForUser").map((r) => ({
+    id: r.id, userId: r.user_id, pitchId: r.pitch_id, amount: Number(r.amount), currency: r.currency,
+    returnPct: Number(r.return_pct), timelineMonths: r.timeline_months, investedAt: r.invested_at,
+  }));
+}
+
+export interface AppPitchRepayment { investmentId: string; month: number; amount: number; currency: string; dueDate: string; status: "pending" | "paid" }
+
+export async function listPitchRepayments(investmentId: string): Promise<AppPitchRepayment[]> {
+  const res = await supabase.from("pitch_repayments").select("*").eq("investment_id", investmentId).order("month");
+  return mustHaveData(res, "listPitchRepayments").map((r) => ({
+    investmentId: r.investment_id, month: r.month, amount: Number(r.amount), currency: r.currency, dueDate: r.due_date, status: r.status,
+  }));
+}
+
+export async function investInPitch(args: { userId: string; pitchId: string; amount: number }): Promise<AppPitchInvestment> {
+  const res = await supabase.rpc("invest_in_pitch", { p_user_id: args.userId, p_pitch_id: args.pitchId, p_amount: args.amount });
+  const row = mustHaveData(res, "investInPitch") as Record<string, unknown>;
+  return {
+    id: row.id as string, userId: row.user_id as string, pitchId: row.pitch_id as string, amount: Number(row.amount),
+    currency: row.currency as string, returnPct: Number(row.return_pct), timelineMonths: row.timeline_months as number, investedAt: row.invested_at as string,
+  };
+}
+
+// ============================================================================
+// Games — supabase/migrations/0018. Real money end to end — placeBet debits
+// the stake, resolveBet is server-authoritative (the outcome is decided
+// inside the RPC, never trusted from the client).
+// ============================================================================
+
+export interface AppGameBet {
+  id: string; userId: string; kind: "sports" | "lotto" | "scratch"; stakeAmount: number; currency: string;
+  meta: Record<string, unknown>; status: "pending" | "won" | "lost"; payoutAmount: number | null; placedAt: string; resolvedAt: string | null;
+}
+
+function toAppGameBet(r: Record<string, unknown>): AppGameBet {
+  return {
+    id: r.id as string, userId: r.user_id as string, kind: r.kind as AppGameBet["kind"], stakeAmount: Number(r.stake_amount),
+    currency: r.currency as string, meta: (r.meta as Record<string, unknown>) ?? {}, status: r.status as AppGameBet["status"],
+    payoutAmount: r.payout_amount == null ? null : Number(r.payout_amount), placedAt: r.placed_at as string, resolvedAt: (r.resolved_at as string) ?? null,
+  };
+}
+
+export async function placeBet(args: { userId: string; kind: AppGameBet["kind"]; stakeAmount: number; currency: string; meta?: Record<string, unknown> }): Promise<AppGameBet> {
+  const res = await supabase.rpc("place_bet", { p_user_id: args.userId, p_kind: args.kind, p_stake_amount: args.stakeAmount, p_currency: args.currency, p_meta: args.meta ?? {} });
+  return toAppGameBet(mustHaveData(res, "placeBet") as Record<string, unknown>);
+}
+
+export async function resolveBet(args: { betId: string; userId: string }): Promise<AppGameBet> {
+  const res = await supabase.rpc("resolve_bet", { p_bet_id: args.betId, p_user_id: args.userId });
+  return toAppGameBet(mustHaveData(res, "resolveBet") as Record<string, unknown>);
+}

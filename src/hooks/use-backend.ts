@@ -475,3 +475,166 @@ export function useRevokeApiKeyMutation() {
   });
   return mutation.mutateAsync;
 }
+
+// ---------------------------------------------------------------------------
+// Fundraise
+// ---------------------------------------------------------------------------
+
+export function useCampaigns() {
+  return useReactQuery({ queryKey: ["campaigns"], queryFn: backend.listCampaigns }).data;
+}
+
+export function useCreateCampaignMutation() {
+  const queryClient = useQueryClient();
+  const mutation = useReactMutation({
+    mutationFn: backend.createCampaign,
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["campaigns"] }),
+  });
+  return mutation.mutateAsync;
+}
+
+export function useDonateToCampaignMutation() {
+  const queryClient = useQueryClient();
+  const mutation = useReactMutation({
+    mutationFn: backend.donateToCampaign,
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["campaigns"] }),
+  });
+  return mutation.mutateAsync;
+}
+
+// ---------------------------------------------------------------------------
+// Travel
+// ---------------------------------------------------------------------------
+
+export function useFlights() {
+  return useReactQuery({ queryKey: ["flights"], queryFn: backend.listFlights }).data;
+}
+
+export function useHotels() {
+  return useReactQuery({ queryKey: ["hotels"], queryFn: backend.listHotels }).data;
+}
+
+export function useBookTravelItemMutation() {
+  const queryClient = useQueryClient();
+  const mutation = useReactMutation({
+    mutationFn: backend.bookTravelItem,
+    onSuccess: (_data, variables) => void queryClient.invalidateQueries({ queryKey: ["walletViews", variables.userId] }),
+  });
+  return mutation.mutateAsync;
+}
+
+// ---------------------------------------------------------------------------
+// Savings
+// ---------------------------------------------------------------------------
+
+export function useSavingsPotsForUser(userId: string | undefined) {
+  return useReactQuery({
+    queryKey: ["savingsPots", userId],
+    queryFn: () => backend.listSavingsPotsForUser(userId!),
+    enabled: !!userId,
+  }).data;
+}
+
+export function useCreateSavingsPotMutation() {
+  const queryClient = useQueryClient();
+  const mutation = useReactMutation({
+    mutationFn: backend.createSavingsPot,
+    onSuccess: (_data, variables) => void queryClient.invalidateQueries({ queryKey: ["savingsPots", variables.userId] }),
+  });
+  return mutation.mutateAsync;
+}
+
+export function useContributeToPotMutation() {
+  const queryClient = useQueryClient();
+  const mutation = useReactMutation({
+    mutationFn: backend.contributeToPot,
+    onSuccess: (_data, variables) => void queryClient.invalidateQueries({ queryKey: ["savingsPots", variables.userId] }),
+  });
+  return mutation.mutateAsync;
+}
+
+export function useTontineCircles() {
+  return useReactQuery({ queryKey: ["tontineCircles"], queryFn: backend.listTontineCircles }).data;
+}
+
+export function useJoinTontineMutation() {
+  const mutation = useReactMutation({ mutationFn: backend.joinTontine });
+  return mutation.mutateAsync;
+}
+
+export function useContributeToTontineMutation() {
+  const queryClient = useQueryClient();
+  const mutation = useReactMutation({
+    mutationFn: backend.contributeToTontine,
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["tontineCircles"] }),
+  });
+  return mutation.mutateAsync;
+}
+
+export function useInvestmentProducts() {
+  return useReactQuery({ queryKey: ["investmentProducts"], queryFn: backend.listInvestmentProducts }).data;
+}
+
+export function useInvestInProductMutation() {
+  const queryClient = useQueryClient();
+  const mutation = useReactMutation({
+    mutationFn: backend.investInProduct,
+    onSuccess: (_data, variables) => void queryClient.invalidateQueries({ queryKey: ["walletViews", variables.userId] }),
+  });
+  return mutation.mutateAsync;
+}
+
+// ---------------------------------------------------------------------------
+// Invest
+// ---------------------------------------------------------------------------
+
+export function usePitches() {
+  return useReactQuery({ queryKey: ["pitches"], queryFn: backend.listPitches }).data;
+}
+
+export function usePitchInvestmentsForUser(userId: string | undefined) {
+  return useReactQuery({
+    queryKey: ["pitchInvestments", userId],
+    queryFn: () => backend.listPitchInvestmentsForUser(userId!),
+    enabled: !!userId,
+  }).data;
+}
+
+export function usePitchRepayments(investmentId: string | undefined) {
+  return useReactQuery({
+    queryKey: ["pitchRepayments", investmentId],
+    queryFn: () => backend.listPitchRepayments(investmentId!),
+    enabled: !!investmentId,
+  }).data;
+}
+
+export function useInvestInPitchMutation() {
+  const queryClient = useQueryClient();
+  const mutation = useReactMutation({
+    mutationFn: backend.investInPitch,
+    onSuccess: (_data, variables) => void queryClient.invalidateQueries({ queryKey: ["pitchInvestments", variables.userId] }),
+  });
+  return mutation.mutateAsync;
+}
+
+// ---------------------------------------------------------------------------
+// Games
+// ---------------------------------------------------------------------------
+
+export function usePlaceBetMutation() {
+  const queryClient = useQueryClient();
+  const mutation = useReactMutation({
+    mutationFn: backend.placeBet,
+    onSuccess: (_data, variables) => void queryClient.invalidateQueries({ queryKey: ["walletViews", variables.userId] }),
+  });
+  return mutation.mutateAsync;
+}
+
+export function useResolveBetMutation() {
+  const queryClient = useQueryClient();
+  const mutation = useReactMutation({
+    mutationFn: backend.resolveBet,
+    onSuccess: (_data, variables) => void queryClient.invalidateQueries({ queryKey: ["walletViews", variables.userId] }),
+  });
+  return mutation.mutateAsync;
+}

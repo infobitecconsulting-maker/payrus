@@ -3,6 +3,8 @@ import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recha
 import { TrendingUp, ArrowLeftRight, Clock, AlertTriangle } from "lucide-react";
 import PageHeader from "@/components/ui/page-header.tsx";
 import { useProfile } from "@/contexts/profile-context.tsx";
+import { useCurrentAppUser } from "@/hooks/use-current-app-user.ts";
+import { useRecentTransfersForUser } from "@/hooks/use-backend.ts";
 
 const WEEKLY_COLLECTIONS = [
   { day: "M", amount: 40 }, { day: "T", amount: 62 }, { day: "W", amount: 55 },
@@ -10,14 +12,28 @@ const WEEKLY_COLLECTIONS = [
   { day: "S", amount: 84 },
 ];
 
+const CREDIT_TYPES = new Set(["deposit", "convert_in"]);
+
 export default function Treasury() {
   const { t } = useTranslation("common");
   const { profile } = useProfile();
   const currency = profile?.currency ?? "EUR";
 
+  const currentUser = useCurrentAppUser();
+  const realTransfers = useRecentTransfersForUser(currentUser?.id, 200);
+
+  // Real "collected"/"volume" when signed in with real activity; avgSettle/
+  // failRate stay decorative either way — nothing in this schema tracks
+  // settlement latency or failure rate yet, so fabricating those numbers
+  // would be worse than leaving them as the existing demo figures.
+  const hasReal = !!realTransfers && realTransfers.length > 0;
+  const realCollected = hasReal
+    ? realTransfers.filter(tr => CREDIT_TYPES.has(tr.type) && tr.currency === currency).reduce((s, tr) => s + tr.amount, 0)
+    : null;
+
   const kpis = [
-    { key: "collected", icon: TrendingUp, value: "62 800", suffix: currency },
-    { key: "volume", icon: ArrowLeftRight, value: "1 284", suffix: "" },
+    { key: "collected", icon: TrendingUp, value: hasReal ? realCollected!.toLocaleString(undefined, { maximumFractionDigits: 0 }) : "62 800", suffix: currency },
+    { key: "volume", icon: ArrowLeftRight, value: hasReal ? realTransfers!.length.toLocaleString() : "1 284", suffix: "" },
     { key: "avgSettle", icon: Clock, value: "18", suffix: "h" },
     { key: "failRate", icon: AlertTriangle, value: "0.4", suffix: "%" },
   ];

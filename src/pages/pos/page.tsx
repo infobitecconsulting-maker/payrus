@@ -32,6 +32,8 @@ import {
 import PageHeader from "@/components/ui/page-header.tsx";
 import TransactionReceipt from "@/components/ui/transaction-receipt.tsx";
 import { useProfile } from "@/contexts/profile-context.tsx";
+import { useCurrentAppUser } from "@/hooks/use-current-app-user.ts";
+import { useDepositMutation } from "@/hooks/use-backend.ts";
 
 // "card" covers tap/insert/swipe generically — a real terminal never knows in
 // advance which interface the customer will use. "insert"/"swipe" are manual
@@ -50,7 +52,11 @@ const KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", ".", "0", "back"];
 const PIN_LENGTH = 4;
 // Below this amount, a contactless tap skips the PIN (EMV contactless floor limit).
 const CONTACTLESS_CVM_LIMIT = 25;
-const ACQUIRING_FEE_RATE = 0.014;
+// Matches deposit_to_wallet's own 'mobile' method fee rate (supabase/
+// migrations/0006) — a real sale now actually calls that RPC with
+// method:'mobile', so this display rate has to agree with what really gets
+// charged rather than being an independent, drifting constant.
+const ACQUIRING_FEE_RATE = 0.015;
 const CARD_RAILS: Rail[] = ["card", "insert", "swipe"];
 const INSTANT_RAILS: Rail[] = ["cash", "bills"];
 
@@ -108,6 +114,8 @@ export default function PointOfSale() {
   const { t } = useTranslation("common");
   const { profile } = useProfile();
   const beep = useBeeper();
+  const currentUser = useCurrentAppUser();
+  const depositToWallet = useDepositMutation();
 
   const [amount, setAmount] = useState("0");
   const [rail, setRail] = useState<Rail>("card");
@@ -182,12 +190,28 @@ export default function PointOfSale() {
     }
     if (stage === "authorizing") {
       const delay = setTimeout(() => {
-        beep(1);
-        setStage("approved");
+        void (async () => {
+          // A POS sale credits the merchant (money coming in), so it
+          // reuses deposit_to_wallet directly rather than a debit RPC —
+          // same shape (amount, currency, a fee-bearing method, a note)
+          // this flow already needs. Anonymous/no-account preview stays
+          // exactly as before (receipt only, nothing persisted).
+          if (currentUser && numeric > 0) {
+            try {
+              await depositToWallet({ userId: currentUser.id, amount: numeric, currency, method: "mobile", note: "POS sale" });
+            } catch {
+              beep(3);
+              setStage("cancelled");
+              return;
+            }
+          }
+          beep(1);
+          setStage("approved");
+        })();
       }, 900);
       return () => clearTimeout(delay);
     }
-  }, [stage, rail, isCardRail, numeric, beep]);
+  }, [stage, rail, isCardRail, numeric, beep, currentUser, currency, depositToWallet]);
 
   const press = (key: string) => {
     if (key === "back") {

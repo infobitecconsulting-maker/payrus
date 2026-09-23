@@ -15,6 +15,14 @@ import { cn } from "@/lib/utils.ts";
 import { AreaChart, Area, ResponsiveContainer, Tooltip, XAxis } from "recharts";
 import { useProfile } from "@/contexts/profile-context.tsx";
 import { toast } from "sonner";
+import { Input } from "@/components/ui/input.tsx";
+import { Button } from "@/components/ui/button.tsx";
+import { useCurrentAppUser } from "@/hooks/use-current-app-user.ts";
+import {
+  useContributeToPotMutation, useContributeToTontineMutation, useCreateSavingsPotMutation, useInvestInProductMutation,
+  useInvestmentProducts, useJoinTontineMutation, useSavingsPotsForUser, useTontineCircles,
+} from "@/hooks/use-backend.ts";
+import type { AppInvestmentProduct, AppSavingsPot, AppTontineCircle } from "@/lib/backend.ts";
 
 /* ─── Types ─────────────────────────────────────────────────── */
 
@@ -95,6 +103,34 @@ const INVESTMENT_PRODUCTS: InvestmentProduct[] = [
   { id: "6", name: "PayRus Gold Reserve", type: "fixed_term", description: "Gold-indexed savings product. Hedge against inflation.", apy: 12.8, minAmount: 500000, currency: "XAF", duration: "12 months", risk: "medium", flag: "🥇", color: "from-yellow-500 to-amber-300" },
 ];
 
+// Real pots/circles/products (supabase/migrations/0018) map into the same
+// local interfaces the existing rich UI already renders — real rows don't
+// carry a specific icon/gradient/flag, so a generic default is used, same
+// pattern as the other Phase 3 pages' toDisplayX() mappers.
+function toDisplayPot(p: AppSavingsPot): SavingsPot {
+  const category = (["education", "business", "home", "emergency", "travel", "health", "agriculture"].includes(p.category ?? "") ? p.category : "custom") as SavingsPotCategory;
+  return {
+    id: p.id, name: p.name, category, target: p.targetAmount, current: p.currentAmount, currency: p.currency,
+    monthlyContrib: p.monthlyContrib, interestRate: p.interestRate, dueDate: p.dueDate ?? "Ongoing",
+    color: "from-primary to-emerald-400", icon: POT_ICONS[category],
+  };
+}
+
+function toDisplayTontine(c: AppTontineCircle, myContrib: number): TontineCircle {
+  return {
+    id: c.id, name: c.name, members: 1, potAmount: c.potAmount, currency: c.currency, frequency: c.frequency as "weekly" | "monthly",
+    myContrib, nextPayout: "—", nextRecipient: "—", myTurn: "—", round: c.currentRound, totalRounds: c.totalRounds,
+    color: "bg-primary/15 border-primary/25 text-primary",
+  };
+}
+
+function toDisplayProduct(p: AppInvestmentProduct): InvestmentProduct {
+  return {
+    id: p.id, name: p.name, type: "fixed_term", description: p.description ?? "", apy: p.apy, minAmount: p.minAmount,
+    currency: p.currency, duration: p.duration ?? "", risk: p.risk, flag: "💰", color: "from-primary to-emerald-400",
+  };
+}
+
 const growthData = [
   { m: "Mar", v: 120000 }, { m: "Apr", v: 185000 }, { m: "May", v: 220000 },
   { m: "Jun", v: 290000 }, { m: "Jul", v: 358000 }, { m: "Aug", v: 432000 },
@@ -125,7 +161,7 @@ function ChartTip({ active, payload, label }: TooltipProps) {
   );
 }
 
-function PotCard({ pot, index }: { pot: SavingsPot; index: number }) {
+function PotCard({ pot, index, onFund }: { pot: SavingsPot; index: number; onFund: (pot: SavingsPot) => void }) {
   const { t } = useTranslation("common");
   const pct = Math.round((pot.current / pot.target) * 100);
   const Icon = pot.icon;
@@ -183,7 +219,7 @@ function PotCard({ pot, index }: { pot: SavingsPot; index: number }) {
           <TrendingUp size={10} className="text-primary" />
           <span className="text-primary font-semibold">+{pot.interestRate}%</span> {t("savings.annualReturn")}
         </div>
-        <button className="flex items-center gap-1 text-[10px] text-primary font-semibold hover:underline cursor-pointer">
+        <button onClick={() => onFund(pot)} className="flex items-center gap-1 text-[10px] text-primary font-semibold hover:underline cursor-pointer">
           {t("savings.fund")} <ArrowUpRight size={10} />
         </button>
       </div>
@@ -191,7 +227,7 @@ function PotCard({ pot, index }: { pot: SavingsPot; index: number }) {
   );
 }
 
-function TontineCard({ t: tontine, index }: { t: TontineCircle; index: number }) {
+function TontineCard({ t: tontine, index, onContribute }: { t: TontineCircle; index: number; onContribute: (t: TontineCircle) => void }) {
   const { t } = useTranslation("common");
   const isMyTurn = tontine.nextRecipient.startsWith("You");
   return (
@@ -199,6 +235,7 @@ function TontineCard({ t: tontine, index }: { t: TontineCircle; index: number })
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.08 }}
+      onClick={() => onContribute(tontine)}
       className="bg-card border border-border rounded-2xl p-4 cursor-pointer hover:shadow-lg hover:shadow-black/20 transition-all relative overflow-hidden"
     >
       {isMyTurn && (
@@ -260,7 +297,7 @@ function TontineCard({ t: tontine, index }: { t: TontineCircle; index: number })
   );
 }
 
-function InvestCard({ prod, index }: { prod: InvestmentProduct; index: number }) {
+function InvestCard({ prod, index, onInvest }: { prod: InvestmentProduct; index: number; onInvest: (prod: InvestmentProduct) => void }) {
   const { t } = useTranslation("common");
   const riskColor = prod.risk === "low" ? "text-primary bg-primary/10" : prod.risk === "medium" ? "text-amber-700 bg-amber-50" : "text-destructive bg-destructive/10";
   const riskLabel = t(prod.risk === "low" ? "savings.riskLow" : prod.risk === "medium" ? "savings.riskMedium" : "savings.riskHigh");
@@ -269,6 +306,7 @@ function InvestCard({ prod, index }: { prod: InvestmentProduct; index: number })
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.07 }}
+      onClick={() => onInvest(prod)}
       className="bg-card border border-border rounded-2xl p-4 relative overflow-hidden cursor-pointer hover:border-border/80 hover:shadow-lg hover:shadow-black/20 transition-all group"
     >
       <div className={cn("absolute inset-0 opacity-[0.035] bg-gradient-to-br pointer-events-none", prod.color)} />
@@ -316,17 +354,81 @@ function InvestCard({ prod, index }: { prod: InvestmentProduct; index: number })
   );
 }
 
+/* ─── Contribute Modal (pot / tontine / product — real money) ─── */
+
+function ContributeModal({ title, currency, minAmount, presets, confirming, onConfirm, onClose }: {
+  title: string; currency: string; minAmount?: number; presets: number[]; confirming: boolean;
+  onConfirm: (amount: number) => void; onClose: () => void;
+}) {
+  const { t } = useTranslation("common");
+  const [amount, setAmount] = useState("");
+  const numAmount = Number(amount);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={onClose}>
+      <motion.div
+        initial={{ opacity: 0, y: 40, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 40, scale: 0.97 }}
+        transition={{ duration: 0.22, ease: "easeOut" as const }}
+        className="bg-card border border-border rounded-2xl w-full max-w-md shadow-2xl overflow-hidden"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="p-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="font-bold text-sm">{title}</h3>
+            <button onClick={onClose} className="text-muted-foreground hover:text-foreground cursor-pointer"><X size={18} /></button>
+          </div>
+          <div className="flex gap-2 flex-wrap">
+            {presets.map(p => (
+              <button
+                key={p} onClick={() => setAmount(String(p))}
+                className={cn("text-xs font-bold px-3 py-1.5 rounded-xl border transition-colors cursor-pointer",
+                  amount === String(p) ? "bg-primary text-primary-foreground border-primary" : "bg-secondary border-border text-muted-foreground hover:text-foreground")}
+              >
+                {p.toLocaleString()}
+              </button>
+            ))}
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground mb-1 block">{t("savings.amountLabel", { currency })}</label>
+            <Input type="number" placeholder="0" value={amount} onChange={e => setAmount(e.target.value)} className="font-mono text-base" />
+            {minAmount && <p className="text-[10px] text-muted-foreground mt-1">{t("savings.minimumAmount", { amount: minAmount.toLocaleString(), currency })}</p>}
+          </div>
+          <Button className="w-full font-bold" disabled={confirming || !numAmount || numAmount <= 0} onClick={() => onConfirm(numAmount)}>
+            {confirming ? t("signin.checking") : t("savings.confirmContribution")}
+          </Button>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
 /* ─── New Pot Modal ─────────────────────────────────────────── */
 
-function NewPotModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+function NewPotModal({ open, onClose, onCreate }: {
+  open: boolean; onClose: () => void; onCreate: (args: { name: string; category: SavingsPotCategory; target: number; monthly: number }) => Promise<void>;
+}) {
   const { t } = useTranslation("common");
   const [step, setStep] = useState<1 | 2>(1);
   const [selectedCat, setSelectedCat] = useState<SavingsPotCategory | null>(null);
   const [name, setName] = useState("");
   const [target, setTarget] = useState("");
   const [monthly, setMonthly] = useState("");
+  const [creating, setCreating] = useState(false);
 
   const handleClose = () => { setStep(1); setSelectedCat(null); setName(""); setTarget(""); setMonthly(""); onClose(); };
+
+  const handleCreate = async () => {
+    if (!selectedCat || !name || !target) return;
+    setCreating(true);
+    try {
+      await onCreate({ name, category: selectedCat, target: Number(target), monthly: Number(monthly) || 0 });
+      handleClose();
+    } catch {
+      toast.error(t("savings.potCreationFailed"));
+    } finally {
+      setCreating(false);
+    }
+  };
 
   return (
     <AnimatePresence>
@@ -396,11 +498,11 @@ function NewPotModal({ open, onClose }: { open: boolean; onClose: () => void }) 
                   <button onClick={() => setStep(1)} className="py-3 rounded-xl border border-border text-sm font-semibold text-muted-foreground hover:bg-secondary transition-colors cursor-pointer">
                     {t("savings.back")}
                   </button>
-                  <button disabled={!name || !target}
-                    onClick={handleClose}
+                  <button disabled={!name || !target || creating}
+                    onClick={handleCreate}
                     className={cn("py-3 rounded-xl font-bold text-sm transition-all cursor-pointer",
-                      name && target ? "bg-gradient-to-r from-primary to-emerald-400 text-primary-foreground hover:shadow-lg hover:shadow-primary/25" : "bg-secondary text-muted-foreground cursor-not-allowed")}>
-                    {t("savings.createPot")}
+                      name && target && !creating ? "bg-gradient-to-r from-primary to-emerald-400 text-primary-foreground hover:shadow-lg hover:shadow-primary/25" : "bg-secondary text-muted-foreground cursor-not-allowed")}>
+                    {creating ? t("signin.checking") : t("savings.createPot")}
                   </button>
                 </div>
               </div>
@@ -791,16 +893,93 @@ function CorporateCardWidget({ card, index }: { card: CorporateCard; index: numb
 
 type Tab = "savings" | "tontines" | "investments" | "loyalty" | "corporate";
 
+function presetsFor(min?: number): number[] {
+  const base = [5000, 10000, 25000, 50000, 100000, 250000];
+  const filtered = min ? base.filter((v) => v >= min) : base;
+  return (filtered.length ? filtered : base).slice(0, 4);
+}
+
 export default function SavingsPage() {
   const { t } = useTranslation("common");
   const [tab, setTab] = useState<Tab>("savings");
   const [newPotOpen, setNewPotOpen] = useState(false);
   const { profile } = useProfile();
-
-  const totalSaved = MY_POTS.reduce((s, p) => s + p.current, 0);
-  const totalTarget = MY_POTS.reduce((s, p) => s + p.target, 0);
-  const totalInterest = Math.round(totalSaved * 0.052 / 12);
   const currency = profile?.currency ?? "XAF";
+
+  const currentUser = useCurrentAppUser();
+  const realPots = useSavingsPotsForUser(currentUser?.id);
+  const realTontines = useTontineCircles();
+  const realProducts = useInvestmentProducts();
+  const createSavingsPotMutation = useCreateSavingsPotMutation();
+  const contributeToPotMutation = useContributeToPotMutation();
+  const joinTontineMutation = useJoinTontineMutation();
+  const contributeToTontineMutation = useContributeToTontineMutation();
+  const investInProductMutation = useInvestInProductMutation();
+
+  // Real data once signed in with something to show; anonymous/no-data
+  // visitors keep the existing rich mock catalog — same fallback
+  // convention used throughout this migration (see fundraise/travel).
+  const hasRealPots = !!currentUser && !!realPots && realPots.length > 0;
+  const hasRealTontines = !!currentUser && !!realTontines && realTontines.length > 0;
+  const hasRealProducts = !!currentUser && !!realProducts && realProducts.length > 0;
+
+  const displayPots: SavingsPot[] = hasRealPots ? realPots.map(toDisplayPot) : MY_POTS;
+  const displayTontines: TontineCircle[] = hasRealTontines ? realTontines.map((c) => toDisplayTontine(c, 0)) : TONTINES;
+  const displayProducts: InvestmentProduct[] = hasRealProducts ? realProducts.map(toDisplayProduct) : INVESTMENT_PRODUCTS;
+
+  const totalSaved = displayPots.reduce((s, p) => s + p.current, 0);
+  const totalTarget = displayPots.reduce((s, p) => s + p.target, 0);
+  const totalInterest = Math.round(totalSaved * 0.052 / 12);
+
+  const [contributing, setContributing] = useState<{ kind: "pot" | "tontine" | "product"; item: SavingsPot | TontineCircle | InvestmentProduct } | null>(null);
+  const [confirming, setConfirming] = useState(false);
+
+  async function handleConfirmContribute(amount: number) {
+    if (!contributing) return;
+    const { kind, item } = contributing;
+    const isReal = (kind === "pot" && hasRealPots) || (kind === "tontine" && hasRealTontines) || (kind === "product" && hasRealProducts);
+    const successKey = kind === "product" ? "savings.investSuccess" : "savings.contributionSuccess";
+    const failKey = kind === "product" ? "savings.investFailed" : "savings.contributionFailed";
+    if (!currentUser || !isReal) {
+      toast.success(t(successKey, { currency: item.currency, amount: amount.toLocaleString(), name: t(item.name) }));
+      setContributing(null);
+      return;
+    }
+    setConfirming(true);
+    try {
+      if (kind === "pot") {
+        await contributeToPotMutation({ userId: currentUser.id, potId: item.id, amount });
+      } else if (kind === "product") {
+        await investInProductMutation({ userId: currentUser.id, productId: item.id, amount });
+      } else {
+        try {
+          await contributeToTontineMutation({ userId: currentUser.id, circleId: item.id, amount });
+        } catch (e) {
+          if (e instanceof Error && e.message.includes("not a member")) {
+            await joinTontineMutation({ userId: currentUser.id, circleId: item.id });
+            await contributeToTontineMutation({ userId: currentUser.id, circleId: item.id, amount });
+          } else {
+            throw e;
+          }
+        }
+      }
+      toast.success(t(successKey, { currency: item.currency, amount: amount.toLocaleString(), name: t(item.name) }));
+      setContributing(null);
+    } catch {
+      toast.error(t(failKey));
+    } finally {
+      setConfirming(false);
+    }
+  }
+
+  async function handleCreatePot(args: { name: string; category: SavingsPotCategory; target: number; monthly: number }) {
+    if (!currentUser) {
+      toast.success(t("savings.potCreated", { name: args.name }));
+      return;
+    }
+    await createSavingsPotMutation({ userId: currentUser.id, name: args.name, category: args.category, targetAmount: args.target, currency, monthlyContrib: args.monthly });
+    toast.success(t("savings.potCreated", { name: args.name }));
+  }
 
   const totalLoyaltyPoints = LOYALTY_POTS.reduce((s, p) => s + p.points, 0);
   const totalLoyaltyCash = LOYALTY_POTS.reduce((s, p) => s + p.points * p.pointsValue, 0);
@@ -854,8 +1033,8 @@ export default function SavingsPage() {
             </div>
             <div>
               <div className="text-[10px] text-muted-foreground uppercase tracking-widest mb-1">{t("savings.activePots")}</div>
-              <div className="text-2xl font-black font-mono text-foreground tracking-tight">{MY_POTS.length}</div>
-              <div className="text-[10px] text-muted-foreground mt-0.5">{t("savings.goalsReached", { count: MY_POTS.filter(p => p.current >= p.target).length })}</div>
+              <div className="text-2xl font-black font-mono text-foreground tracking-tight">{displayPots.length}</div>
+              <div className="text-[10px] text-muted-foreground mt-0.5">{t("savings.goalsReached", { count: displayPots.filter(p => p.current >= p.target).length })}</div>
             </div>
           </div>
           <div className="px-0 pt-0 -mx-1">
@@ -928,14 +1107,14 @@ export default function SavingsPage() {
         {tab === "savings" && (
           <motion.div key="savings" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className="space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-bold text-foreground">{t("savings.myPots", { count: MY_POTS.length })}</h2>
+              <h2 className="text-sm font-bold text-foreground">{t("savings.myPots", { count: displayPots.length })}</h2>
               <button onClick={() => setNewPotOpen(true)}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary/10 border border-primary/20 text-xs font-semibold text-primary cursor-pointer hover:bg-primary/15 transition-colors">
                 <Plus size={12} /> {t("savings.newPotTitle")}
               </button>
             </div>
             <div className="grid md:grid-cols-2 gap-3">
-              {MY_POTS.map((pot, i) => <PotCard key={pot.id} pot={pot} index={i} />)}
+              {displayPots.map((pot, i) => <PotCard key={pot.id} pot={pot} index={i} onFund={(p) => setContributing({ kind: "pot", item: p })} />)}
             </div>
 
             {/* Saving tips */}
@@ -965,7 +1144,7 @@ export default function SavingsPage() {
           <motion.div key="tontines" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className="space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-sm font-bold text-foreground">{t("savings.savingsCircles", { count: TONTINES.length })}</h2>
+                <h2 className="text-sm font-bold text-foreground">{t("savings.savingsCircles", { count: displayTontines.length })}</h2>
                 <p className="text-[10px] text-muted-foreground">{t("savings.tontineSubtitle")}</p>
               </div>
               <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary/10 border border-primary/20 text-xs font-semibold text-primary cursor-pointer hover:bg-primary/15 transition-colors">
@@ -973,7 +1152,7 @@ export default function SavingsPage() {
               </button>
             </div>
 
-            {TONTINES.map((tontine, i) => <TontineCard key={tontine.id} t={tontine} index={i} />)}
+            {displayTontines.map((tontine, i) => <TontineCard key={tontine.id} t={tontine} index={i} onContribute={(c) => setContributing({ kind: "tontine", item: c })} />)}
 
             {/* How it works */}
             <div className="bg-card border border-border rounded-2xl p-4">
@@ -1025,7 +1204,7 @@ export default function SavingsPage() {
             </div>
 
             <div className="grid md:grid-cols-2 gap-3">
-              {INVESTMENT_PRODUCTS.map((prod, i) => <InvestCard key={prod.id} prod={prod} index={i} />)}
+              {displayProducts.map((prod, i) => <InvestCard key={prod.id} prod={prod} index={i} onInvest={(p) => setContributing({ kind: "product", item: p })} />)}
             </div>
 
             {/* Risk disclaimer */}
@@ -1212,7 +1391,19 @@ export default function SavingsPage() {
 
       </AnimatePresence>
 
-      <NewPotModal open={newPotOpen} onClose={() => setNewPotOpen(false)} />
+      <NewPotModal open={newPotOpen} onClose={() => setNewPotOpen(false)} onCreate={handleCreatePot} />
+
+      {contributing && (
+        <ContributeModal
+          title={contributing.kind === "product" ? `${t("savings.invest")} — ${t(contributing.item.name)}` : `${t("savings.fund")} — ${t(contributing.item.name)}`}
+          currency={contributing.item.currency}
+          minAmount={contributing.kind === "product" ? (contributing.item as InvestmentProduct).minAmount : undefined}
+          presets={presetsFor(contributing.kind === "product" ? (contributing.item as InvestmentProduct).minAmount : undefined)}
+          confirming={confirming}
+          onConfirm={handleConfirmContribute}
+          onClose={() => setContributing(null)}
+        />
+      )}
     </div>
   );
 }

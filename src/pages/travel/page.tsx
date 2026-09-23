@@ -12,6 +12,9 @@ import {
 import { cn } from "@/lib/utils.ts";
 import { PayRusLogo } from "@/pages/layout/AppLayout.tsx";
 import { toast } from "sonner";
+import { useCurrentAppUser } from "@/hooks/use-current-app-user.ts";
+import { useBookTravelItemMutation, useFlights, useHotels } from "@/hooks/use-backend.ts";
+import type { AppFlight, AppHotel } from "@/lib/backend.ts";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -261,6 +264,28 @@ const HOTELS: Hotel[] = [
   },
 ];
 
+// Real flights/hotels (supabase/migrations/0018) are a plainer catalog
+// (no amenities/seatsLeft/rating/discount) — mapped into the same rich
+// Flight/Hotel shape the existing browse UI already renders, with
+// reasonable decorative placeholders for the fields the real schema
+// doesn't track, so no JSX below needs to branch on real-vs-mock.
+function toDisplayFlight(f: AppFlight): Flight {
+  return {
+    id: f.id, airline: f.airline, airlineCode: f.airline.slice(0, 2).toUpperCase(), logo: "✈️",
+    origin: f.origin, destination: f.destination, departure: f.departure, arrival: f.arrival, duration: f.duration,
+    stops: 0, price: f.price, currency: f.currency, priceXAF: f.price, class: f.class as FlightClass,
+    amenities: [], seatsLeft: 9, rating: 4.5, payrusDiscount: 0,
+  };
+}
+
+function toDisplayHotel(h: AppHotel): Hotel {
+  return {
+    id: h.id, name: h.name, location: h.location, stars: h.stars, rating: 4.5, reviewCount: 0,
+    pricePerNight: h.pricePerNight, currency: h.currency, priceXAF: h.pricePerNight, image: "🏨",
+    amenities: [], distance: "", payrusMember: false, discount: 0, category: "Standard",
+  };
+}
+
 const REVIEWS: UserReview[] = [
   { id: "r1", user: "Mvutu E.", flag: "🇨🇩", rating: 5, comment: "travel.review.r1", date: "travel.review.r1Date", type: "flight", entity: "Ethiopian Airlines" },
   { id: "r2", user: "Laeticia B.", flag: "🇨🇬", rating: 5, comment: "travel.review.r2", date: "travel.review.r2Date", type: "hotel", entity: "Kempinski Hotel Fleuve Congo" },
@@ -470,6 +495,48 @@ export default function TravelPage() {
   const [splitPaymentFor, setSplitPaymentFor] = useState<{ price: number; currency: string; item: string } | null>(null);
   const [showReviewForm, setShowReviewForm] = useState(false);
   const [likedItems, setLikedItems] = useState<Set<string>>(new Set());
+  const [booking, setBooking] = useState<string | null>(null);
+
+  const currentUser = useCurrentAppUser();
+  const realFlights = useFlights();
+  const realHotels = useHotels();
+  const bookTravelItem = useBookTravelItemMutation();
+
+  // Real catalog once signed in with data to show; anonymous/no-data
+  // visitors keep the existing rich mock catalog — same fallback
+  // convention used throughout this migration.
+  const hasRealFlights = !!currentUser && !!realFlights && realFlights.length > 0;
+  const hasRealHotels = !!currentUser && !!realHotels && realHotels.length > 0;
+  const displayFlights: Flight[] = hasRealFlights ? realFlights.map(toDisplayFlight) : FLIGHTS;
+  const displayHotels: Hotel[] = hasRealHotels ? realHotels.map(toDisplayHotel) : HOTELS;
+
+  async function handleBookFlight(flight: Flight) {
+    const showToast = () => toast.success(t("travel.flightBookedToast", { airline: flight.airline, price: formatCurrency(flight.price, flight.currency) }));
+    if (!currentUser || !hasRealFlights) { showToast(); return; }
+    setBooking(flight.id);
+    try {
+      await bookTravelItem({ userId: currentUser.id, kind: "flight", itemId: flight.id, note: `${flight.airline} ${flight.origin}→${flight.destination}` });
+      showToast();
+    } catch {
+      toast.error(t("travel.bookingFailed"));
+    } finally {
+      setBooking(null);
+    }
+  }
+
+  async function handleBookHotel(hotel: Hotel) {
+    const showToast = () => toast.success(t("travel.hotelBookedToast", { name: hotel.name }));
+    if (!currentUser || !hasRealHotels) { showToast(); return; }
+    setBooking(hotel.id);
+    try {
+      await bookTravelItem({ userId: currentUser.id, kind: "hotel", itemId: hotel.id, note: hotel.name });
+      showToast();
+    } catch {
+      toast.error(t("travel.bookingFailed"));
+    } finally {
+      setBooking(null);
+    }
+  }
 
   const toggleLike = (id: string) => {
     setLikedItems(prev => {
@@ -600,7 +667,7 @@ export default function TravelPage() {
 
               {/* Flight results */}
               <div className="space-y-3">
-                {FLIGHTS.map((flight, i) => (
+                {displayFlights.map((flight, i) => (
                   <motion.div key={flight.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }}
                     className={cn(
                       "rounded-2xl bg-card border overflow-hidden transition-all cursor-pointer group",
@@ -697,10 +764,11 @@ export default function TravelPage() {
                                 <CreditCard size={15} /> {t("travel.payInThreeButton")}
                               </button>
                               <button
-                                onClick={e => { e.stopPropagation(); toast.success(t("travel.flightBookedToast", { airline: flight.airline, price: formatCurrency(flight.price, flight.currency) })); }}
-                                className="flex items-center justify-center gap-2 py-3 rounded-2xl bg-primary text-primary-foreground text-sm font-bold cursor-pointer hover:bg-primary/90 transition-colors"
+                                disabled={booking === flight.id}
+                                onClick={e => { e.stopPropagation(); void handleBookFlight(flight); }}
+                                className="flex items-center justify-center gap-2 py-3 rounded-2xl bg-primary text-primary-foreground text-sm font-bold cursor-pointer hover:bg-primary/90 transition-colors disabled:opacity-60"
                               >
-                                {t("travel.bookNowButton")} <ArrowRight size={14} />
+                                {booking === flight.id ? t("signin.checking") : t("travel.bookNowButton")} <ArrowRight size={14} />
                               </button>
                             </div>
                             <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
@@ -812,7 +880,7 @@ export default function TravelPage() {
 
               {/* Hotel grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {HOTELS.map((hotel, i) => (
+                {displayHotels.map((hotel, i) => (
                   <motion.div key={hotel.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.07 }}
                     className="rounded-2xl bg-card border border-border overflow-hidden hover:border-primary/25 transition-all group cursor-pointer">
 
@@ -886,9 +954,10 @@ export default function TravelPage() {
                           <Globe size={12} /> {t("travel.viewButton")}
                         </button>
                         <button
-                          onClick={() => toast.success(t("travel.hotelBookedToast", { name: hotel.name }))}
-                          className="py-2 rounded-xl bg-primary text-primary-foreground text-[12px] font-bold cursor-pointer hover:bg-primary/90 transition-colors flex items-center justify-center gap-1.5">
-                          {t("travel.reserveButton")} <ArrowUpRight size={12} />
+                          disabled={booking === hotel.id}
+                          onClick={() => void handleBookHotel(hotel)}
+                          className="py-2 rounded-xl bg-primary text-primary-foreground text-[12px] font-bold cursor-pointer hover:bg-primary/90 transition-colors flex items-center justify-center gap-1.5 disabled:opacity-60">
+                          {booking === hotel.id ? t("signin.checking") : t("travel.reserveButton")} <ArrowUpRight size={12} />
                         </button>
                       </div>
 

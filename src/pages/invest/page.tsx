@@ -20,6 +20,9 @@ import { cn } from "@/lib/utils.ts";
 import { Input } from "@/components/ui/input.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import { toast } from "sonner";
+import { useCurrentAppUser } from "@/hooks/use-current-app-user.ts";
+import { usePitches, usePitchInvestmentsForUser, usePitchRepayments, useInvestInPitchMutation } from "@/hooks/use-backend.ts";
+import type { AppPitch, AppPitchInvestment } from "@/lib/backend.ts";
 
 // ─── TYPES ────────────────────────────────────────────────────────────────────
 
@@ -31,7 +34,7 @@ type RiskLevel = "low" | "medium" | "high";
 interface Milestone { title: string; date: string; done: boolean }
 
 interface Pitch {
-  id: number;
+  id: number | string;
   title: string;
   description: string;
   founder: string;
@@ -66,8 +69,8 @@ interface Repayment {
 }
 
 interface Investment {
-  id: number;
-  pitchId: number;
+  id: number | string;
+  pitchId: number | string;
   pitchTitle: string;
   emoji: string;
   gradientFrom: string;
@@ -360,6 +363,24 @@ const PITCHES: Pitch[] = [
   },
 ];
 
+const PITCH_CATEGORY_KEYS: PitchCategory[] = ["agriculture", "retail", "tech", "manufacturing", "real_estate", "energy"];
+
+// Real pitches (supabase/migrations/0018) map into the same rich local
+// interface the existing UI already renders — real rows don't carry a
+// specific emoji/gradient/backer-count/milestones, so generic defaults
+// are used, same toDisplayX() pattern as the other Phase 3 pages.
+function toDisplayPitch(p: AppPitch): Pitch {
+  const catKey = (p.category ?? "").toLowerCase();
+  const category = (PITCH_CATEGORY_KEYS as string[]).includes(catKey) ? (catKey as PitchCategory) : "retail";
+  return {
+    id: p.id, title: p.title, description: p.description ?? "", founder: p.founder ?? "PayRus Ventures",
+    founderVerified: true, category, goal: p.goal, raised: p.raised, backers: 0, daysLeft: 30,
+    currency: p.currency, location: p.location ?? "", country: "🌍", returnPct: p.returnPct, timelineMonths: p.timelineMonths,
+    useOfFunds: [], impact: { jobs: 0, households: 0, detail: "" }, risk: p.risk, riskNote: "",
+    milestones: [], emoji: "💼", gradientFrom: "from-primary/70", gradientTo: "to-emerald-600/40",
+  };
+}
+
 const MY_INVESTMENTS: Investment[] = [
   {
     id: 1,
@@ -621,9 +642,12 @@ function PitchCard({ pitch, onSelect, onInvest }: {
 
 // ─── INVEST MODAL ─────────────────────────────────────────────────────────────
 
-function InvestModal({ pitch, onClose }: { pitch: Pitch; onClose: () => void }) {
+function InvestModal({ pitch, currentUserId, onInvest, onClose }: {
+  pitch: Pitch; currentUserId: string | undefined; onInvest: (args: { userId: string; pitchId: string; amount: number }) => Promise<unknown>; onClose: () => void;
+}) {
   const [amount, setAmount] = useState("");
   const [done, setDone] = useState(false);
+  const [investing, setInvesting] = useState(false);
   const presets = [5000, 10000, 25000, 50000, 100000];
 
   const numAmount = Number(amount);
@@ -631,13 +655,28 @@ function InvestModal({ pitch, onClose }: { pitch: Pitch; onClose: () => void }) 
     ? numAmount * (1 + (pitch.returnPct / 100) * (pitch.timelineMonths / 12))
     : 0;
 
-  function handleInvest() {
+  async function handleInvest() {
     if (!amount || isNaN(numAmount) || numAmount < 5000) {
       toast.error("Minimum investment is 5,000 " + pitch.currency);
       return;
     }
-    setDone(true);
-    toast.success(`Investment of ${numAmount.toLocaleString()} ${pitch.currency} confirmed!`);
+    if (!currentUserId || typeof pitch.id !== "string") {
+      // Anonymous preview, or a demo (non-real) pitch — keep the
+      // existing mock success path unchanged.
+      setDone(true);
+      toast.success(`Investment of ${numAmount.toLocaleString()} ${pitch.currency} confirmed!`);
+      return;
+    }
+    setInvesting(true);
+    try {
+      await onInvest({ userId: currentUserId, pitchId: pitch.id, amount: numAmount });
+      setDone(true);
+      toast.success(`Investment of ${numAmount.toLocaleString()} ${pitch.currency} confirmed!`);
+    } catch {
+      toast.error("Couldn't process the investment — try again");
+    } finally {
+      setInvesting(false);
+    }
   }
 
   return (
@@ -730,9 +769,9 @@ function InvestModal({ pitch, onClose }: { pitch: Pitch; onClose: () => void }) 
                 </p>
               </div>
 
-              <Button className="w-full font-bold" onClick={handleInvest}>
+              <Button className="w-full font-bold" onClick={handleInvest} disabled={investing}>
                 <CircleDollarSign size={14} className="mr-2" />
-                Confirm Investment
+                {investing ? "Processing…" : "Confirm Investment"}
               </Button>
             </div>
           </>
@@ -942,35 +981,133 @@ function PitchDetail({ pitch, onBack, onInvest }: {
 
 // ─── PORTFOLIO ────────────────────────────────────────────────────────────────
 
-function PortfolioView({ onBrowse }: { onBrowse: () => void }) {
-  const [expanded, setExpanded] = useState<number | null>(null);
+function statusColor(s: RepayStatus) {
+  if (s === "completed") return "text-emerald-700";
+  if (s === "current") return "text-primary";
+  if (s === "late") return "text-destructive";
+  return "text-muted-foreground";
+}
 
-  const totalInvested = MY_INVESTMENTS.reduce((s, i) => s + i.amountInvested, 0);
-  const totalRepaid = MY_INVESTMENTS.reduce((s, i) => s + i.totalRepaid, 0);
-  const totalExpected = MY_INVESTMENTS.reduce((s, i) => s + i.totalExpected, 0);
+function statusBg(s: RepayStatus) {
+  if (s === "completed") return "bg-emerald-50 border-emerald-200 text-emerald-700";
+  if (s === "current") return "bg-primary/10 border-primary/30 text-primary";
+  if (s === "late") return "bg-destructive/10 border-destructive/30 text-destructive";
+  return "bg-secondary border-border text-muted-foreground";
+}
+
+function investmentStatusBadge(s: Investment["status"]) {
+  if (s === "active") return "bg-primary/10 border-primary/30 text-primary";
+  if (s === "completed") return "bg-emerald-50 border-emerald-200 text-emerald-700";
+  return "bg-amber-50 border-amber-200 text-amber-700";
+}
+
+// A real investment's repayment schedule is fetched lazily, one row at a
+// time (only when expanded) — pulling every investment's schedule up
+// front just to render a collapsed list isn't worth the extra queries.
+function RealInvestmentRow({ inv, pitchTitle, isOpen, onToggle }: {
+  inv: AppPitchInvestment; pitchTitle: string; isOpen: boolean; onToggle: () => void;
+}) {
+  const repayments = usePitchRepayments(inv.id);
+  const today = new Date();
+  const rows: Repayment[] = (repayments ?? []).map((r) => ({
+    month: `Month ${r.month}`, amount: r.amount, currency: r.currency,
+    status: r.status === "paid" ? "completed" : new Date(r.dueDate) < today ? "late" : "upcoming",
+  }));
+  const firstPendingIdx = rows.findIndex((r) => r.status === "upcoming");
+  if (firstPendingIdx !== -1) rows[firstPendingIdx] = { ...rows[firstPendingIdx], status: "current" };
+
+  const totalExpected = inv.amount * (1 + (inv.returnPct / 100) * (inv.timelineMonths / 12));
+  const totalRepaid = rows.filter((r) => r.status === "completed").reduce((s, r) => s + r.amount, 0);
+  const repayProgress = totalExpected > 0 ? Math.round((totalRepaid / totalExpected) * 100) : 0;
+  const status: Investment["status"] = rows.length > 0 && rows.every((r) => r.status === "completed")
+    ? "completed" : rows.some((r) => r.status === "late") ? "delayed" : "active";
+
+  return (
+    <div className="bg-card border border-border rounded-2xl overflow-hidden">
+      <button className="w-full text-left cursor-pointer" onClick={onToggle}>
+        <div className="flex items-center gap-3 p-4">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary/70 to-emerald-600/40 flex items-center justify-center text-xl shrink-0">
+            💼
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="font-bold text-sm truncate">{pitchTitle}</div>
+            <div className="text-[10px] text-muted-foreground flex items-center gap-2 mt-0.5">
+              <span>{fmt(inv.amount, inv.currency)} invested</span>
+              <span>·</span>
+              <span className={cn("font-bold", status === "delayed" ? "text-amber-700" : "text-primary")}>{inv.returnPct}%/yr</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className={cn("text-[9px] font-black border px-2 py-0.5 rounded-full capitalize", investmentStatusBadge(status))}>
+              {status}
+            </span>
+            {isOpen ? <ChevronUp size={14} className="text-muted-foreground" /> : <ChevronDown size={14} className="text-muted-foreground" />}
+          </div>
+        </div>
+        <div className="px-4 pb-3">
+          <div className="flex justify-between text-[10px] text-muted-foreground mb-1">
+            <span>Repayment progress</span>
+            <span className="font-mono">{repayProgress}%</span>
+          </div>
+          <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
+            <div className={cn("h-full rounded-full", status === "delayed" ? "bg-amber-400" : "bg-primary")} style={{ width: `${repayProgress}%` }} />
+          </div>
+        </div>
+      </button>
+
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden">
+            <div className="border-t border-border px-4 py-3 space-y-2">
+              <div className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider mb-3">Repayment Schedule</div>
+              {rows.map((r, idx) => (
+                <div key={idx} className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className={cn("w-6 h-6 rounded-full border flex items-center justify-center", statusBg(r.status))}>
+                      {r.status === "completed" && <CheckCircle size={12} />}
+                      {r.status === "current" && <Clock size={11} />}
+                      {r.status === "late" && <AlertCircle size={11} />}
+                      {r.status === "upcoming" && <ChevronRight size={11} />}
+                    </div>
+                    <span className="text-xs text-muted-foreground">{r.month}</span>
+                  </div>
+                  <span className={cn("text-xs font-bold font-mono", statusColor(r.status))}>{fmt(r.amount, r.currency)}</span>
+                </div>
+              ))}
+              <div className="pt-2 border-t border-border flex justify-between text-xs">
+                <span className="text-muted-foreground">Total repaid</span>
+                <span className="font-black font-mono text-emerald-700">{fmt(totalRepaid, inv.currency)}</span>
+              </div>
+              <div className="flex justify-between text-xs">
+                <span className="text-muted-foreground">Total expected</span>
+                <span className="font-black font-mono text-primary">{fmt(Math.round(totalExpected), inv.currency)}</span>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function PortfolioView({ onBrowse, currentUserId, realInvestments, realPitches }: {
+  onBrowse: () => void; currentUserId: string | undefined; realInvestments: AppPitchInvestment[] | undefined; realPitches: AppPitch[] | undefined;
+}) {
+  const [expanded, setExpanded] = useState<number | string | null>(null);
+
+  const hasRealInvestments = !!currentUserId && !!realInvestments && realInvestments.length > 0;
+
+  const totalInvested = hasRealInvestments ? realInvestments.reduce((s, i) => s + i.amount, 0) : MY_INVESTMENTS.reduce((s, i) => s + i.amountInvested, 0);
+  // Real repayments only ever advance to "paid" via a manual/admin action
+  // (see supabase/migrations/0018) — no such action exists in this phase,
+  // so a signed-in user's real total-repaid is always genuinely zero.
+  const totalRepaid = hasRealInvestments ? 0 : MY_INVESTMENTS.reduce((s, i) => s + i.totalRepaid, 0);
+  const totalExpected = hasRealInvestments
+    ? realInvestments.reduce((s, i) => s + i.amount * (1 + (i.returnPct / 100) * (i.timelineMonths / 12)), 0)
+    : MY_INVESTMENTS.reduce((s, i) => s + i.totalExpected, 0);
   const currentValue = PORTFOLIO_CHART[PORTFOLIO_CHART.length - 1].value;
   const prevValue = PORTFOLIO_CHART[PORTFOLIO_CHART.length - 2].value;
   const growthPct = (((currentValue - prevValue) / prevValue) * 100).toFixed(1);
-
-  function statusColor(s: RepayStatus) {
-    if (s === "completed") return "text-emerald-700";
-    if (s === "current") return "text-primary";
-    if (s === "late") return "text-destructive";
-    return "text-muted-foreground";
-  }
-
-  function statusBg(s: RepayStatus) {
-    if (s === "completed") return "bg-emerald-50 border-emerald-200 text-emerald-700";
-    if (s === "current") return "bg-primary/10 border-primary/30 text-primary";
-    if (s === "late") return "bg-destructive/10 border-destructive/30 text-destructive";
-    return "bg-secondary border-border text-muted-foreground";
-  }
-
-  function investmentStatusBadge(s: Investment["status"]) {
-    if (s === "active") return "bg-primary/10 border-primary/30 text-primary";
-    if (s === "completed") return "bg-emerald-50 border-emerald-200 text-emerald-700";
-    return "bg-amber-50 border-amber-200 text-amber-700";
-  }
 
   return (
     <div className="p-5 space-y-5">
@@ -1045,7 +1182,15 @@ function PortfolioView({ onBrowse }: { onBrowse: () => void }) {
 
       <h3 className="font-bold text-sm">My Investments</h3>
 
-      {MY_INVESTMENTS.map(inv => {
+      {hasRealInvestments ? realInvestments.map((inv) => (
+        <RealInvestmentRow
+          key={inv.id}
+          inv={inv}
+          pitchTitle={realPitches?.find((p) => p.id === inv.pitchId)?.title ?? "Investment"}
+          isOpen={expanded === inv.id}
+          onToggle={() => setExpanded(expanded === inv.id ? null : inv.id)}
+        />
+      )) : MY_INVESTMENTS.map(inv => {
         const isOpen = expanded === inv.id;
         const repayProgress = Math.round((inv.totalRepaid / inv.totalExpected) * 100);
         return (
@@ -1130,7 +1275,7 @@ function PortfolioView({ onBrowse }: { onBrowse: () => void }) {
         );
       })}
 
-      {MY_INVESTMENTS.length === 0 && (
+      {(hasRealInvestments ? realInvestments.length === 0 : MY_INVESTMENTS.length === 0) && (
         <div className="text-center py-16 space-y-3">
           <BarChart3 size={40} className="text-muted-foreground mx-auto" />
           <p className="text-sm text-muted-foreground">No investments yet</p>
@@ -1458,7 +1603,18 @@ export default function InvestPage() {
   const [investing, setInvesting] = useState<Pitch | null>(null);
   const [sortBy, setSortBy] = useState<"return" | "progress" | "new" | "risk">("return");
 
-  const filtered = PITCHES
+  const currentUser = useCurrentAppUser();
+  const realPitches = usePitches();
+  const realInvestments = usePitchInvestmentsForUser(currentUser?.id);
+  const investInPitchMutation = useInvestInPitchMutation();
+
+  // Real catalog once signed in with data to show; anonymous/no-data
+  // visitors keep the existing rich mock catalog — same fallback
+  // convention used throughout this migration (see fundraise/travel).
+  const hasRealPitches = !!currentUser && !!realPitches && realPitches.length > 0;
+  const displayPitches: Pitch[] = hasRealPitches ? realPitches.map(toDisplayPitch) : PITCHES;
+
+  const filtered = displayPitches
     .filter(p => {
       const matchCat = category === "all" || p.category === category;
       const matchSearch =
@@ -1474,12 +1630,12 @@ export default function InvestPage() {
         const order: Record<RiskLevel, number> = { low: 0, medium: 1, high: 2 };
         return order[a.risk] - order[b.risk];
       }
-      return b.id - a.id;
+      return String(b.id).localeCompare(String(a.id));
     });
 
-  const featured = PITCHES.filter(p => p.featured);
-  const totalRaised = PITCHES.reduce((s, p) => s + p.raised, 0);
-  const totalBackers = PITCHES.reduce((s, p) => s + p.backers, 0);
+  const featured = displayPitches.filter(p => p.featured);
+  const totalRaised = displayPitches.reduce((s, p) => s + p.raised, 0);
+  const totalBackers = displayPitches.reduce((s, p) => s + p.backers, 0);
 
   const TABS: { key: InvestTab; label: string; icon: React.ElementType }[] = [
     { key: "browse", label: t("invest.tabBrowse"), icon: TrendingUp },
@@ -1504,7 +1660,7 @@ export default function InvestPage() {
                 Africa's Marketplace
               </span>
             </div>
-            <p className="text-xs text-muted-foreground">Direct investment in African ventures — {PITCHES.length} active pitches</p>
+            <p className="text-xs text-muted-foreground">Direct investment in African ventures — {displayPitches.length} active pitches</p>
           </div>
           <Button size="sm" className="font-bold" onClick={() => { setSelected(null); setTab("submit"); }}>
             <Plus size={14} className="mr-1" /> Pitch
@@ -1519,9 +1675,9 @@ export default function InvestPage() {
         {/* Stats strip */}
         <div className="flex gap-2 mb-4">
           {[
-            { label: "Active pitches", value: `${PITCHES.length}` },
+            { label: "Active pitches", value: `${displayPitches.length}` },
             { label: "Total raised", value: `${(totalRaised / 1_000_000).toFixed(0)}M XAF` },
-            { label: "Avg return", value: `${Math.round(PITCHES.reduce((s, p) => s + p.returnPct, 0) / PITCHES.length)}% / yr` },
+            { label: "Avg return", value: `${Math.round(displayPitches.reduce((s, p) => s + p.returnPct, 0) / displayPitches.length)}% / yr` },
             { label: "Total backers", value: totalBackers.toLocaleString() },
           ].map(s => (
             <div key={s.label} className="flex-1 bg-secondary/50 border border-border rounded-xl px-2 py-1.5 min-w-0">
@@ -1637,7 +1793,7 @@ export default function InvestPage() {
           {/* ── PORTFOLIO ── */}
           {tab === "portfolio" && (
             <motion.div key="portfolio" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-              <PortfolioView onBrowse={() => setTab("browse")} />
+              <PortfolioView onBrowse={() => setTab("browse")} currentUserId={currentUser?.id} realInvestments={realInvestments} realPitches={realPitches} />
             </motion.div>
           )}
 
@@ -1660,7 +1816,14 @@ export default function InvestPage() {
 
       {/* Invest modal */}
       <AnimatePresence>
-        {investing && <InvestModal pitch={investing} onClose={() => setInvesting(null)} />}
+        {investing && (
+          <InvestModal
+            pitch={investing}
+            currentUserId={currentUser?.id}
+            onInvest={(args) => investInPitchMutation(args)}
+            onClose={() => setInvesting(null)}
+          />
+        )}
       </AnimatePresence>
     </div>
   );

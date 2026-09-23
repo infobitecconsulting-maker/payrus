@@ -12,10 +12,27 @@ import { cn } from "@/lib/utils.ts";
 import { Button } from "@/components/ui/button.tsx";
 import { Input } from "@/components/ui/input.tsx";
 import { toast } from "sonner";
+import { useProfile } from "@/contexts/profile-context.tsx";
+import { useCurrentAppUser } from "@/hooks/use-current-app-user.ts";
+import { useWalletViewsForUser, usePlaceBetMutation, useResolveBetMutation } from "@/hooks/use-backend.ts";
 
 // ─── TYPES ────────────────────────────────────────────────────────────────────
 
 type GameTab = "lotto" | "sports" | "scratch" | "wallet" | "responsible";
+
+// Real money mode (signed in): stakes debit and payouts credit the real
+// PayRus wallet directly via placeBet/resolveBet — resolution is decided
+// server-side (supabase/migrations/0018), never trusted from the client.
+// Anonymous/demo visitors keep the exact previous play-money simulation.
+type PlaceBetFn = ReturnType<typeof usePlaceBetMutation>;
+type ResolveBetFn = ReturnType<typeof useResolveBetMutation>;
+interface RealMoneyProps {
+  isReal: boolean;
+  currentUserId: string | undefined;
+  currency: string;
+  placeBet: PlaceBetFn;
+  resolveBet: ResolveBetFn;
+}
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
 
@@ -59,11 +76,11 @@ function randomPick(n: number, max: number): number[] {
 
 // ─── LOTTO SECTION ────────────────────────────────────────────────────────────
 
-function LottoSection({ gameBalance, onDeduct, onCredit }: {
+function LottoSection({ gameBalance, onDeduct, onCredit, isReal, currentUserId, currency, placeBet, resolveBet }: {
   gameBalance: number;
   onDeduct: (n: number) => void;
   onCredit: (n: number) => void;
-}) {
+} & RealMoneyProps) {
   const [picked, setPicked] = useState<number[]>([]);
   const [drawResult, setDrawResult] = useState<number[] | null>(null);
   const [animating, setAnimating] = useState(false);
@@ -87,9 +104,41 @@ function LottoSection({ gameBalance, onDeduct, onCredit }: {
     setPicked(randomPick(LOTTO_PICK, LOTTO_MAX));
   }
 
+  async function playLottoReal() {
+    if (!currentUserId) return;
+    setAnimating(true);
+    setShowResult(false);
+    setDrawResult(null);
+    try {
+      const bet = await placeBet({ userId: currentUserId, kind: "lotto", stakeAmount: TICKET_COST, currency, meta: { picks: picked } });
+      await new Promise((r) => setTimeout(r, 2200));
+      const resolved = await resolveBet({ betId: bet.id, userId: currentUserId });
+      const payout = resolved.payoutAmount ?? 0;
+      // The draw itself happens inside resolve_bet and isn't returned to the
+      // client — only the payout is, so matches are inferred from the fixed
+      // payout tiers rather than shown as real drawn balls (see LOTTO_PICK grid).
+      const m = payout === jackpot ? 6 : payout === 500000 ? 5 : payout === 25000 ? 4 : payout === 2000 ? 3 : 0;
+      setMatches(m);
+      setAnimating(false);
+      setShowResult(true);
+      if (resolved.status === "won") {
+        toast.success(`🎉 ${m} matches! You won ${fmt(payout)}!`);
+      } else {
+        toast.info("No prize this time. Better luck next time!");
+      }
+    } catch {
+      setAnimating(false);
+      toast.error("Couldn't place the bet — try again");
+    }
+  }
+
   function playLotto() {
     if (picked.length < LOTTO_PICK) {
       toast.error(`Pick ${LOTTO_PICK} numbers to play`);
+      return;
+    }
+    if (isReal) {
+      void playLottoReal();
       return;
     }
     if (gameBalance < TICKET_COST) {
@@ -193,7 +242,7 @@ function LottoSection({ gameBalance, onDeduct, onCredit }: {
                   </motion.div>
                 ))}
               </div>
-            ) : drawResult && (
+            ) : drawResult ? (
               <div className="space-y-2">
                 <div className="flex justify-center gap-2 flex-wrap">
                   {drawResult.map((n, i) => (
@@ -209,6 +258,21 @@ function LottoSection({ gameBalance, onDeduct, onCredit }: {
                 </div>
                 <div className={cn("text-sm font-bold", matches >= 3 ? "text-primary" : "text-muted-foreground")}>
                   {matches === 6 ? "🎉 JACKPOT!" : matches >= 3 ? `${matches} matches — You won!` : `${matches} match${matches !== 1 ? "es" : ""} — No prize`}
+                </div>
+              </div>
+            ) : (
+              // Real bets: resolve_bet decides the draw server-side and only
+              // returns the payout, not the drawn numbers — no ball reveal.
+              <div className="space-y-2">
+                <div className="flex justify-center gap-2 flex-wrap">
+                  {picked.map((n) => (
+                    <div key={n} className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-black border bg-primary/20 text-primary border-primary/50">
+                      {n}
+                    </div>
+                  ))}
+                </div>
+                <div className={cn("text-sm font-bold", matches >= 3 ? "text-primary" : "text-muted-foreground")}>
+                  {matches === 6 ? "🎉 JACKPOT!" : matches >= 3 ? `${matches} matches — You won!` : "No prize this time"}
                 </div>
               </div>
             )}
@@ -253,16 +317,17 @@ interface Bet {
   away: string;
 }
 
-function SportsSection({ gameBalance, onDeduct, onCredit }: {
+function SportsSection({ gameBalance, onDeduct, onCredit, isReal, currentUserId, currency, placeBet: placeBetReal, resolveBet }: {
   gameBalance: number;
   onDeduct: (n: number) => void;
   onCredit: (n: number) => void;
-}) {
+} & RealMoneyProps) {
   const [betSlip, setBetSlip] = useState<Bet[]>([]);
   const [stake, setStake] = useState("1000");
   const [sport, setSport] = useState<"football" | "basketball">("football");
   const [resolved, setResolved] = useState(false);
   const [winAmount, setWinAmount] = useState(0);
+  const [placing, setPlacing] = useState(false);
 
   const matches = sport === "football" ? FOOTBALL_MATCHES : BASKETBALL_MATCHES;
 
@@ -279,9 +344,38 @@ function SportsSection({ gameBalance, onDeduct, onCredit }: {
     });
   }
 
-  function placeBet() {
+  async function submitBetReal() {
+    if (!currentUserId) return;
+    setPlacing(true);
+    setResolved(false);
+    try {
+      const bet = await placeBetReal({ userId: currentUserId, kind: "sports", stakeAmount: stakeNum, currency, meta: { odds: totalOdds } });
+      await new Promise((r) => setTimeout(r, 1800));
+      const result = await resolveBet({ betId: bet.id, userId: currentUserId });
+      if (result.status === "won") {
+        const payout = result.payoutAmount ?? 0;
+        setWinAmount(payout);
+        toast.success(`🏆 All predictions correct! Won ${fmt(payout)}!`);
+      } else {
+        setWinAmount(0);
+        toast.info("Some predictions were wrong. Better luck next time!");
+      }
+      setResolved(true);
+      setBetSlip([]);
+    } catch {
+      toast.error("Couldn't place the bet — try again");
+    } finally {
+      setPlacing(false);
+    }
+  }
+
+  function submitBet() {
     if (betSlip.length === 0) { toast.error("Add at least one selection"); return; }
     if (stakeNum < 500) { toast.error("Minimum stake: 500 XAF"); return; }
+    if (isReal) {
+      void submitBetReal();
+      return;
+    }
     if (gameBalance < stakeNum) { toast.error("Insufficient game wallet balance"); return; }
     onDeduct(stakeNum);
     setResolved(false);
@@ -382,9 +476,9 @@ function SportsSection({ gameBalance, onDeduct, onCredit }: {
               <span className="font-black text-primary font-mono">{fmt(potentialWin)}</span>
             </div>
           </div>
-          <Button className="w-full font-bold" onClick={placeBet}>
+          <Button className="w-full font-bold" onClick={submitBet} disabled={placing}>
             <Target size={14} className="mr-1.5" />
-            Place Bet — {fmt(stakeNum)}
+            {placing ? "Placing…" : `Place Bet — ${fmt(stakeNum)}`}
           </Button>
         </motion.div>
       )}
@@ -407,18 +501,48 @@ interface ScratchCell {
   revealed: boolean;
 }
 
-function ScratchSection({ gameBalance, onDeduct, onCredit }: {
+function ScratchSection({ gameBalance, onDeduct, onCredit, isReal, currentUserId, currency, placeBet, resolveBet }: {
   gameBalance: number;
   onDeduct: (n: number) => void;
   onCredit: (n: number) => void;
-}) {
+} & RealMoneyProps) {
   const CARD_COST = 1000;
   const [cells, setCells] = useState<ScratchCell[] | null>(null);
   const [allRevealed, setAllRevealed] = useState(false);
   const [totalWon, setTotalWon] = useState<number | null>(null);
   const [jackpotPot, setJackpotPot] = useState(7840000);
+  const [buying, setBuying] = useState(false);
+  // Real cards are already settled server-side (resolveBet runs before the
+  // card is even dealt) — revealing cells is a client-side animation over an
+  // already-known result, so it must never credit the wallet a second time.
+  const [isCardReal, setIsCardReal] = useState(false);
+
+  async function buyCardReal() {
+    if (!currentUserId) return;
+    setBuying(true);
+    try {
+      const bet = await placeBet({ userId: currentUserId, kind: "scratch", stakeAmount: CARD_COST, currency });
+      const resolved = await resolveBet({ betId: bet.id, userId: currentUserId });
+      const payout = resolved.payoutAmount ?? 0;
+      setJackpotPot(p => p + Math.round(CARD_COST * 0.1));
+      const winIdx = Math.floor(Math.random() * 9);
+      const prizes = Array.from({ length: 9 }, (_, i) => (i === winIdx ? payout : 0));
+      setCells(prizes.map(p => ({ prize: p, revealed: false })));
+      setAllRevealed(false);
+      setTotalWon(null);
+      setIsCardReal(true);
+    } catch {
+      toast.error("Couldn't buy the card — try again");
+    } finally {
+      setBuying(false);
+    }
+  }
 
   function buyCard() {
+    if (isReal) {
+      void buyCardReal();
+      return;
+    }
     if (gameBalance < CARD_COST) { toast.error("Insufficient balance"); return; }
     onDeduct(CARD_COST);
     setJackpotPot(p => p + Math.round(CARD_COST * 0.1));
@@ -426,6 +550,7 @@ function ScratchSection({ gameBalance, onDeduct, onCredit }: {
     setCells(prizes.map(p => ({ prize: p, revealed: false })));
     setAllRevealed(false);
     setTotalWon(null);
+    setIsCardReal(false);
   }
 
   function revealCell(i: number) {
@@ -437,7 +562,7 @@ function ScratchSection({ gameBalance, onDeduct, onCredit }: {
       setAllRevealed(true);
       setTotalWon(total);
       if (total > 0) {
-        onCredit(total);
+        if (!isCardReal) onCredit(total);
         toast.success(`🎰 Scratch complete! You won ${fmt(total)}!`);
       } else {
         toast.info("No prize this time. Try again!");
@@ -453,7 +578,7 @@ function ScratchSection({ gameBalance, onDeduct, onCredit }: {
     setAllRevealed(true);
     setTotalWon(total);
     if (total > 0) {
-      onCredit(total);
+      if (!isCardReal) onCredit(total);
       toast.success(`🎰 You won ${fmt(total)}!`);
     } else {
       toast.info("No prize this time!");
@@ -490,8 +615,8 @@ function ScratchSection({ gameBalance, onDeduct, onCredit }: {
               </div>
             ))}
           </div>
-          <Button className="w-full font-bold text-base py-6" onClick={buyCard}>
-            <Ticket size={16} className="mr-2" /> Buy Scratch Card — {fmt(CARD_COST)}
+          <Button className="w-full font-bold text-base py-6" onClick={buyCard} disabled={buying}>
+            <Ticket size={16} className="mr-2" /> {buying ? "Buying…" : `Buy Scratch Card — ${fmt(CARD_COST)}`}
           </Button>
         </div>
       )}
@@ -658,6 +783,52 @@ function GameWallet({ balance, onTopUp, onWithdraw }: {
   );
 }
 
+// Signed-in users bet directly against their real PayRus wallet — there's no
+// separate game-wallet balance to top up or withdraw from anymore.
+function RealGameWallet({ balance, currency }: { balance: number | undefined; currency: string }) {
+  const communityFund = 12840000;
+  return (
+    <div className="space-y-4">
+      <div className="bg-gradient-to-br from-primary/20 to-emerald-900/20 border border-primary/30 rounded-2xl p-5 text-center space-y-1">
+        <div className="text-[11px] font-bold text-primary uppercase tracking-widest">PayRus Balance</div>
+        <div className="text-4xl font-black font-mono">{balance === undefined ? "—" : `${currency} ${balance.toLocaleString()}`}</div>
+        <div className="text-xs text-muted-foreground">Bets debit and payouts credit this balance directly</div>
+      </div>
+
+      <div className="flex items-start gap-3 p-4 bg-primary/5 border border-primary/20 rounded-2xl">
+        <Wallet size={16} className="text-primary shrink-0 mt-0.5" />
+        <p className="text-xs text-muted-foreground leading-relaxed">
+          There's no separate game wallet to top up or withdraw — every bet you place moves your real PayRus balance, and every win is deposited back instantly.
+        </p>
+      </div>
+
+      {/* Community fund */}
+      <div className="bg-card border border-border rounded-2xl p-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <TrendingUp size={15} className="text-primary" />
+          <span className="font-bold text-sm">Community Investment Fund</span>
+        </div>
+        <div className="text-2xl font-black font-mono text-primary">{fmt(communityFund)}</div>
+        <p className="text-[11px] text-muted-foreground leading-relaxed">
+          A portion of every game played is contributed to the PayRus Community Fund, which is deployed directly into <span className="text-foreground font-semibold">PayRus Invest</span> ventures — backing African farmers, entrepreneurs, and energy projects.
+        </p>
+        <div className="flex gap-2">
+          {[
+            { label: "Ventures backed", value: "14" },
+            { label: "Players contributing", value: "8,420" },
+            { label: "Fund growth / mo", value: "+12%" },
+          ].map(s => (
+            <div key={s.label} className="flex-1 bg-secondary/50 border border-border rounded-xl px-2 py-2 text-center">
+              <div className="font-black text-sm text-primary">{s.value}</div>
+              <div className="text-[9px] text-muted-foreground">{s.label}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── RESPONSIBLE GAMING ───────────────────────────────────────────────────────
 
 function ResponsibleGaming() {
@@ -770,7 +941,21 @@ function ResponsibleGaming() {
 export default function GamesPage() {
   const { t } = useTranslation("common");
   const [tab, setTab] = useState<GameTab>("lotto");
-  const [gameBalance, setGameBalance] = useState(5000); // XAF in game wallet
+  const [gameBalance, setGameBalance] = useState(5000); // XAF in game wallet — anonymous/demo play only
+
+  const { profile } = useProfile();
+  const currency = profile?.currency ?? "XAF";
+  const currentUser = useCurrentAppUser();
+  const realWallets = useWalletViewsForUser(currentUser?.id);
+  const realBalance = (realWallets?.find(w => w.currency === currency) ?? realWallets?.[0])?.balance;
+  const placeBetMutation = usePlaceBetMutation();
+  const resolveBetMutation = useResolveBetMutation();
+
+  // Signed in = real money mode: bets debit/credit the real wallet directly
+  // (see RealMoneyProps above). Anonymous visitors keep the exact previous
+  // play-money simulation via gameBalance/deduct/credit.
+  const isReal = !!currentUser;
+  const realMoneyProps = { isReal, currentUserId: currentUser?.id, currency, placeBet: placeBetMutation, resolveBet: resolveBetMutation };
 
   const TABS: { key: GameTab; label: string; icon: React.ElementType }[] = [
     { key: "lotto", label: t("games.tabLotto"), icon: Ticket },
@@ -807,14 +992,16 @@ export default function GamesPage() {
           <button onClick={() => setTab("wallet")}
             className="flex items-center gap-1.5 bg-primary/10 border border-primary/30 rounded-xl px-3 py-2 cursor-pointer hover:bg-primary/15 transition-colors">
             <Wallet size={12} className="text-primary" />
-            <span className="text-xs font-black text-primary font-mono">{fmt(gameBalance)}</span>
+            <span className="text-xs font-black text-primary font-mono">
+              {isReal ? (realBalance === undefined ? "—" : `${currency} ${realBalance.toLocaleString()}`) : fmt(gameBalance)}
+            </span>
           </button>
         </div>
 
         {/* Stats strip */}
         <div className="flex gap-3 mt-3 mb-4">
           {[
-            { label: "Game wallet", value: fmt(gameBalance) },
+            { label: isReal ? "PayRus balance" : "Game wallet", value: isReal ? (realBalance === undefined ? "—" : `${currency} ${realBalance.toLocaleString()}`) : fmt(gameBalance) },
             { label: "Community fund", value: "12.8M XAF" },
             { label: "Next lotto draw", value: "Wed 20:00" },
           ].map(s => (
@@ -845,10 +1032,10 @@ export default function GamesPage() {
         <AnimatePresence mode="wait">
           <motion.div key={tab} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
             transition={{ duration: 0.16 }} className="p-5">
-            {tab === "lotto" && <LottoSection gameBalance={gameBalance} onDeduct={deduct} onCredit={credit} />}
-            {tab === "sports" && <SportsSection gameBalance={gameBalance} onDeduct={deduct} onCredit={credit} />}
-            {tab === "scratch" && <ScratchSection gameBalance={gameBalance} onDeduct={deduct} onCredit={credit} />}
-            {tab === "wallet" && <GameWallet balance={gameBalance} onTopUp={topUp} onWithdraw={withdraw} />}
+            {tab === "lotto" && <LottoSection gameBalance={gameBalance} onDeduct={deduct} onCredit={credit} {...realMoneyProps} />}
+            {tab === "sports" && <SportsSection gameBalance={gameBalance} onDeduct={deduct} onCredit={credit} {...realMoneyProps} />}
+            {tab === "scratch" && <ScratchSection gameBalance={gameBalance} onDeduct={deduct} onCredit={credit} {...realMoneyProps} />}
+            {tab === "wallet" && (isReal ? <RealGameWallet balance={realBalance} currency={currency} /> : <GameWallet balance={gameBalance} onTopUp={topUp} onWithdraw={withdraw} />)}
             {tab === "responsible" && <ResponsibleGaming />}
           </motion.div>
         </AnimatePresence>

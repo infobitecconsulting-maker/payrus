@@ -11,6 +11,9 @@ import { cn } from "@/lib/utils.ts";
 import { Input } from "@/components/ui/input.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import { toast } from "sonner";
+import { useCurrentAppUser } from "@/hooks/use-current-app-user.ts";
+import { useCampaigns, useCreateCampaignMutation, useDonateToCampaignMutation } from "@/hooks/use-backend.ts";
+import type { AppCampaign } from "@/lib/backend.ts";
 
 // ─── TYPES ────────────────────────────────────────────────────────────────────
 
@@ -18,7 +21,7 @@ type Category = "all" | "agriculture" | "education" | "health" | "business";
 type TabKey = "browse" | "mycampaigns" | "create";
 
 interface Campaign {
-  id: number;
+  id: number | string;
   title: string;
   story: string;
   creator: string;
@@ -133,6 +136,28 @@ function fmt(n: number, currency: string) {
   return `${n.toLocaleString()} ${currency}`;
 }
 
+const CATEGORY_PHOTO: Record<string, { emoji: string; color: string }> = {
+  agriculture: { emoji: "🌱", color: "from-emerald-900/60 to-emerald-700/30" },
+  education: { emoji: "📚", color: "from-blue-900/60 to-blue-700/30" },
+  health: { emoji: "🏥", color: "from-rose-900/60 to-rose-700/30" },
+  business: { emoji: "💼", color: "from-amber-900/60 to-amber-700/30" },
+};
+
+// Real campaigns (supabase/migrations/0018) don't track a donor count or a
+// creator display name yet — mapped into the same Campaign shape the
+// existing mock UI already renders so no JSX below needs to branch on
+// real-vs-mock, only the data source does.
+function toDisplayCampaign(c: AppCampaign): Campaign {
+  const daysLeft = c.deadline ? Math.max(0, Math.ceil((new Date(c.deadline).getTime() - Date.now()) / 86400000)) : 30;
+  const photo = CATEGORY_PHOTO[c.category] ?? { emoji: "❤️", color: "from-primary/60 to-primary/30" };
+  return {
+    id: c.id, title: c.title, story: c.story, creator: "PayRus member", creatorVerified: false,
+    category: (["agriculture", "education", "health", "business"].includes(c.category) ? c.category : "business") as Category,
+    goal: c.goal, raised: c.raised, donors: 0, daysLeft, currency: c.currency, location: "",
+    photo: photo.emoji, photoColor: photo.color,
+  };
+}
+
 // ─── CAMPAIGN CARD ─────────────────────────────────────────────────────────
 
 function CampaignCard({ campaign, onSelect, onDonate }: {
@@ -214,19 +239,37 @@ function CampaignCard({ campaign, onSelect, onDonate }: {
 
 // ─── DONATE MODAL ─────────────────────────────────────────────────────────
 
-function DonateModal({ campaign, onClose }: { campaign: Campaign; onClose: () => void }) {
+function DonateModal({ campaign, currentUserId, onDonate, onClose }: {
+  campaign: Campaign; currentUserId: string | undefined; onDonate: (args: { userId: string; campaignId: string; amount: number; note?: string }) => Promise<unknown>; onClose: () => void;
+}) {
   const [amount, setAmount] = useState("");
   const [anonymous, setAnonymous] = useState(false);
   const [done, setDone] = useState(false);
+  const [donating, setDonating] = useState(false);
   const presets = [500, 2000, 5000, 10000, 25000];
 
-  function handleDonate() {
+  async function handleDonate() {
     if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
       toast.error("Please enter a valid amount");
       return;
     }
-    setDone(true);
-    toast.success(`Donation of ${Number(amount).toLocaleString()} ${campaign.currency} sent!`);
+    if (!currentUserId || typeof campaign.id !== "string") {
+      // Anonymous preview, or a demo (non-real) campaign — keep the
+      // existing mock success path unchanged.
+      setDone(true);
+      toast.success(`Donation of ${Number(amount).toLocaleString()} ${campaign.currency} sent!`);
+      return;
+    }
+    setDonating(true);
+    try {
+      await onDonate({ userId: currentUserId, campaignId: campaign.id, amount: Number(amount) });
+      setDone(true);
+      toast.success(`Donation of ${Number(amount).toLocaleString()} ${campaign.currency} sent!`);
+    } catch {
+      toast.error("Couldn't process the donation — try again");
+    } finally {
+      setDonating(false);
+    }
   }
 
   return (
@@ -293,9 +336,9 @@ function DonateModal({ campaign, onClose }: { campaign: Campaign; onClose: () =>
                 <span className="text-xs text-muted-foreground">Donate anonymously</span>
               </label>
 
-              <Button className="w-full font-bold" onClick={handleDonate}>
+              <Button className="w-full font-bold" disabled={donating} onClick={() => void handleDonate()}>
                 <Heart size={14} className="mr-2" />
-                Confirm Donation
+                {donating ? "Processing..." : "Confirm Donation"}
               </Button>
             </div>
           </>
@@ -424,17 +467,36 @@ const CATEGORY_OPTIONS: { value: Category; label: string }[] = [
   { value: "business", label: "Business" },
 ];
 
-function CreateCampaign({ onBack }: { onBack: () => void }) {
+function CreateCampaign({ currentUserId, onCreate, onBack }: {
+  currentUserId: string | undefined;
+  onCreate: (args: { ownerUserId: string; title: string; story: string; category: string; goal: number; currency: string; deadline?: string }) => Promise<unknown>;
+  onBack: () => void;
+}) {
   const [form, setForm] = useState({ title: "", story: "", goal: "", category: "agriculture" as Category, deadline: "", org: "" });
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
-  function handleSubmit() {
+  async function handleSubmit() {
     if (!form.title || !form.story || !form.goal || !form.deadline) {
       toast.error("Please fill in all required fields");
       return;
     }
-    setSubmitted(true);
-    toast.success("Campaign submitted for review!");
+    if (!currentUserId) {
+      // Anonymous preview — keep the existing mock success path unchanged.
+      setSubmitted(true);
+      toast.success("Campaign submitted for review!");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await onCreate({ ownerUserId: currentUserId, title: form.title, story: form.story, category: form.category, goal: Number(form.goal), currency: "XAF", deadline: form.deadline });
+      setSubmitted(true);
+      toast.success("Campaign submitted for review!");
+    } catch {
+      toast.error("Couldn't create the campaign — try again");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   if (submitted) {
@@ -569,8 +631,8 @@ function CreateCampaign({ onBack }: { onBack: () => void }) {
           </div>
         </div>
 
-        <Button className="w-full font-bold" onClick={handleSubmit}>
-          <Plus size={15} className="mr-2" /> Submit Campaign
+        <Button className="w-full font-bold" disabled={submitting} onClick={() => void handleSubmit()}>
+          <Plus size={15} className="mr-2" /> {submitting ? "Submitting..." : "Submit Campaign"}
         </Button>
       </div>
     </motion.div>
@@ -579,13 +641,13 @@ function CreateCampaign({ onBack }: { onBack: () => void }) {
 
 // ─── MY CAMPAIGNS ─────────────────────────────────────────────────────────────
 
-function MyCampaigns({ onCreateNew, onSelect, onDonate }: {
+function MyCampaigns({ campaigns, onCreateNew, onSelect, onDonate }: {
+  campaigns: Campaign[];
   onCreateNew: () => void;
   onSelect: (c: Campaign) => void;
   onDonate: (c: Campaign) => void;
 }) {
-  // Pretend user created the first two campaigns
-  const myCampaigns = CAMPAIGNS.slice(0, 2);
+  const myCampaigns = campaigns;
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -648,7 +710,18 @@ export default function Fundraise() {
   const [selected, setSelected] = useState<Campaign | null>(null);
   const [donating, setDonating] = useState<Campaign | null>(null);
 
-  const filtered = CAMPAIGNS.filter(c => {
+  const currentUser = useCurrentAppUser();
+  const realCampaigns = useCampaigns();
+  const createCampaignMutation = useCreateCampaignMutation();
+  const donateToCampaignMutation = useDonateToCampaignMutation();
+
+  // Real campaigns once any exist (browsable by everyone, same as the
+  // fictional catalog — not gated on being signed in yourself); falls back
+  // to the demo catalog only while the real table is still empty.
+  const hasReal = !!realCampaigns && realCampaigns.length > 0;
+  const displayCampaigns: Campaign[] = hasReal ? realCampaigns.map(toDisplayCampaign) : CAMPAIGNS;
+
+  const filtered = displayCampaigns.filter(c => {
     const matchCat = category === "all" || c.category === category;
     const matchSearch = c.title.toLowerCase().includes(search.toLowerCase()) ||
       c.location.toLowerCase().includes(search.toLowerCase()) ||
@@ -656,12 +729,12 @@ export default function Fundraise() {
     return matchCat && matchSearch;
   });
 
-  const featured = CAMPAIGNS.filter(c => c.featured);
-  const trending = CAMPAIGNS.filter(c => c.trending);
+  const featured = displayCampaigns.filter(c => c.featured);
+  const trending = displayCampaigns.filter(c => c.trending);
 
   // Stats banner
-  const totalRaised = CAMPAIGNS.reduce((s, c) => s + c.raised, 0);
-  const totalDonors = CAMPAIGNS.reduce((s, c) => s + c.donors, 0);
+  const totalRaised = displayCampaigns.reduce((s, c) => s + c.raised, 0);
+  const totalDonors = displayCampaigns.reduce((s, c) => s + c.donors, 0);
 
   return (
     <div className="flex flex-col h-full">
@@ -685,7 +758,7 @@ export default function Fundraise() {
         <div className="flex gap-3 mt-3 mb-4">
           {[
             { label: "Total raised", value: `${(totalRaised / 1_000_000).toFixed(1)}M XAF equiv.` },
-            { label: "Campaigns", value: `${CAMPAIGNS.length} active` },
+            { label: "Campaigns", value: `${displayCampaigns.length} active` },
             { label: "Donors", value: totalDonors.toLocaleString() },
           ].map(s => (
             <div key={s.label} className="flex-1 bg-secondary/50 border border-border rounded-xl px-2.5 py-2">
@@ -800,6 +873,7 @@ export default function Fundraise() {
                 <CampaignDetail campaign={selected} onBack={() => setSelected(null)} onDonate={setDonating} />
               ) : (
                 <MyCampaigns
+                  campaigns={hasReal ? displayCampaigns.filter((_, i) => realCampaigns![i].ownerUserId === currentUser?.id) : displayCampaigns.slice(0, 2)}
                   onCreateNew={() => setTab("create")}
                   onSelect={setSelected}
                   onDonate={setDonating}
@@ -810,7 +884,11 @@ export default function Fundraise() {
 
           {tab === "create" && (
             <motion.div key="create" className="h-full" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-              <CreateCampaign onBack={() => setTab("browse")} />
+              <CreateCampaign
+                currentUserId={currentUser?.id}
+                onCreate={createCampaignMutation}
+                onBack={() => setTab("browse")}
+              />
             </motion.div>
           )}
         </AnimatePresence>
@@ -818,7 +896,7 @@ export default function Fundraise() {
 
       {/* Donate modal */}
       <AnimatePresence>
-        {donating && <DonateModal campaign={donating} onClose={() => setDonating(null)} />}
+        {donating && <DonateModal campaign={donating} currentUserId={currentUser?.id} onDonate={donateToCampaignMutation} onClose={() => setDonating(null)} />}
       </AnimatePresence>
     </div>
   );
