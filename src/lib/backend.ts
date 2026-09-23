@@ -738,3 +738,240 @@ export async function redeemPaymentLink(args: { slug: string; payerUserId: strin
   const res = await supabase.rpc("redeem_payment_link", { p_slug: args.slug, p_payer_user_id: args.payerUserId });
   return toAppTransfer(mustHaveData(res, "redeemPaymentLink") as Record<string, unknown>);
 }
+
+// ============================================================================
+// Bills — supabase/migrations/0016. Paying a bill reuses applyWalletTransfer
+// directly from the frontend (type "payment"), no dedicated RPC here.
+// ============================================================================
+
+export interface AppBiller {
+  id: string;
+  name: string;
+  meta: string | null;
+  category: string | null;
+  currency: string;
+}
+
+export async function listBillBillers(): Promise<AppBiller[]> {
+  const res = await supabase.from("bill_billers").select("*");
+  return mustHaveData(res, "listBillBillers").map((r) => ({
+    id: r.id as string, name: r.name as string, meta: (r.meta as string) ?? null,
+    category: (r.category as string) ?? null, currency: r.currency as string,
+  }));
+}
+
+export interface AppBillSubscription {
+  userId: string;
+  billerId: string;
+  autoPay: boolean;
+  paused: boolean;
+}
+
+export async function listBillSubscriptionsForUser(userId: string): Promise<AppBillSubscription[]> {
+  const res = await supabase.from("bill_subscriptions").select("*").eq("user_id", userId);
+  return mustHaveData(res, "listBillSubscriptionsForUser").map((r) => ({
+    userId: r.user_id as string, billerId: r.biller_id as string, autoPay: Boolean(r.auto_pay), paused: Boolean(r.paused),
+  }));
+}
+
+export async function upsertBillSubscription(args: {
+  userId: string; billerId: string; autoPay?: boolean; paused?: boolean;
+}): Promise<AppBillSubscription> {
+  const res = await supabase.rpc("upsert_bill_subscription", {
+    p_user_id: args.userId, p_biller_id: args.billerId, p_auto_pay: args.autoPay ?? null, p_paused: args.paused ?? null,
+  });
+  const row = mustHaveData(res, "upsertBillSubscription") as Record<string, unknown>;
+  return { userId: row.user_id as string, billerId: row.biller_id as string, autoPay: Boolean(row.auto_pay), paused: Boolean(row.paused) };
+}
+
+// ============================================================================
+// Payouts — supabase/migrations/0016. create_payout_batch debits the
+// owner's wallet via the existing apply_wallet_transfer RPC internally.
+// ============================================================================
+
+export interface AppPayoutItem { id: string; batchId: string; recipientLabel: string; amount: number }
+export interface AppPayoutBatch {
+  id: string;
+  ownerUserId: string;
+  label: string;
+  currency: string;
+  totalAmount: number;
+  status: "open" | "pending" | "settled";
+  createdAt: string;
+}
+
+function toAppPayoutBatch(r: Record<string, unknown>): AppPayoutBatch {
+  return {
+    id: r.id as string, ownerUserId: r.owner_user_id as string, label: r.label as string, currency: r.currency as string,
+    totalAmount: Number(r.total_amount), status: r.status as AppPayoutBatch["status"], createdAt: r.created_at as string,
+  };
+}
+
+export async function listPayoutBatchesForUser(userId: string): Promise<AppPayoutBatch[]> {
+  const res = await supabase.from("payout_batches").select("*").eq("owner_user_id", userId).order("created_at", { ascending: false });
+  return mustHaveData(res, "listPayoutBatchesForUser").map(toAppPayoutBatch);
+}
+
+export async function listPayoutItems(batchId: string): Promise<AppPayoutItem[]> {
+  const res = await supabase.from("payout_items").select("*").eq("batch_id", batchId);
+  return mustHaveData(res, "listPayoutItems").map((r) => ({
+    id: r.id as string, batchId: r.batch_id as string, recipientLabel: r.recipient_label as string, amount: Number(r.amount),
+  }));
+}
+
+export async function createPayoutBatch(args: {
+  userId: string; label: string; currency: string; items: { recipientLabel: string; amount: number }[]; note?: string;
+}): Promise<AppPayoutBatch> {
+  const res = await supabase.rpc("create_payout_batch", {
+    p_user_id: args.userId, p_label: args.label, p_currency: args.currency,
+    p_items: args.items.map((i) => ({ recipient_label: i.recipientLabel, amount: i.amount })), p_note: args.note ?? null,
+  });
+  return toAppPayoutBatch(mustHaveData(res, "createPayoutBatch") as Record<string, unknown>);
+}
+
+// ============================================================================
+// Groups — supabase/migrations/0016. Members are real registered users,
+// found via the existing resolve_email_by_identifier RPC (same as p2p's
+// real-recipient lookup). Mass-payment reuses applyWalletTransfer directly
+// from the frontend (type "transfer"), once per selected member.
+// ============================================================================
+
+export interface AppGroup {
+  id: string;
+  ownerUserId: string;
+  name: string;
+  type: "employees" | "friends" | "volunteers" | "officials" | "private" | "vip";
+  currency: string;
+  createdAt: string;
+}
+
+function toAppGroup(r: Record<string, unknown>): AppGroup {
+  return {
+    id: r.id as string, ownerUserId: r.owner_user_id as string, name: r.name as string,
+    type: r.type as AppGroup["type"], currency: r.currency as string, createdAt: r.created_at as string,
+  };
+}
+
+export async function listGroupsForUser(userId: string): Promise<AppGroup[]> {
+  const res = await supabase.from("groups").select("*").eq("owner_user_id", userId).order("created_at", { ascending: false });
+  return mustHaveData(res, "listGroupsForUser").map(toAppGroup);
+}
+
+export async function createGroup(args: { ownerUserId: string; name: string; type: AppGroup["type"]; currency: string }): Promise<AppGroup> {
+  const res = await supabase.from("groups").insert({
+    owner_user_id: args.ownerUserId, name: args.name, type: args.type, currency: args.currency,
+  }).select("*").single();
+  return toAppGroup(mustHaveData(res, "createGroup"));
+}
+
+export interface AppGroupMember {
+  id: string;
+  groupId: string;
+  userId: string;
+  customAmount: number | null;
+  maskedEmail: string;
+}
+
+export async function listGroupMembers(args: { groupId: string; ownerUserId: string }): Promise<AppGroupMember[]> {
+  const res = await supabase.rpc("list_group_members", { p_group_id: args.groupId, p_owner_user_id: args.ownerUserId });
+  return mustHaveData(res, "listGroupMembers").map((r: Record<string, unknown>) => ({
+    id: r.id as string, groupId: r.group_id as string, userId: r.user_id as string,
+    customAmount: r.custom_amount === null ? null : Number(r.custom_amount), maskedEmail: r.masked_email as string,
+  }));
+}
+
+export async function addGroupMember(args: {
+  groupId: string; ownerUserId: string; identifier: string; customAmount?: number;
+}): Promise<AppGroupMember> {
+  const res = await supabase.rpc("add_group_member", {
+    p_group_id: args.groupId, p_owner_user_id: args.ownerUserId, p_identifier: args.identifier, p_custom_amount: args.customAmount ?? null,
+  });
+  const row = mustHaveData(res, "addGroupMember") as Record<string, unknown>;
+  return { id: row.id as string, groupId: row.group_id as string, userId: row.user_id as string, customAmount: row.custom_amount === null ? null : Number(row.custom_amount), maskedEmail: "" };
+}
+
+export async function removeGroupMember(memberId: string): Promise<void> {
+  const res = await supabase.from("group_members").delete().eq("id", memberId);
+  if (res.error) throw new Error(`removeGroupMember: ${res.error.message}`);
+}
+
+// ============================================================================
+// Disputes — supabase/migrations/0016. Creation is a plain owner-scoped
+// insert under RLS; resolution is admin-password-gated like every other
+// admin action in this codebase.
+// ============================================================================
+
+export interface AppDispute {
+  id: string;
+  userId: string;
+  transferId: string | null;
+  reason: string;
+  status: "open" | "resolved";
+  resolution: string | null;
+  createdAt: string;
+}
+
+function toAppDispute(r: Record<string, unknown>): AppDispute {
+  return {
+    id: r.id as string, userId: r.user_id as string, transferId: (r.transfer_id as string) ?? null, reason: r.reason as string,
+    status: r.status as AppDispute["status"], resolution: (r.resolution as string) ?? null, createdAt: r.created_at as string,
+  };
+}
+
+export async function listDisputesForUser(userId: string): Promise<AppDispute[]> {
+  const res = await supabase.from("dispute_cases").select("*").eq("user_id", userId).order("created_at", { ascending: false });
+  return mustHaveData(res, "listDisputesForUser").map(toAppDispute);
+}
+
+export async function createDispute(args: { userId: string; transferId?: string; reason: string }): Promise<AppDispute> {
+  const res = await supabase.from("dispute_cases").insert({
+    user_id: args.userId, transfer_id: args.transferId ?? null, reason: args.reason,
+  }).select("*").single();
+  return toAppDispute(mustHaveData(res, "createDispute"));
+}
+
+export async function adminResolveDispute(args: { caseId: string; resolution: string; password: string }): Promise<AppDispute> {
+  const res = await supabase.rpc("admin_resolve_dispute", { p_case_id: args.caseId, p_resolution: args.resolution, p_password: args.password });
+  return toAppDispute(mustHaveData(res, "adminResolveDispute") as Record<string, unknown>);
+}
+
+// ============================================================================
+// API keys — supabase/migrations/0016. The raw key is only ever returned
+// once, at creation — never stored, never re-readable.
+// ============================================================================
+
+export interface AppApiKey {
+  id: string;
+  name: string;
+  prefix: string;
+  permissions: string[];
+  status: "active" | "revoked";
+  createdAt: string;
+  lastUsedAt: string | null;
+}
+
+export async function listApiKeysForUser(userId: string): Promise<AppApiKey[]> {
+  const res = await supabase.from("api_keys").select("*").eq("user_id", userId).order("created_at", { ascending: false });
+  return mustHaveData(res, "listApiKeysForUser").map((r) => ({
+    id: r.id as string, name: r.name as string, prefix: r.prefix as string, permissions: (r.permissions as string[]) ?? [],
+    status: r.status as AppApiKey["status"], createdAt: r.created_at as string, lastUsedAt: (r.last_used_at as string) ?? null,
+  }));
+}
+
+export async function createApiKey(args: { userId: string; name: string; permissions: string[] }): Promise<AppApiKey & { plaintextKey: string }> {
+  const res = await supabase.rpc("create_api_key", { p_user_id: args.userId, p_name: args.name, p_permissions: args.permissions });
+  const row = (mustHaveData(res, "createApiKey") as Record<string, unknown>[])[0];
+  return {
+    id: row.id as string, name: row.name as string, prefix: row.prefix as string, plaintextKey: row.plaintext_key as string,
+    permissions: (row.permissions as string[]) ?? [], status: "active", createdAt: row.created_at as string, lastUsedAt: null,
+  };
+}
+
+export async function revokeApiKey(args: { keyId: string; userId: string }): Promise<AppApiKey> {
+  const res = await supabase.rpc("revoke_api_key", { p_key_id: args.keyId, p_user_id: args.userId });
+  const row = mustHaveData(res, "revokeApiKey") as Record<string, unknown>;
+  return {
+    id: row.id as string, name: row.name as string, prefix: row.prefix as string, permissions: (row.permissions as string[]) ?? [],
+    status: row.status as AppApiKey["status"], createdAt: row.created_at as string, lastUsedAt: (row.last_used_at as string) ?? null,
+  };
+}

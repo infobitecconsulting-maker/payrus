@@ -320,3 +320,158 @@ export function useCreatePaymentLinkMutation() {
   });
   return mutation.mutateAsync;
 }
+
+// ---------------------------------------------------------------------------
+// Bills
+// ---------------------------------------------------------------------------
+
+export function useBillBillers() {
+  return useReactQuery({ queryKey: ["billBillers"], queryFn: backend.listBillBillers }).data;
+}
+
+export function useBillSubscriptionsForUser(userId: string | undefined) {
+  return useReactQuery({
+    queryKey: ["billSubscriptions", userId],
+    queryFn: () => backend.listBillSubscriptionsForUser(userId!),
+    enabled: !!userId,
+  }).data;
+}
+
+export function useUpsertBillSubscriptionMutation() {
+  const queryClient = useQueryClient();
+  const mutation = useReactMutation({
+    mutationFn: backend.upsertBillSubscription,
+    onSuccess: (_data, variables) => void queryClient.invalidateQueries({ queryKey: ["billSubscriptions", variables.userId] }),
+  });
+  return mutation.mutateAsync;
+}
+
+// ---------------------------------------------------------------------------
+// Payouts
+// ---------------------------------------------------------------------------
+
+export function usePayoutBatchesForUser(userId: string | undefined) {
+  return useReactQuery({
+    queryKey: ["payoutBatches", userId],
+    queryFn: () => backend.listPayoutBatchesForUser(userId!),
+    enabled: !!userId,
+  }).data;
+}
+
+export function usePayoutItems(batchId: string | undefined) {
+  return useReactQuery({
+    queryKey: ["payoutItems", batchId],
+    queryFn: () => backend.listPayoutItems(batchId!),
+    enabled: !!batchId,
+  }).data;
+}
+
+export function useCreatePayoutBatchMutation() {
+  const queryClient = useQueryClient();
+  const mutation = useReactMutation({
+    mutationFn: backend.createPayoutBatch,
+    onSuccess: (_data, variables) => {
+      void queryClient.invalidateQueries({ queryKey: ["payoutBatches", variables.userId] });
+      void queryClient.invalidateQueries({ queryKey: ["walletViews", variables.userId] });
+    },
+  });
+  return mutation.mutateAsync;
+}
+
+// ---------------------------------------------------------------------------
+// Groups
+// ---------------------------------------------------------------------------
+
+export function useGroupsForUser(userId: string | undefined) {
+  return useReactQuery({
+    queryKey: ["groups", userId],
+    queryFn: () => backend.listGroupsForUser(userId!),
+    enabled: !!userId,
+  }).data;
+}
+
+export function useCreateGroupMutation() {
+  const queryClient = useQueryClient();
+  const mutation = useReactMutation({
+    mutationFn: backend.createGroup,
+    onSuccess: (_data, variables) => void queryClient.invalidateQueries({ queryKey: ["groups", variables.ownerUserId] }),
+  });
+  return mutation.mutateAsync;
+}
+
+export function useGroupMembers(groupId: string | undefined, ownerUserId: string | undefined) {
+  return useReactQuery({
+    queryKey: ["groupMembers", groupId],
+    queryFn: () => backend.listGroupMembers({ groupId: groupId!, ownerUserId: ownerUserId! }),
+    enabled: !!groupId && !!ownerUserId,
+  }).data;
+}
+
+export function useAddGroupMemberMutation() {
+  const queryClient = useQueryClient();
+  const mutation = useReactMutation({
+    mutationFn: backend.addGroupMember,
+    onSuccess: (_data, variables) => void queryClient.invalidateQueries({ queryKey: ["groupMembers", variables.groupId] }),
+  });
+  return mutation.mutateAsync;
+}
+
+export function useRemoveGroupMemberMutation(groupId: string | undefined) {
+  const queryClient = useQueryClient();
+  const mutation = useReactMutation({
+    mutationFn: backend.removeGroupMember,
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["groupMembers", groupId] }),
+  });
+  return mutation.mutateAsync;
+}
+
+// ---------------------------------------------------------------------------
+// Disputes
+// ---------------------------------------------------------------------------
+
+export function useDisputesForUser(userId: string | undefined) {
+  return useReactQuery({
+    queryKey: ["disputes", userId],
+    queryFn: () => backend.listDisputesForUser(userId!),
+    enabled: !!userId,
+  }).data;
+}
+
+export function useCreateDisputeMutation() {
+  const queryClient = useQueryClient();
+  const mutation = useReactMutation({
+    mutationFn: backend.createDispute,
+    onSuccess: (_data, variables) => void queryClient.invalidateQueries({ queryKey: ["disputes", variables.userId] }),
+  });
+  return mutation.mutateAsync;
+}
+
+// ---------------------------------------------------------------------------
+// API keys
+// ---------------------------------------------------------------------------
+
+export function useApiKeysForUser(userId: string | undefined) {
+  return useReactQuery({
+    queryKey: ["apiKeys", userId],
+    queryFn: () => backend.listApiKeysForUser(userId!),
+    enabled: !!userId,
+  }).data;
+}
+
+export function useCreateApiKeyMutation() {
+  const queryClient = useQueryClient();
+  const mutation = useReactMutation({
+    mutationFn: backend.createApiKey,
+    onSuccess: (_data, variables) => void queryClient.invalidateQueries({ queryKey: ["apiKeys", variables.userId] }),
+  });
+  return mutation.mutateAsync;
+}
+
+export function useRevokeApiKeyMutation() {
+  const queryClient = useQueryClient();
+  const mutation = useReactMutation({
+    mutationFn: backend.revokeApiKey,
+    onSuccess: (_data, variables) => void queryClient.invalidateQueries({ queryKey: ["apiKeys", variables.userId] }),
+  });
+  return mutation.mutateAsync;
+}

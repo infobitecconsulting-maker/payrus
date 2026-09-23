@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useProfile } from "@/contexts/profile-context.tsx";
+import { useCurrentAppUser } from "@/hooks/use-current-app-user.ts";
+import { useApiKeysForUser, useCreateApiKeyMutation, useRevokeApiKeyMutation } from "@/hooks/use-backend.ts";
 import PageHeader from "@/components/ui/page-header.tsx";
 import {
   Network, Key, Webhook, Activity, Plus, Copy, RefreshCw,
@@ -438,6 +440,48 @@ function ApiKeysTab() {
   const [showCreate, setShowCreate] = useState(false);
   const [newKeyName, setNewKeyName] = useState("");
   const [newKeyPerms, setNewKeyPerms] = useState<string[]>([]);
+  const [creating, setCreating] = useState(false);
+  const [justCreatedPlaintext, setJustCreatedPlaintext] = useState<{ id: string; key: string } | null>(null);
+
+  const currentUser = useCurrentAppUser();
+  const realKeys = useApiKeysForUser(currentUser?.id);
+  const createApiKey = useCreateApiKeyMutation();
+  const revokeApiKey = useRevokeApiKeyMutation();
+
+  const hasReal = !!currentUser && !!realKeys;
+  const displayKeys = hasReal
+    ? realKeys.map(k => ({ id: k.id, name: k.name, prefix: k.prefix, status: k.status, permissions: k.permissions, created: k.createdAt.slice(0, 10), lastUsed: k.lastUsedAt ?? "Never", requests: 0 }))
+    : API_KEYS;
+
+  async function handleCreate() {
+    if (!newKeyName.trim()) { toast.error("Please enter a key name"); return; }
+    if (!currentUser) {
+      toast.success("API key created — copy it now, it will not be shown again.");
+      setShowCreate(false); setNewKeyName(""); setNewKeyPerms([]);
+      return;
+    }
+    setCreating(true);
+    try {
+      const key = await createApiKey({ userId: currentUser.id, name: newKeyName.trim(), permissions: newKeyPerms });
+      setJustCreatedPlaintext({ id: key.id, key: key.plaintextKey });
+      toast.success("API key created — copy it now, it will not be shown again.");
+      setShowCreate(false); setNewKeyName(""); setNewKeyPerms([]);
+    } catch {
+      toast.error("Couldn't create the key — try again.");
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  async function handleRevoke(keyId: string, name: string) {
+    if (!currentUser) { toast.error(`Key "${name}" revoked. Systems using this key will be denied immediately.`); return; }
+    try {
+      await revokeApiKey({ keyId, userId: currentUser.id });
+      toast.error(`Key "${name}" revoked. Systems using this key will be denied immediately.`);
+    } catch {
+      toast.error("Couldn't revoke the key — try again.");
+    }
+  }
 
   const PERM_OPTIONS = ["payments:write", "payments:read", "fx:write", "fx:read", "accounts:write", "accounts:read", "compliance:read", "webhooks:write", "statements:read"];
 
@@ -493,16 +537,11 @@ function ApiKeysTab() {
               </div>
               <div className="flex gap-2">
                 <button
-                  onClick={() => {
-                    if (!newKeyName.trim()) { toast.error("Please enter a key name"); return; }
-                    toast.success("API key created — copy it now, it will not be shown again.");
-                    setShowCreate(false);
-                    setNewKeyName("");
-                    setNewKeyPerms([]);
-                  }}
-                  className="text-sm px-4 py-2 rounded-xl bg-primary text-black font-semibold hover:bg-primary/90 transition-colors cursor-pointer"
+                  onClick={() => void handleCreate()}
+                  disabled={creating}
+                  className="text-sm px-4 py-2 rounded-xl bg-primary text-black font-semibold hover:bg-primary/90 transition-colors cursor-pointer disabled:opacity-60"
                 >
-                  Generate Key
+                  {creating ? "Generating..." : "Generate Key"}
                 </button>
                 <button onClick={() => setShowCreate(false)} className="text-sm px-4 py-2 rounded-xl bg-secondary border border-border text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
                   Cancel
@@ -513,9 +552,25 @@ function ApiKeysTab() {
         )}
       </AnimatePresence>
 
+      {/* Just-created plaintext — shown once, matches real API-key UX */}
+      {justCreatedPlaintext && (
+        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-xs font-semibold text-emerald-700 mb-1">Copy this key now — it won't be shown again</div>
+            <code className="text-xs font-mono text-foreground break-all">{justCreatedPlaintext.key}</code>
+          </div>
+          <button
+            onClick={() => { navigator.clipboard.writeText(justCreatedPlaintext.key); toast.success("Key copied"); setJustCreatedPlaintext(null); }}
+            className="shrink-0 text-xs px-3 py-1.5 rounded-lg bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 cursor-pointer transition-colors"
+          >
+            Copy & dismiss
+          </button>
+        </div>
+      )}
+
       {/* Keys list */}
       <div className="space-y-3">
-        {API_KEYS.map(key => (
+        {displayKeys.map(key => (
           <div key={key.id} className={cn("bg-secondary/40 rounded-xl border p-4", key.status === "revoked" ? "border-border opacity-60" : "border-border hover:border-primary/20 transition-colors")}>
             <div className="flex items-start justify-between gap-2 flex-wrap">
               <div>
@@ -540,7 +595,7 @@ function ApiKeysTab() {
               </div>
               <div className="flex items-center gap-2">
                 {key.status === "active" && (
-                  <button onClick={() => toast.error(`Key "${key.name}" revoked. Systems using this key will be denied immediately.`)} className="text-xs px-2.5 py-1.5 rounded-lg bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 cursor-pointer transition-colors flex items-center gap-1">
+                  <button onClick={() => void handleRevoke(key.id, key.name)} className="text-xs px-2.5 py-1.5 rounded-lg bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 cursor-pointer transition-colors flex items-center gap-1">
                     <Trash2 size={11} /> Revoke
                   </button>
                 )}
@@ -710,8 +765,12 @@ function WebhooksTab() {
 
 // ── Main Page ──────────────────────────────────────────────────────────────────
 
+// Real ProfileType values for institutional accounts (src/contexts/profile-
+// context.tsx) — the previous set ("merchant"/"agent"/"treasury") didn't
+// match any real profile type, so this page was effectively admin-only by
+// accident. Fixed as part of the same audit that migrated ApiKeysTab.
 const FI_PROFILES = new Set([
-  "merchant", "agent", "treasury", "admin",
+  "business", "corporate", "development_bank", "investment_fund", "admin",
 ]);
 
 export default function ApiHub() {

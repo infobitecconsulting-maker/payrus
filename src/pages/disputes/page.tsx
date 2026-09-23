@@ -6,22 +6,53 @@ import { Button } from "@/components/ui/button.tsx";
 import { Input } from "@/components/ui/input.tsx";
 import { toast } from "sonner";
 import PageHeader from "@/components/ui/page-header.tsx";
+import { useCurrentAppUser } from "@/hooks/use-current-app-user.ts";
+import { useCreateDisputeMutation, useDisputesForUser, useRecentTransfersForUser } from "@/hooks/use-backend.ts";
 
-const CASES = [
-  { name: "Dispute · card 4471", meta: "Merchant not received · day 3 of 10", amount: "27 550 XAF", status: "open" as const },
-  { name: "Failed transfer to Luanda", meta: "IBAN mismatch · refunded", amount: "", status: "resolved" as const },
+const DEMO_CASES = [
+  { id: "d1", name: "Dispute · card 4471", meta: "Merchant not received · day 3 of 10", amount: "27 550 XAF", status: "open" as const },
+  { id: "d2", name: "Failed transfer to Luanda", meta: "IBAN mismatch · refunded", amount: "", status: "resolved" as const },
 ];
 
 export default function Disputes() {
   const { t } = useTranslation("common");
   const [showForm, setShowForm] = useState(false);
   const [reason, setReason] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
-  const handleSubmit = () => {
+  const currentUser = useCurrentAppUser();
+  const realDisputes = useDisputesForUser(currentUser?.id);
+  const recentTransfers = useRecentTransfersForUser(currentUser?.id, 10);
+  const createDispute = useCreateDisputeMutation();
+
+  const hasReal = !!realDisputes;
+  const displayCases = hasReal
+    ? realDisputes.map(c => ({
+        id: c.id, name: `Dispute · ${c.reason}`, meta: c.transferId ? "Linked to a real transfer" : "General inquiry",
+        amount: "", status: c.status,
+      }))
+    : DEMO_CASES;
+
+  const handleSubmit = async () => {
     if (!reason.trim()) return;
-    toast.success(t("disputes.submitted"));
-    setReason("");
-    setShowForm(false);
+    if (!currentUser) {
+      // Anonymous preview — nothing real to persist, keep the existing demo flow.
+      toast.success(t("disputes.submitted"));
+      setReason("");
+      setShowForm(false);
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await createDispute({ userId: currentUser.id, transferId: recentTransfers?.[0]?.id, reason: reason.trim() });
+      toast.success(t("disputes.submitted"));
+      setReason("");
+      setShowForm(false);
+    } catch {
+      toast.error(t("disputes.submitFailed"));
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -29,8 +60,11 @@ export default function Disputes() {
       <PageHeader title={t("disputes.title")} subtitle={t("disputes.intro")} className="mb-5" />
 
       <div className="space-y-2 mb-6">
-        {CASES.map(c => (
-          <div key={c.name} className="flex items-center gap-3 p-3.5 rounded-xl bg-card border border-border">
+        {displayCases.length === 0 && (
+          <p className="text-xs text-muted-foreground py-4 text-center">{t("disputes.noCases")}</p>
+        )}
+        {displayCases.map(c => (
+          <div key={c.id} className="flex items-center gap-3 p-3.5 rounded-xl bg-card border border-border">
             <div className={cn(
               "w-11 h-11 rounded-xl flex items-center justify-center shrink-0",
               c.status === "open" ? "bg-amber-500/10 text-amber-600 dark:text-amber-400" : "bg-primary/10 text-primary",
@@ -73,7 +107,7 @@ export default function Disputes() {
           <Input value={reason} onChange={e => setReason(e.target.value)} placeholder={t("disputes.reasonPlaceholder")} className="bg-background border-border" />
           <div className="flex gap-2">
             <Button variant="secondary" onClick={() => setShowForm(false)} className="flex-1">{t("disputes.cancel")}</Button>
-            <Button onClick={handleSubmit} disabled={!reason.trim()} className="flex-1">{t("disputes.submit")}</Button>
+            <Button onClick={() => void handleSubmit()} disabled={!reason.trim() || submitting} className="flex-1">{submitting ? t("signin.checking") : t("disputes.submit")}</Button>
           </div>
         </div>
       )}

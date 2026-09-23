@@ -12,6 +12,14 @@ import {
 import { cn } from "@/lib/utils.ts";
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, Cell } from "recharts";
 import { useProfile } from "@/contexts/profile-context.tsx";
+import { useCurrentAppUser } from "@/hooks/use-current-app-user.ts";
+import { useRecentTransfersForUser, useWalletViewsForUser } from "@/hooks/use-backend.ts";
+
+// Real institutional ProfileTypes (src/contexts/profile-context.tsx) this
+// page is evidently meant for — it previously had no access gate at all
+// (any profile could view government treasury data), fixed alongside the
+// same audit that wired BALANCES/RECENT_TRANSACTIONS to real data.
+const GOV_PROFILES = new Set(["government", "state_entity", "admin"]);
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -170,7 +178,39 @@ export default function GovHub() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
 
+  const currentUser = useCurrentAppUser();
+  const realWallets = useWalletViewsForUser(currentUser?.id);
+  const realTransfers = useRecentTransfersForUser(currentUser?.id, 5);
+
   const locale = lng ?? "en";
+
+  if (!profile || !GOV_PROFILES.has(profile.type)) {
+    return (
+      <div className="flex items-center justify-center h-full p-8 text-center">
+        <div>
+          <Landmark size={40} className="text-muted-foreground mx-auto mb-3" />
+          <div className="text-base font-semibold text-foreground">{t("gov.restricted")}</div>
+          <div className="text-sm text-muted-foreground mt-1">{t("gov.restrictedDesc")}</div>
+        </div>
+      </div>
+    );
+  }
+
+  // Real balances/activity when signed in with real wallets; anonymous/no-
+  // wallets-yet visitors keep the existing static demo data — same
+  // fallback convention as dashboard/page.tsx.
+  const hasReal = !!realWallets && realWallets.length > 0;
+  const balancesToShow = hasReal
+    ? realWallets.map(w => ({ currency: w.currency as Currency, balance: w.balance, change: 0, flag: w.flag }))
+    : BALANCES;
+  const REAL_TX_CREDIT_TYPES = new Set(["deposit", "convert_in"]);
+  const recentTxToShow = hasReal && realTransfers && realTransfers.length > 0
+    ? realTransfers.map(tr => ({
+        id: tr.id, type: (REAL_TX_CREDIT_TYPES.has(tr.type) ? "collection" : "disbursement") as Transaction["type"],
+        description: tr.note ?? tr.reference, amount: tr.amount, currency: tr.currency as Currency,
+        source: tr.type, status: "completed" as const, time: new Date(tr.createdAt).toLocaleTimeString(),
+      }))
+    : RECENT_TRANSACTIONS;
 
   const connectedCount = INTEGRATIONS.filter(i => i.status === "connected").length;
   const totalVolumeUSD = INTEGRATIONS.reduce((acc, i) => acc + i.volumeUSD, 0);
@@ -258,7 +298,7 @@ export default function GovHub() {
               <div>
                 <h2 className="text-sm font-semibold text-foreground mb-3">{t("gov.treasuryBalances")}</h2>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  {BALANCES.map((b, i) => (
+                  {balancesToShow.map((b, i) => (
                     <motion.div key={b.currency} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
                       className="rounded-2xl bg-card border border-border p-4 hover:border-primary/30 transition-colors cursor-pointer">
                       <div className="flex items-center justify-between mb-2">
@@ -332,7 +372,7 @@ export default function GovHub() {
               <div>
                 <h2 className="text-sm font-semibold text-foreground mb-3">{t("gov.recentActivity")}</h2>
                 <div className="rounded-2xl bg-card border border-border overflow-hidden divide-y divide-border">
-                  {RECENT_TRANSACTIONS.map((tx, i) => (
+                  {recentTxToShow.map((tx, i) => (
                     <motion.div key={tx.id} initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.05 * i }}
                       className="flex items-center gap-3 px-4 py-3.5 hover:bg-secondary/40 transition-colors cursor-pointer">
                       <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center shrink-0",
