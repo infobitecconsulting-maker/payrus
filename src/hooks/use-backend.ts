@@ -21,6 +21,26 @@ export function useAppUserById(userId: string | undefined) {
   }).data;
 }
 
+export function useRoleDefinitions() {
+  return useReactQuery({
+    queryKey: ["roleDefinitions"],
+    queryFn: backend.listRoleDefinitions,
+    staleTime: 5 * 60 * 1000,
+  }).data;
+}
+
+export function useP2pTransferMutation() {
+  const queryClient = useQueryClient();
+  const mutation = useReactMutation({
+    mutationFn: backend.p2pTransfer,
+    onSuccess: (_data, variables) => {
+      void queryClient.invalidateQueries({ queryKey: ["walletViews", variables.senderId] });
+      void queryClient.invalidateQueries({ queryKey: ["transfers"] });
+    },
+  });
+  return mutation.mutateAsync;
+}
+
 export function useAddressesForUser(userId: string | undefined) {
   return useReactQuery({
     queryKey: ["addresses", userId],

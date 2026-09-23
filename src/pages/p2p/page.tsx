@@ -11,8 +11,8 @@ import {
 import { Button } from "@/components/ui/button.tsx";
 import { cn } from "@/lib/utils.ts";
 import { toast } from "sonner";
-import { useApplyWalletTransferMutation, useWalletViewsForUser } from "@/hooks/use-backend.ts";
-import { resolveEmailByIdentifier } from "@/lib/backend.ts";
+import { useP2pTransferMutation, useWalletViewsForUser } from "@/hooks/use-backend.ts";
+import { resolveUserByIdentifier, type P2pReceipt } from "@/lib/backend.ts";
 import { PayRusLogo } from "@/pages/layout/AppLayout.tsx";
 import { commissionFor, convertWithMargin, midMarketConvert } from "@/convex/fx.ts";
 import { useCurrentAppUser } from "@/hooks/use-current-app-user.ts";
@@ -32,6 +32,8 @@ type PayRusUser = {
   verified: boolean;
   online: boolean;
   role?: string;
+  /** Set only for a real registered account (its users.id) — the only kind money can be sent to. */
+  realId?: string;
 };
 
 /* ─── Mock PayRus network users ────────────────────────── */
@@ -127,7 +129,9 @@ export default function P2PTransfer() {
 
   const currentUser = useCurrentAppUser();
   const realWallets = useWalletViewsForUser(currentUser?.id);
-  const applyTransaction = useApplyWalletTransferMutation();
+  const p2pTransfer = useP2pTransferMutation();
+  const [committed, setCommitted] = useState<P2pReceipt | null>(null);
+  const demoMode = !currentUser;
 
   // Default a new transaction's currency to the one the user registered
   // with (src/pages/register/page.tsx sets this from their country) rather
@@ -175,21 +179,25 @@ export default function P2PTransfer() {
     if (!query) return;
     setRealSearching(true);
     try {
-      const email = await resolveEmailByIdentifier(query);
-      if (!email) {
+      const found = await resolveUserByIdentifier(query);
+      if (!found) {
         toast.error(t("p2p.noUserFound", { query }));
         return;
       }
-      const masked = email.replace(/^(.{2}).*(@.*)$/, "$1***$2");
+      if (found.id === currentUser?.id) {
+        toast.error(t("p2p.transferFailed"));
+        return;
+      }
       handleSelectUser({
-        id: `real:${email}`,
-        name: masked,
-        username: `@${email.split("@")[0]}`,
+        id: found.id,
+        realId: found.id,
+        name: found.name,
+        username: found.username ? `@${found.username}` : "",
         country: "PayRus network",
         countryCode: "??",
         flag: "🌐",
-        avatar: email.slice(0, 2).toUpperCase(),
-        currency: currentUser?.defaultCurrency ?? currency,
+        avatar: found.name.slice(0, 2).toUpperCase(),
+        currency: found.defaultCurrency ?? currency,
         verified: true,
         online: false,
         role: "Real PayRus user",
@@ -214,9 +222,14 @@ export default function P2PTransfer() {
       toast.success(t("p2p.sendConfirmedToast", { currency, amount: numAmt.toLocaleString() }));
       return;
     }
+    if (!selectedUser?.realId) {
+      toast.error(t("p2p.transferFailed"));
+      return;
+    }
     setSending(true);
     try {
-      await applyTransaction({ userId: currentUser.id, amount: numAmt, currency, type: "transfer", note: note || undefined });
+      const result = await p2pTransfer({ senderId: currentUser.id, recipientId: selectedUser.realId, amount: numAmt, currency, note: note || undefined });
+      setCommitted(result);
       setStep("success");
       toast.success(t("p2p.sendConfirmedToast", { currency, amount: numAmt.toLocaleString() }));
     } catch {
@@ -229,6 +242,7 @@ export default function P2PTransfer() {
   function reset() {
     setStep("search");
     setSelectedUser(null);
+    setCommitted(null);
     setAmount("");
     setNote("");
     setWithdrawMethod(null);
@@ -263,7 +277,7 @@ export default function P2PTransfer() {
           <motion.div key="search" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }}>
 
             {/* Search bar */}
-            <div className="relative mb-4">
+            {demoMode && <div className="relative mb-4">
               <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <input
                 type="text"
@@ -277,7 +291,7 @@ export default function P2PTransfer() {
                   <X size={14} />
                 </button>
               )}
-            </div>
+            </div>}
 
             {/* Quick actions */}
             <div className="flex gap-2 mb-5">
@@ -315,8 +329,8 @@ export default function P2PTransfer() {
               </div>
             </div>
 
-            {/* Recent / search results */}
-            <div>
+            {/* Recent / search results (fictional demo directory — anonymous preview only) */}
+            {demoMode && <div>
               <div className="flex items-center gap-2 mb-3">
                 {query ? (
                   <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t("p2p.resultsCount", { count: filtered.length })}</span>
@@ -337,10 +351,10 @@ export default function P2PTransfer() {
                   </div>
                 )}
               </div>
-            </div>
+            </div>}
 
             {/* All members */}
-            {!query && (
+            {demoMode && !query && (
               <div className="mt-5">
                 <div className="flex items-center gap-2 mb-3">
                   <Globe size={11} className="text-accent" />
@@ -430,7 +444,7 @@ export default function P2PTransfer() {
                   </div>
                   <div className="flex justify-between border-t border-border pt-2">
                     <span className="text-primary font-semibold">{t("p2p.receivedBy", { name: selectedUser.name.split(" ")[0] })}</span>
-                    <span className="text-primary font-bold">{selectedUser.currency} {midMarketConvert(received, currency, selectedUser.currency).toLocaleString(undefined, { maximumFractionDigits: 0 })} ≈</span>
+                    <span className="text-primary font-bold">{selectedUser.realId ? `${currency} ${received.toLocaleString(undefined, { maximumFractionDigits: 0 })}` : `${selectedUser.currency} ${midMarketConvert(received, currency, selectedUser.currency).toLocaleString(undefined, { maximumFractionDigits: 0 })} ≈`}</span>
                   </div>
                 </div>
               )}
@@ -490,7 +504,7 @@ export default function P2PTransfer() {
               </div>
               <div className="p-5 space-y-3">
                 {[
-                  [t("p2p.confirmFrom"), "Jean Dupont · PayRus Wallet"],
+                  [t("p2p.confirmFrom"), currentUser ? `${currentUser.name ?? currentUser.email ?? currentUser.username ?? ""} · PayRus Wallet` : "Demo · PayRus Wallet"],
                   [t("p2p.confirmTo"), `${selectedUser.name} (${selectedUser.username})`],
                   [t("p2p.confirmCountry"), `${selectedUser.flag} ${t(selectedUser.country)}`],
                   [t("p2p.amountSent"), `${currency} ${numAmt.toLocaleString()}`],
@@ -545,7 +559,7 @@ export default function P2PTransfer() {
               <div>
                 <div className="text-2xl font-bold text-foreground">{t("p2p.sentSuccess")}</div>
                 <div className="text-sm text-muted-foreground mt-1">
-                  {t("p2p.sentTo", { amount: `${currency} ${numAmt.toLocaleString()}`, name: selectedUser.name })}
+                  {t("p2p.sentTo", { amount: `${committed?.currency ?? currency} ${(committed?.amount ?? numAmt).toLocaleString()}`, name: committed?.recipientName ?? selectedUser.name })}
                 </div>
               </div>
 
@@ -561,7 +575,12 @@ export default function P2PTransfer() {
 
             <div className="rounded-xl bg-secondary border border-border p-4 text-xs space-y-2">
               <div className="font-semibold text-foreground text-sm mb-1">{t("p2p.transactionReference")}</div>
-              <div className="font-mono text-muted-foreground">PR-{Date.now().toString(36).toUpperCase()}</div>
+              <div className="font-mono text-muted-foreground">{committed?.reference ?? `PR-${Date.now().toString(36).toUpperCase()}`}</div>
+              {committed && (
+                <div className="text-muted-foreground">
+                  {t("p2p.confirmFrom")}: {committed.senderName} → {t("p2p.confirmTo")}: {committed.recipientName}
+                </div>
+              )}
               <div className="text-muted-foreground">
                 {t("p2p.withdrawInfo", { name: selectedUser.name, method: withdrawMethod ? withdrawMethodLabel : t("p2p.methodMobileMoney") })}
               </div>

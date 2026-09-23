@@ -1,5 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { getLocalUserId } from "@/lib/local-user.ts";
+import { useRoleDefinitions } from "@/hooks/use-backend.ts";
+import type { RoleDefinition } from "@/lib/backend.ts";
 
 export type ProfileType =
   | "personal"
@@ -31,83 +33,23 @@ interface ProfileContextValue {
 
 const ProfileContext = createContext<ProfileContextValue | null>(null);
 
-const PROFILES: Record<ProfileType, Omit<ProfileData, "type">> = {
-  personal: {
-    name: "Jean Dupont",
-    accountNumber: "4821",
-    tier: "Premium ✦",
-    currency: "XAF",
-    balance: 7303000,
-    balanceUSD: 12149,
-  },
-  merchant: {
-    name: "Dupont & Fils SARL",
-    accountNumber: "8830",
-    tier: "Merchant Pro",
-    currency: "XAF",
-    balance: 42500000,
-    balanceUSD: 70833,
-  },
-  agent: {
-    name: "Kiosque Mama Amina — Mobile Money",
-    accountNumber: "1190",
-    tier: "Agent Network",
-    currency: "XAF",
-    balance: 3850000,
-    balanceUSD: 6417,
-  },
-  treasury: {
-    name: "CEMAC Holdings S.A.",
-    accountNumber: "0012",
-    tier: "Corporate Treasury",
-    currency: "USD",
-    balance: 2850000,
-    balanceUSD: 2850000,
-  },
-  public_institution: {
-    name: "Ministère des Finances — RCA",
-    accountNumber: "0001",
-    tier: "Sovereign",
-    currency: "XAF",
-    balance: 68500000000,
-    balanceUSD: 115970000,
-  },
-  ngo: {
-    name: "Fondation Ubuntu Centrafrique",
-    accountNumber: "3371",
-    tier: "NGO Verified",
-    currency: "USD",
-    balance: 385000,
-    balanceUSD: 385000,
-  },
-  group: {
-    name: "MUCODEC Congo-Brazzaville",
-    accountNumber: "4410",
-    tier: "Group / Cooperative",
-    currency: "XAF",
-    balance: 980000000,
-    balanceUSD: 1659000,
-  },
-  starter: {
-    name: "New PayRus Member",
-    accountNumber: "9002",
-    tier: "Starter",
-    currency: "XAF",
-    balance: 25000,
-    balanceUSD: 42,
-  },
-  admin: {
-    name: "PayRus System Administrator",
-    accountNumber: "0000",
-    tier: "System Admin",
-    currency: "XAF",
-    balance: 0,
-    balanceUSD: 0,
-  },
-};
+// Profile templates live in the public.role_definitions table (see
+// supabase/migrations/0022) — never hardcoded here. ProfileProvider fills
+// this cache from the database at startup; getDefaultProfile reads it.
+let roleTemplates: Record<string, Omit<ProfileData, "type">> = {};
+
+function loadTemplates(defs: RoleDefinition[]) {
+  roleTemplates = Object.fromEntries(
+    defs.map((d) => [d.slug, {
+      name: d.templateName, accountNumber: d.templateAccountNumber, tier: d.templateTier,
+      currency: d.templateCurrency, balance: d.templateBalance, balanceUSD: d.templateBalanceUsd,
+    }]),
+  );
+}
 
 export function getDefaultProfile(type: ProfileType): ProfileData {
-  return { type, ...PROFILES[type] };
+  const t = roleTemplates[type];
+  return { type, ...(t ?? { name: type, accountNumber: "", tier: "", currency: "XAF", balance: 0, balanceUSD: 0 }) };
 }
 
 export function ProfileProvider({ children }: { children: ReactNode }) {
@@ -115,6 +57,8 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   // unrelated accounts on the same browser share one profile's data.
   const storageKey = `payrus_profile:${getLocalUserId() ?? "guest"}`;
   const [profile, setProfileState] = useState<ProfileData | null>(null);
+  const roleDefinitions = useRoleDefinitions();
+  if (roleDefinitions) loadTemplates(roleDefinitions);
 
   useEffect(() => {
     try {

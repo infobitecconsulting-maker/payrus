@@ -18,9 +18,7 @@ import { Progress } from "@/components/ui/progress.tsx";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp.tsx";
 import { useProfile, type ProfileType, getDefaultProfile } from "@/contexts/profile-context.tsx";
 import { applyRealName } from "@/lib/post-auth-routing.ts";
-import { useAddressesForUser, useUpsertUserRoleMutation, useUserRolesForUser } from "@/hooks/use-backend.ts";
-
-const ORGANISATION_ROLES: ProfileType[] = ["merchant", "agent", "treasury", "public_institution", "ngo", "group", "admin"];
+import { useAddressesForUser, useRoleDefinitions, useUpsertUserRoleMutation, useUserRolesForUser } from "@/hooks/use-backend.ts";
 
 /* ─── Role icons (traced from the PayRus mobile artefact's icon sprite) ──── */
 type IconProps = { size?: number; className?: string };
@@ -167,10 +165,18 @@ export default function ProfileSelection() {
     effectiveRoles?.find(r => r.role === id) ??
     (isAdminUser ? { id: "admin-virtual", role: id, kind: "individual", status: "verified", complete: true } : undefined);
 
+  // Role list, order and individual/organisation kind come from the
+  // role_definitions table; only icons and feature keys are presentation.
+  const roleDefs = useRoleDefinitions();
+  const orderedRoles = (roleDefs ?? [])
+    .filter((d) => !d.isAdmin)
+    .map((d) => ROLES.find((r) => r.id === d.slug))
+    .filter((r): r is ProfileTypeConfig => r != null);
+
   const [step, setStep] = useState<Step>(existingRoles && existingRoles.length > 1 ? "chooseExisting" : "select");
   const [selected, setSelected] = useState<ProfileType | null>(null);
   const [orgName, setOrgName] = useState("");
-  const isOrgRole = selected != null && ORGANISATION_ROLES.includes(selected);
+  const isOrgRole = selected != null && roleDefs?.find((d) => d.slug === selected)?.kind === "organisation";
 
   // KYC/verification sub-wizard state (kept local to this page — mirrors the
   // registration flow's fields but runs after profile selection, since the
@@ -407,7 +413,7 @@ export default function ProfileSelection() {
 
                 {/* Mobile & tablet: flat list rows, per the PayRus mobile artefact */}
                 <div className="flex flex-col gap-2.5 lg:hidden">
-                  {ROLES.map((pt, i) => {
+                  {orderedRoles.map((pt, i) => {
                     const existing = roleLookup(pt.id);
                     return (
                     <motion.button
@@ -438,7 +444,7 @@ export default function ProfileSelection() {
 
                 {/* Desktop: same content, roomier editorial cards */}
                 <div className="hidden lg:grid grid-cols-2 xl:grid-cols-3 gap-4">
-                  {ROLES.map((pt, i) => {
+                  {orderedRoles.map((pt, i) => {
                     const existing = roleLookup(pt.id);
                     return (
                     <motion.button

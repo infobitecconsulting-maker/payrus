@@ -180,20 +180,6 @@ export default function AppLayout() {
             <PayRusLogo className="h-9 w-auto" />
           </button>
 
-          <div className="mt-3 grid grid-cols-2 gap-1.5">
-            <div className="flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-50 dark:bg-amber-400/10 border border-amber-200 dark:border-amber-400/25">
-              <span className="text-[9px] font-black text-amber-700 dark:text-amber-400">XAF·AOA</span>
-              <span className="text-[9px] text-amber-600 dark:text-amber-300/70 font-medium leading-tight">{t("nav.reference")}</span>
-            </div>
-            <div className="flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-50 dark:bg-amber-400/10 border border-amber-200 dark:border-amber-400/25">
-              <span className="text-[9px] font-black text-amber-700 dark:text-amber-400">7</span>
-              <span className="text-[9px] text-amber-600 dark:text-amber-300/70 font-medium leading-tight">{t("nav.nationsLive")}</span>
-            </div>
-            <div className="col-span-2 flex items-center gap-1.5 px-2 py-1 rounded-lg bg-sky-50 dark:bg-[#4BA3CC]/10 border border-sky-200 dark:border-[#4BA3CC]/25">
-              <div className="w-1.5 h-1.5 rounded-full bg-sky-500 dark:bg-[#4BA3CC] animate-pulse shrink-0" />
-              <span className="text-[9px] text-sky-700 dark:text-[#4BA3CC] font-semibold">{t("nav.superbank")}</span>
-            </div>
-          </div>
         </div>
 
         {/* Nav */}

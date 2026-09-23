@@ -229,6 +229,56 @@ export async function getUserById(userId: string): Promise<AppUser | null> {
   return row ? toAppUser(row) : null;
 }
 
+// The signed-in Supabase session's own `users` row — identity comes from the
+// session, not from a cached local id, so it can't drift from the account
+// that money RPCs are authorised against (auth.uid()).
+export async function getSessionAppUser(): Promise<AppUser | null> {
+  const { data: sessionData } = await supabase.auth.getSession();
+  const authId = sessionData.session?.user.id;
+  if (!authId) return null;
+  const res = await supabase.from("users").select("*").eq("auth_user_id", authId).maybeSingle();
+  const row = mustNotError(res, "getSessionAppUser");
+  return row ? toAppUser(row) : null;
+}
+
+export interface ResolvedRecipient { id: string; name: string; username: string | null; defaultCurrency: string | null }
+
+export async function resolveUserByIdentifier(identifier: string): Promise<ResolvedRecipient | null> {
+  const res = await supabase.rpc("resolve_user_by_identifier", { p_identifier: identifier });
+  const rows = (mustNotError(res, "resolveUserByIdentifier") ?? []) as Record<string, unknown>[];
+  const r = rows[0];
+  return r ? { id: r.id as string, name: (r.name as string) ?? (r.username as string) ?? "PayRus member", username: (r.username as string) ?? null, defaultCurrency: (r.default_currency as string) ?? null } : null;
+}
+
+export interface P2pReceipt { reference: string; senderName: string; recipientName: string; amount: number; currency: string }
+
+export async function p2pTransfer(args: {
+  senderId: string; recipientId: string; amount: number; currency: string; note?: string;
+}): Promise<P2pReceipt> {
+  const res = await supabase.rpc("p2p_transfer", {
+    p_sender_id: args.senderId, p_recipient_id: args.recipientId, p_amount: args.amount,
+    p_currency: args.currency, p_note: args.note ?? null,
+  });
+  const rows = mustHaveData(res, "p2pTransfer") as Record<string, unknown>[];
+  const r = rows[0];
+  return { reference: r.reference as string, senderName: (r.sender_name as string) ?? "", recipientName: (r.recipient_name as string) ?? "", amount: Number(r.amount), currency: r.currency as string };
+}
+
+export interface RoleDefinition {
+  slug: string; kind: "individual" | "organisation"; isAdmin: boolean; sortOrder: number; consoleRole: string;
+  templateName: string; templateAccountNumber: string; templateTier: string; templateCurrency: string;
+  templateBalance: number; templateBalanceUsd: number;
+}
+
+export async function listRoleDefinitions(): Promise<RoleDefinition[]> {
+  const res = await supabase.from("role_definitions").select("*").order("sort_order");
+  return mustHaveData(res, "listRoleDefinitions").map((r) => ({
+    slug: r.slug, kind: r.kind, isAdmin: r.is_admin, sortOrder: r.sort_order, consoleRole: r.console_role,
+    templateName: r.template_name, templateAccountNumber: r.template_account_number, templateTier: r.template_tier,
+    templateCurrency: r.template_currency, templateBalance: Number(r.template_balance), templateBalanceUsd: Number(r.template_balance_usd),
+  }));
+}
+
 // ============================================================================
 // Addresses (replaces convex/addresses.ts)
 // ============================================================================
