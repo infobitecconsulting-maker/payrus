@@ -25,6 +25,57 @@ function getApiKey(): string | null {
   return process.env.GOOGLE_MAPS_API_KEY ?? null;
 }
 
+// Keyless fallback used when GOOGLE_MAPS_API_KEY is unset: Photon (komoot's
+// OpenStreetMap search — free, no key, supports prefix/partial matching that
+// Nominatim does not). Fair-use volume only; set the Google key for production.
+type PhotonProps = {
+  name?: string;
+  street?: string;
+  postcode?: string;
+  district?: string;
+  locality?: string;
+  countrycode?: string;
+};
+
+async function photonSearch(q: string, country: string, highwayOnly: boolean): Promise<PhotonProps[]> {
+  try {
+    const url = new URL("https://photon.komoot.io/api/");
+    url.searchParams.set("q", q);
+    url.searchParams.set("limit", "15");
+    if (highwayOnly) url.searchParams.set("osm_tag", "highway");
+    const res = await fetch(url);
+    if (!res.ok) return [];
+    const data = (await res.json()) as { features?: { properties: PhotonProps }[] };
+    return (data.features ?? [])
+      .map((f) => f.properties)
+      .filter((p) => !p.countrycode || p.countrycode.toLowerCase() === country.toLowerCase());
+  } catch (err) {
+    console.error("Photon address request failed:", err);
+    return [];
+  }
+}
+
+async function osmStreets(country: string, city: string, province: string, query: string): Promise<string[]> {
+  const hits = await photonSearch(`${query} ${city} ${province}`, country, true);
+  const names = hits.map((h) => h.name ?? h.street).filter((n): n is string => !!n);
+  return Array.from(new Set(names)).slice(0, 6);
+}
+
+async function osmPostalCodes(
+  country: string,
+  city: string,
+  province: string,
+): Promise<{ postalCode: string; area?: string }[]> {
+  const hits = await photonSearch(`${city} ${province}`, country, false);
+  const seen = new Map<string, string | undefined>();
+  for (const h of hits) {
+    if (h.postcode && !seen.has(h.postcode)) seen.set(h.postcode, h.district ?? h.locality);
+  }
+  return Array.from(seen.entries())
+    .map(([postalCode, area]) => ({ postalCode, area }))
+    .slice(0, 8);
+}
+
 export async function generateStreetSuggestions(params: {
   country: string;
   city: string;
@@ -33,7 +84,8 @@ export async function generateStreetSuggestions(params: {
 }): Promise<string[]> {
   const apiKey = getApiKey();
   const query = params.query.trim();
-  if (!apiKey || query.length < 2) return [];
+  if (query.length < 2) return [];
+  if (!apiKey) return osmStreets(params.country, params.city, params.province, query);
 
   try {
     const url = new URL("https://maps.googleapis.com/maps/api/place/autocomplete/json");
@@ -72,7 +124,7 @@ export async function generatePostalCodeSuggestions(params: {
   province: string;
 }): Promise<{ postalCode: string; area?: string }[]> {
   const apiKey = getApiKey();
-  if (!apiKey) return [];
+  if (!apiKey) return osmPostalCodes(params.country, params.city, params.province);
 
   try {
     const url = new URL("https://maps.googleapis.com/maps/api/geocode/json");
