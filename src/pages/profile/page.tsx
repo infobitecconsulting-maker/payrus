@@ -160,7 +160,7 @@ export default function ProfileSelection() {
   // The admin profile is unique: once verified as admin, every other role is
   // treated as already-activated (no re-running KYC per role) rather than
   // requiring a separate onboarding pass for each one.
-  const isAdminUser = effectiveRoles?.some(r => r.role === "admin" && r.complete) ?? false;
+  const isAdminUser = effectiveRoles?.some(r => (r.role === "admin" || r.role === "superadmin") && r.complete) ?? false;
   const roleLookup = (id: ProfileType): ExistingRole | undefined =>
     effectiveRoles?.find(r => r.role === id) ??
     (isAdminUser ? { id: "admin-virtual", role: id, kind: "individual", status: "verified", complete: true } : undefined);

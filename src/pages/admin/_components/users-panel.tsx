@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils.ts";
 import type { AppUserRole, AdminUserRow } from "@/lib/backend.ts";
 import {
   useAdminListUsers, useAdminUpdateUserRoleMutation, useAdminCreateUserMutation,
-  useAdminGrantAdminRoleMutation, useTestUsersCleanupMutation,
+  useAdminGrantAdminRoleMutation, useTestUsersCleanupMutation, useAdminUpdateUserMutation,
 } from "@/hooks/use-backend.ts";
 
 const ALL_ROLES = [
@@ -119,6 +119,74 @@ function EditRoleForm({ row, roleId, onDone }: { row: UserRow; roleId: string; o
   );
 }
 
+function EditUserForm({ user, onDone }: { user: UserRow["user"]; onDone: () => void }) {
+  const updateUser = useAdminUpdateUserMutation();
+  const [name, setName] = useState(user.name ?? "");
+  const [phone, setPhone] = useState(user.phone ?? "");
+  const [country, setCountry] = useState(user.country ?? "");
+  const [currency, setCurrency] = useState(user.defaultCurrency ?? "");
+  const [kyc, setKyc] = useState(user.kycStatus);
+  const [saving, setSaving] = useState(false);
+  const field = "mt-1 w-full rounded-lg border border-border bg-card px-2 py-1.5 text-xs";
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await updateUser({
+        userId: user.id, name, phone,
+        country: country.trim() ? country.trim().toUpperCase() : undefined,
+        defaultCurrency: currency.trim() ? currency.trim().toUpperCase() : undefined,
+        kycStatus: kyc,
+      });
+      toast.success("User updated");
+      onDone();
+    } catch {
+      toast.error("Could not save changes (admin role required, valid country/currency codes)");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="bg-secondary/40 rounded-xl p-3 mt-3 space-y-2">
+      <div className="grid grid-cols-2 gap-2">
+        <label className="text-[10px] text-muted-foreground font-semibold uppercase col-span-2">
+          Name
+          <input value={name} onChange={(e) => setName(e.target.value)} className={field} />
+        </label>
+        <label className="text-[10px] text-muted-foreground font-semibold uppercase">
+          Phone
+          <input value={phone} onChange={(e) => setPhone(e.target.value)} className={field} />
+        </label>
+        <label className="text-[10px] text-muted-foreground font-semibold uppercase">
+          KYC status
+          <select value={kyc} onChange={(e) => setKyc(e.target.value as typeof kyc)} className={field}>
+            <option value="unverified">Unverified</option>
+            <option value="submitted">Submitted</option>
+            <option value="verified">Verified</option>
+          </select>
+        </label>
+        <label className="text-[10px] text-muted-foreground font-semibold uppercase">
+          Country (ISO-2)
+          <input value={country} maxLength={2} onChange={(e) => setCountry(e.target.value)} className={field} />
+        </label>
+        <label className="text-[10px] text-muted-foreground font-semibold uppercase">
+          Default currency
+          <input value={currency} maxLength={3} onChange={(e) => setCurrency(e.target.value)} className={field} />
+        </label>
+      </div>
+      <div className="flex gap-2 justify-end pt-1">
+        <button onClick={onDone} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-muted-foreground hover:bg-secondary cursor-pointer">
+          <X size={12} /> Cancel
+        </button>
+        <button onClick={() => void handleSave()} disabled={saving} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary text-primary-foreground cursor-pointer disabled:opacity-60">
+          <Save size={12} /> {saving ? "Saving..." : "Save user"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function CreateProfileForm({ onDone }: { onDone: () => void }) {
   const createUser = useAdminCreateUserMutation();
   const [name, setName] = useState("");
@@ -194,6 +262,7 @@ export default function UsersPanel() {
   const [search, setSearch] = useState("");
   const [creating, setCreating] = useState(false);
   const [editingRoleId, setEditingRoleId] = useState<string | null>(null);
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
 
   const filtered = (rows ?? []).filter((row) => {
     if (!search.trim()) return true;
@@ -318,6 +387,12 @@ export default function UsersPanel() {
                       </div>
                     )}
                   </div>
+                  <button
+                    onClick={() => setEditingUserId(editingUserId === row.user.id ? null : row.user.id)}
+                    className="text-[10px] font-semibold px-2.5 py-1.5 rounded-lg border border-border hover:bg-secondary cursor-pointer whitespace-nowrap"
+                  >
+                    {editingUserId === row.user.id ? "Close" : "Edit user"}
+                  </button>
                   {!row.roles.some((r) => r.role === "admin") && (
                     <button
                       onClick={() => void handleMakeAdmin(row.user.id)}
@@ -328,6 +403,10 @@ export default function UsersPanel() {
                   )}
                 </div>
               </div>
+
+              {editingUserId === row.user.id && (
+                <EditUserForm user={row.user} onDone={() => setEditingUserId(null)} />
+              )}
 
               <div className="mt-3 space-y-1.5">
                 {row.roles.map((role) => (

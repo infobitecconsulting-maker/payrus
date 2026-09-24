@@ -539,6 +539,135 @@ export async function adminUpdateUserRole(args: {
   mustHaveData(res, "adminUpdateUserRole");
 }
 
+export async function adminUpdateUser(args: {
+  userId: string; name?: string; phone?: string; country?: string; defaultCurrency?: string; kycStatus?: AppUser["kycStatus"];
+}): Promise<void> {
+  const res = await supabase.rpc("admin_update_user", {
+    p_user_id: args.userId, p_name: args.name ?? null, p_phone: args.phone ?? null, p_country: args.country ?? null,
+    p_default_currency: args.defaultCurrency ?? null, p_kyc_status: args.kycStatus ?? null,
+  });
+  mustHaveData(res, "adminUpdateUser");
+}
+
+export interface AdminTransfer {
+  id: string; reference: string; type: string; state: string; amount: number; currency: string; note: string | null;
+  userId: string; userName: string | null; userEmail: string | null; createdAt: string;
+}
+
+export async function adminListTransfers(limit = 300, userId?: string): Promise<AdminTransfer[]> {
+  const res = await supabase.rpc("admin_list_transfers", { p_limit: limit, p_user_id: userId ?? null });
+  return mustHaveData(res, "adminListTransfers").map((r: Record<string, unknown>) => ({
+    id: r.transfer_id as string, reference: r.reference as string, type: r.type as string, state: r.state as string,
+    amount: Number(r.amount), currency: r.currency as string, note: (r.note as string) ?? null, userId: r.user_id as string,
+    userName: (r.user_name as string) ?? null, userEmail: (r.user_email as string) ?? null, createdAt: r.created_at as string,
+  }));
+}
+
+export interface MyPermissions {
+  isSuperadmin: boolean;
+  users: { create: boolean; read: boolean; update: boolean; delete: boolean };
+  transactions: { create: boolean; read: boolean; update: boolean; delete: boolean };
+}
+
+export async function getMyPermissions(): Promise<MyPermissions> {
+  const res = await supabase.rpc("my_permissions");
+  const rows = mustHaveData(res, "getMyPermissions") as Record<string, unknown>[];
+  const pick = (resource: string) => {
+    const r = rows.find((x) => x.resource === resource);
+    return { create: Boolean(r?.can_create), read: Boolean(r?.can_read), update: Boolean(r?.can_update), delete: Boolean(r?.can_delete) };
+  };
+  return { isSuperadmin: rows.some((r) => Boolean(r.is_superadmin)), users: pick("users"), transactions: pick("transactions") };
+}
+
+export interface SupportRole { slug: string; label: string; description: string }
+export interface SupportPermissionRow { roleSlug: string; resource: "users" | "transactions"; create: boolean; read: boolean; update: boolean; delete: boolean }
+
+export async function listSupportRoles(): Promise<SupportRole[]> {
+  const res = await supabase.from("support_roles").select("*").order("sort_order");
+  return mustHaveData(res, "listSupportRoles").map((r) => ({ slug: r.slug, label: r.label, description: r.description }));
+}
+
+export async function listSupportPermissions(): Promise<SupportPermissionRow[]> {
+  const res = await supabase.from("support_permissions").select("*");
+  return mustHaveData(res, "listSupportPermissions").map((r) => ({
+    roleSlug: r.role_slug, resource: r.resource, create: r.can_create, read: r.can_read, update: r.can_update, delete: r.can_delete,
+  }));
+}
+
+export async function adminSetSupportPermission(args: SupportPermissionRow & { password: string }): Promise<void> {
+  const res = await supabase.rpc("admin_set_support_permission", {
+    p_role_slug: args.roleSlug, p_resource: args.resource, p_create: args.create, p_read: args.read,
+    p_update: args.update, p_delete: args.delete, p_password: args.password,
+  });
+  mustHaveData(res, "adminSetSupportPermission");
+}
+
+export async function adminAssignStaffRole(args: { userId: string; roleSlug: string; password: string }): Promise<void> {
+  const res = await supabase.rpc("admin_assign_staff_role", { p_user_id: args.userId, p_role_slug: args.roleSlug, p_password: args.password });
+  mustHaveData(res, "adminAssignStaffRole");
+}
+
+export async function adminRevokeStaffRole(args: { userId: string; roleSlug: string; password: string }): Promise<void> {
+  const res = await supabase.rpc("admin_revoke_staff_role", { p_user_id: args.userId, p_role_slug: args.roleSlug, p_password: args.password });
+  if (res.error) throw new Error(`adminRevokeStaffRole: ${res.error.message}`);
+}
+
+export async function supportCompleteTransfer(args: { transferId: string; note?: string }): Promise<void> {
+  const res = await supabase.rpc("support_complete_transfer", { p_transfer_id: args.transferId, p_note: args.note ?? null });
+  mustHaveData(res, "supportCompleteTransfer");
+}
+
+export async function supportResolveTransfer(args: { transferId: string; newState: string; note?: string }): Promise<void> {
+  const res = await supabase.rpc("support_resolve_transfer", { p_transfer_id: args.transferId, p_new_state: args.newState, p_note: args.note ?? null });
+  mustHaveData(res, "supportResolveTransfer");
+}
+
+export async function supportVoidTransfer(args: { transferId: string; note: string; password: string }): Promise<void> {
+  const res = await supabase.rpc("support_void_transfer", { p_transfer_id: args.transferId, p_note: args.note, p_password: args.password });
+  mustHaveData(res, "supportVoidTransfer");
+}
+
+export async function supportCreateAdjustment(args: { userId: string; amount: number; currency: string; reason: string }): Promise<void> {
+  const res = await supabase.rpc("support_create_adjustment", { p_user_id: args.userId, p_amount: args.amount, p_currency: args.currency, p_reason: args.reason });
+  mustHaveData(res, "supportCreateAdjustment");
+}
+
+export type EscalationAction = "complete" | "refund" | "close_dispute" | "void" | "adjustment" | "profile_edit" | "other";
+
+export interface AdminEscalation {
+  id: string; action: EscalationAction; details: string; status: "open" | "done" | "approved" | "rejected";
+  resolutionNote: string | null; amount: number | null; currency: string | null; transferId: string | null;
+  transferReference: string | null; targetUserId: string; targetName: string | null; targetEmail: string | null;
+  requestedBy: string; requesterName: string | null; createdAt: string; resolvedAt: string | null;
+}
+
+export async function adminListEscalations(): Promise<AdminEscalation[]> {
+  const res = await supabase.rpc("admin_list_escalations");
+  return mustHaveData(res, "adminListEscalations").map((r: Record<string, unknown>) => ({
+    id: r.id as string, action: r.action as EscalationAction, details: r.details as string, status: r.status as AdminEscalation["status"],
+    resolutionNote: (r.resolution_note as string) ?? null, amount: r.amount == null ? null : Number(r.amount), currency: (r.currency as string) ?? null,
+    transferId: (r.transfer_id as string) ?? null, transferReference: (r.transfer_reference as string) ?? null,
+    targetUserId: r.target_user_id as string, targetName: (r.target_name as string) ?? null, targetEmail: (r.target_email as string) ?? null,
+    requestedBy: r.requested_by as string, requesterName: (r.requester_name as string) ?? null,
+    createdAt: r.created_at as string, resolvedAt: (r.resolved_at as string) ?? null,
+  }));
+}
+
+export async function supportRequestEscalation(args: {
+  targetUserId: string; action: EscalationAction; details: string; transferId?: string; amount?: number; currency?: string;
+}): Promise<void> {
+  const res = await supabase.rpc("support_request_escalation", {
+    p_target_user_id: args.targetUserId, p_action: args.action, p_details: args.details,
+    p_transfer_id: args.transferId ?? null, p_amount: args.amount ?? null, p_currency: args.currency ?? null,
+  });
+  mustHaveData(res, "supportRequestEscalation");
+}
+
+export async function adminResolveEscalation(args: { escalationId: string; decision: "approve" | "reject" | "done"; note?: string; password?: string }): Promise<void> {
+  const res = await supabase.rpc("admin_resolve_escalation", { p_escalation_id: args.escalationId, p_decision: args.decision, p_note: args.note ?? null, p_password: args.password ?? null });
+  mustHaveData(res, "adminResolveEscalation");
+}
+
 export async function adminCreateUser(args: {
   name: string; email: string; role: string; kind: "individual" | "organisation"; password?: string;
 }): Promise<{ userId: string; roleId: string; alreadyExisted: boolean }> {

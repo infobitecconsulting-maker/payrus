@@ -207,6 +207,54 @@ export function useAdminUpdateUserRoleMutation() {
   return mutation.mutateAsync;
 }
 
+export function useAdminEscalations() {
+  return useReactQuery({ queryKey: ["adminEscalations"], queryFn: backend.adminListEscalations });
+}
+
+export function useSupportRequestEscalationMutation() { return useStaffMutation(backend.supportRequestEscalation); }
+export function useAdminResolveEscalationMutation() { return useStaffMutation(backend.adminResolveEscalation); }
+
+export function useAdminUpdateUserMutation() {
+  const invalidate = useInvalidateAdmin();
+  const mutation = useReactMutation({ mutationFn: backend.adminUpdateUser, onSuccess: invalidate });
+  return mutation.mutateAsync;
+}
+
+export function useAdminListTransfers(limit = 300, userId?: string) {
+  return useReactQuery({ queryKey: ["adminTransfers", limit, userId ?? null], queryFn: () => backend.adminListTransfers(limit, userId) });
+}
+
+export function useMyPermissions() {
+  return useReactQuery({ queryKey: ["myPermissions"], queryFn: backend.getMyPermissions, staleTime: 60_000 }).data;
+}
+
+export function useSupportRoles() {
+  return useReactQuery({ queryKey: ["supportRoles"], queryFn: backend.listSupportRoles }).data;
+}
+
+export function useSupportPermissions() {
+  return useReactQuery({ queryKey: ["supportPermissions"], queryFn: backend.listSupportPermissions }).data;
+}
+
+function useStaffMutation<TArgs>(fn: (args: TArgs) => Promise<void>) {
+  const queryClient = useQueryClient();
+  const mutation = useReactMutation({
+    mutationFn: fn,
+    onSuccess: () => {
+      for (const key of ["supportPermissions", "adminUsers", "adminTransfers", "adminEscalations", "myPermissions"]) void queryClient.invalidateQueries({ queryKey: [key] });
+    },
+  });
+  return mutation.mutateAsync;
+}
+
+export function useAdminSetSupportPermissionMutation() { return useStaffMutation(backend.adminSetSupportPermission); }
+export function useAdminAssignStaffRoleMutation() { return useStaffMutation(backend.adminAssignStaffRole); }
+export function useAdminRevokeStaffRoleMutation() { return useStaffMutation(backend.adminRevokeStaffRole); }
+export function useSupportCompleteTransferMutation() { return useStaffMutation(backend.supportCompleteTransfer); }
+export function useSupportResolveTransferMutation() { return useStaffMutation(backend.supportResolveTransfer); }
+export function useSupportVoidTransferMutation() { return useStaffMutation(backend.supportVoidTransfer); }
+export function useSupportCreateAdjustmentMutation() { return useStaffMutation(backend.supportCreateAdjustment); }
+
 export function useAdminCreateUserMutation() {
   const invalidate = useInvalidateAdmin();
   const mutation = useReactMutation({ mutationFn: backend.adminCreateUser, onSuccess: invalidate });
