@@ -267,6 +267,22 @@ export async function resolveUserByIdentifier(identifier: string): Promise<Resol
   return r ? { id: r.id as string, name: (r.name as string) ?? (r.username as string) ?? "PayRus member", username: (r.username as string) ?? null, defaultCurrency: (r.default_currency as string) ?? null } : null;
 }
 
+export interface Counterpart {
+  id: string; name: string; username: string | null; defaultCurrency: string | null; maskedEmail: string | null;
+  timesSent: number; lastSentAt: string; lastCurrency: string | null;
+}
+
+// People the signed-in user has already sent money to, filtered as they type
+// (name, @username, email prefix). Never a directory of other members.
+export async function searchMyCounterparts(query: string, limit = 8): Promise<Counterpart[]> {
+  const res = await supabase.rpc("search_my_counterparts", { p_query: query || null, p_limit: limit });
+  return ((mustNotError(res, "searchMyCounterparts") ?? []) as Record<string, unknown>[]).map((r) => ({
+    id: r.id as string, name: (r.name as string) ?? (r.username as string) ?? "PayRus member", username: (r.username as string) ?? null,
+    defaultCurrency: (r.default_currency as string) ?? null, maskedEmail: (r.masked_email as string) ?? null,
+    timesSent: Number(r.times_sent), lastSentAt: r.last_sent_at as string, lastCurrency: (r.last_currency as string) ?? null,
+  }));
+}
+
 export interface P2pReceipt { reference: string; senderName: string; recipientName: string; amount: number; currency: string }
 
 export async function p2pTransfer(args: {

@@ -30,6 +30,16 @@ export function useRoleDefinitions() {
   }).data;
 }
 
+export function useMyCounterparts(userId: string | undefined, query: string) {
+  return useReactQuery({
+    queryKey: ["counterparts", userId, query],
+    queryFn: () => backend.searchMyCounterparts(query),
+    enabled: !!userId,
+    staleTime: 30_000,
+    placeholderData: (prev) => prev,
+  });
+}
+
 export function useP2pTransferMutation() {
   const queryClient = useQueryClient();
   const mutation = useReactMutation({
@@ -37,6 +47,7 @@ export function useP2pTransferMutation() {
     onSuccess: (_data, variables) => {
       void queryClient.invalidateQueries({ queryKey: ["walletViews", variables.senderId] });
       void queryClient.invalidateQueries({ queryKey: ["transfers"] });
+      void queryClient.invalidateQueries({ queryKey: ["counterparts"] });
     },
   });
   return mutation.mutateAsync;

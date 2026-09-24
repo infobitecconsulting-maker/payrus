@@ -11,8 +11,8 @@ import {
 import { Button } from "@/components/ui/button.tsx";
 import { cn } from "@/lib/utils.ts";
 import { toast } from "sonner";
-import { useP2pTransferMutation, useWalletViewsForUser } from "@/hooks/use-backend.ts";
-import { resolveUserByIdentifier, type P2pReceipt } from "@/lib/backend.ts";
+import { useP2pTransferMutation, useWalletViewsForUser, useMyCounterparts } from "@/hooks/use-backend.ts";
+import { resolveUserByIdentifier, type Counterpart, type P2pReceipt } from "@/lib/backend.ts";
 import { PayRusLogo } from "@/pages/layout/AppLayout.tsx";
 import { commissionFor, convertWithMargin, midMarketConvert } from "@/convex/fx.ts";
 import { useCurrentAppUser } from "@/hooks/use-current-app-user.ts";
@@ -128,6 +128,14 @@ export default function P2PTransfer() {
   const [realSearching, setRealSearching] = useState(false);
 
   const currentUser = useCurrentAppUser();
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [showSuggest, setShowSuggest] = useState(false);
+  useEffect(() => {
+    const id = setTimeout(() => setDebouncedQuery(realQuery.trim()), 200);
+    return () => clearTimeout(id);
+  }, [realQuery]);
+  const contactsQuery = useMyCounterparts(currentUser?.id, debouncedQuery);
+  const contacts = contactsQuery.data ?? [];
   const realWallets = useWalletViewsForUser(currentUser?.id);
   const p2pTransfer = useP2pTransferMutation();
   const [committed, setCommitted] = useState<P2pReceipt | null>(null);
@@ -162,6 +170,15 @@ export default function P2PTransfer() {
     : 0; // 10% FX margin only when the wallet being charged is in a different currency
   const total = numAmt + commission;
   const received = numAmt; // the recipient gets the full stated amount; margin/commission are the sender's cost
+
+  function handleSelectContact(c: Counterpart) {
+    setShowSuggest(false);
+    handleSelectUser({
+      id: c.id, realId: c.id, name: c.name, username: c.username ? `@${c.username}` : "", country: "PayRus network", countryCode: "??",
+      flag: "🌐", avatar: c.name.slice(0, 2).toUpperCase(), currency: c.lastCurrency ?? c.defaultCurrency ?? currency,
+      verified: true, online: false, role: t("p2p.contactBadge"),
+    });
+  }
 
   function handleSelectUser(user: PayRusUser) {
     setSelectedUser(user);
@@ -314,8 +331,21 @@ export default function P2PTransfer() {
                 <input
                   type="text"
                   value={realQuery}
-                  onChange={e => setRealQuery(e.target.value)}
-                  onKeyDown={e => { if (e.key === "Enter") void handleRealSearch(); }}
+                  onChange={e => { setRealQuery(e.target.value); setShowSuggest(true); }}
+                  onFocus={() => setShowSuggest(true)}
+                  onBlur={() => setTimeout(() => setShowSuggest(false), 150)}
+                  role="combobox"
+                  aria-expanded={showSuggest && contacts.length > 0}
+                  aria-autocomplete="list"
+                  autoComplete="off"
+                  onKeyDown={e => {
+                    if (e.key === "Enter") {
+                      const first = contacts[0];
+                      if (first && realQuery.trim() && first.name.toLowerCase().startsWith(realQuery.trim().toLowerCase().replace(/^@/, ""))) handleSelectContact(first);
+                      else void handleRealSearch();
+                    }
+                    if (e.key === "Escape") setShowSuggest(false);
+                  }}
                   placeholder={t("p2p.findRealUserPlaceholder")}
                   className="flex-1 px-3 py-2 rounded-lg bg-secondary border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50 transition-colors"
                 />
@@ -327,7 +357,49 @@ export default function P2PTransfer() {
                   {realSearching ? t("signin.checking") : t("p2p.find")}
                 </button>
               </div>
+              {!demoMode && showSuggest && realQuery.trim() && (
+                <ul role="listbox" className="mt-2 rounded-lg border border-border bg-card shadow-sm divide-y divide-border overflow-hidden">
+                  {contacts.map(c => (
+                    <li key={c.id}>
+                      <button type="button" role="option" aria-selected={false} onMouseDown={e => e.preventDefault()} onClick={() => handleSelectContact(c)}
+                        className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-primary/10 cursor-pointer">
+                        <Avatar initials={c.name.slice(0, 2).toUpperCase()} size="sm" />
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-sm font-semibold truncate">{c.name}</span>
+                          <span className="block text-[11px] text-muted-foreground truncate">{c.username ? `@${c.username} · ` : ""}{c.maskedEmail ?? ""}</span>
+                        </span>
+                        <span className="text-[10px] text-muted-foreground shrink-0">{t("p2p.sentTimes", { count: c.timesSent })}</span>
+                      </button>
+                    </li>
+                  ))}
+                  {contacts.length === 0 && !contactsQuery.isFetching && (
+                    <li className="px-3 py-2 text-[11px] text-muted-foreground">{t("p2p.noContactMatch")}</li>
+                  )}
+                </ul>
+              )}
             </div>
+
+            {!demoMode && contacts.length > 0 && !realQuery.trim() && (
+              <div className="mb-5">
+                <div className="flex items-center gap-2 mb-3">
+                  <Clock size={11} className="text-muted-foreground" />
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t("p2p.yourContacts")}</span>
+                </div>
+                <div className="space-y-2">
+                  {contacts.slice(0, 5).map(c => (
+                    <button key={c.id} onClick={() => handleSelectContact(c)} className="w-full flex items-center gap-3 p-3 rounded-xl bg-secondary border border-border hover:bg-primary/10 hover:border-primary/30 transition-all cursor-pointer text-left">
+                      <Avatar initials={c.name.slice(0, 2).toUpperCase()} />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-semibold truncate">{c.name}</div>
+                        <div className="text-xs text-muted-foreground truncate">{c.username ? `@${c.username} · ` : ""}{t("p2p.lastSent", { date: new Date(c.lastSentAt).toLocaleDateString() })}</div>
+                      </div>
+                      {c.lastCurrency && <span className="text-[10px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded shrink-0">{c.lastCurrency}</span>}
+                      <ChevronRight size={14} className="text-muted-foreground shrink-0" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Recent / search results (fictional demo directory — anonymous preview only) */}
             {demoMode && <div>
