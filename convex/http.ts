@@ -2,6 +2,7 @@ import { httpRouter } from "convex/server";
 import { httpAction } from "./_generated/server";
 import { api } from "./_generated/api";
 import { assistEscalation } from "./aiSupportAssist.ts";
+import { assistOrgCase } from "./aiOrgCaseAssist.ts";
 import { reverseGeocodePosition } from "./geolocate.ts";
 
 // The only HTTP routes in this app so far. ops-console — a separate app with
@@ -144,5 +145,23 @@ http.route({
 });
 
 http.route({ path: "/aiSupportAssist", method: "OPTIONS", handler: httpAction(async () => new Response(null, { status: 204, headers: AI_CORS })) });
+
+http.route({
+  path: "/aiOrgCaseAssist",
+  method: "POST",
+  handler: httpAction(async (_ctx, request) => {
+    const respond = (body: unknown, status: number) =>
+      new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json", ...AI_CORS } });
+    const token = /^Bearer (.+)$/.exec(request.headers.get("Authorization") ?? "")?.[1];
+    if (!token) return respond({ error: "unauthorized" }, 401);
+    const body: unknown = await request.json().catch(() => null);
+    const caseId = (body as Record<string, unknown> | null)?.caseId;
+    if (typeof caseId !== "string" || !/^[0-9a-f-]{36}$/i.test(caseId)) return respond({ error: "bad_request" }, 400);
+    const result = await assistOrgCase(caseId, token);
+    return respond(result.body, result.status);
+  }),
+});
+
+http.route({ path: "/aiOrgCaseAssist", method: "OPTIONS", handler: httpAction(async () => new Response(null, { status: 204, headers: AI_CORS })) });
 
 export default http;

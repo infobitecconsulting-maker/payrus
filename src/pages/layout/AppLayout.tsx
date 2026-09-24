@@ -10,7 +10,7 @@ import { useProfile } from "@/contexts/profile-context.tsx";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet.tsx";
 import { useCurrentAppUser } from "@/hooks/use-current-app-user.ts";
 import { clearLocalUserId, getLocalUserId } from "@/lib/local-user.ts";
-import { useProfileFeatures, useMyPermissions } from "@/hooks/use-backend.ts";
+import { useProfileFeatures, useMyPermissions, useMyOrgMemberships } from "@/hooks/use-backend.ts";
 import { supabase } from "@/lib/supabase-client.ts";
 import FxRatePill from "@/components/ui/fx-rate-pill.tsx";
 import LocationConsentBanner from "@/components/ui/location-consent-banner.tsx";
@@ -94,6 +94,8 @@ export default function AppLayout() {
   // the same definitions the ops-console uses) also open the Administration page.
   const perms = useMyPermissions();
   const hasStaffAccess = !!perms && (perms.isSuperadmin || perms.users.read || perms.transactions.read);
+  const orgMemberships = useMyOrgMemberships().data;
+  const hasOrgAccess = !!perms?.isSuperadmin || (orgMemberships ?? []).some((m) => m.status === "active");
   const hasFeature = (key: string) => isAdmin || features.includes(key) || (key === "admin_panel" && hasStaffAccess);
 
   // Guard: send anonymous/no-profile visitors to the welcome screen first
@@ -147,6 +149,7 @@ export default function AppLayout() {
     // Gated — previously visible to every profile regardless of admin
     // status; now requires the admin_panel feature (admin-only by default,
     // seeded in 0014, adjustable from the Roles & Access tab).
+    ...(hasOrgAccess ? [{ to: `${base}/organisation`, icon: Landmark, label: t("nav.organisation", "Organisation") }] : []),
     ...(hasFeature("admin_panel") ? [{ to: `${base}/admin`, icon: ShieldCheck, label: t("nav.admin"), highlight: true as const }] : []),
   ];
 

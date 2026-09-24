@@ -8,6 +8,7 @@
 //     the same as the Convex version did)
 import { useQuery as useReactQuery, useMutation as useReactMutation, useQueryClient } from "@tanstack/react-query";
 import * as backend from "@/lib/backend.ts";
+import * as orgBackend from "@/lib/org-backend.ts";
 
 // ---------------------------------------------------------------------------
 // Identity / roles / addresses
@@ -252,6 +253,10 @@ export function useMyPermissions() {
 
 export function useMyPermissionsQuery() {
   return useReactQuery({ queryKey: ["myPermissions"], queryFn: backend.getMyPermissions, staleTime: 60_000, retry: false });
+}
+
+export function useMyOrgMemberships() {
+  return useReactQuery({ queryKey: ["org", "memberships"], queryFn: orgBackend.myMemberships, staleTime: 60_000, retry: false });
 }
 
 export function useAdminOpsRows<T>(rpcName: string) {

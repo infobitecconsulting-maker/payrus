@@ -21,6 +21,7 @@ import OperationsPanel from "./_components/operations-panel.tsx";
 import AuditPanel from "./_components/audit-panel.tsx";
 import ConfigPanel from "./_components/config-panel.tsx";
 import AccessPanel from "./_components/access-panel.tsx";
+import OrganisationPanel from "../organisation/_components/organisation-panel.tsx";
 import { useProfile, getDefaultProfile } from "@/contexts/profile-context.tsx";
 import type { ProfileType } from "@/contexts/profile-context.tsx";
 import {
@@ -267,7 +268,7 @@ export default function AdminDashboard() {
   const [txCount, setTxCount] = useState(2648);
   const [avgMargin, setAvgMargin] = useState(7.3);
   const [newTxId, setNewTxId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"overview" | "transactions" | "fx" | "corridors" | "pilot" | "demo" | "users" | "ledger" | "escalations" | "staff" | "operations" | "audit" | "config" | "access">("users");
+  const [activeTab, setActiveTab] = useState<"overview" | "transactions" | "fx" | "corridors" | "pilot" | "demo" | "users" | "ledger" | "escalations" | "staff" | "operations" | "audit" | "config" | "access" | "organisations">("users");
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const navigate = useNavigate();
   const { lng } = useParams<{ lng: string }>();
@@ -332,6 +333,7 @@ export default function AdminDashboard() {
     { id: "audit", label: "Audit Log", icon: History },
     { id: "config", label: "Configuration", icon: SlidersHorizontal },
     { id: "access", label: "Roles & Access", icon: ShieldCheck },
+    { id: "organisations", label: "Organisations", icon: Building },
     { id: "pilot", label: "Pilot Countries", icon: Flag },
     { id: "demo", label: "Demo Access", icon: MonitorPlay },
     { id: "overview", label: "Overview", icon: BarChart3 },
@@ -343,7 +345,7 @@ export default function AdminDashboard() {
   // the four operational tabs; admin/superadmin also get Operations, Audit Log,
   // Configuration and Roles & Access — the same set the ops-console offers.
   const STAFF_TABS = ["users", "ledger", "escalations", "staff"];
-  const ADMIN_TIER_TABS = [...STAFF_TABS, "operations", "audit", "config", "access"];
+  const ADMIN_TIER_TABS = [...STAFF_TABS, "operations", "audit", "config", "access", "organisations"];
   const allowedIds = perms?.isAdmin ? ADMIN_TIER_TABS : STAFF_TABS;
   const tabs = staffOnly ? allTabs.filter((tab) => allowedIds.includes(tab.id)) : allTabs;
 
@@ -467,6 +469,13 @@ export default function AdminDashboard() {
         {activeTab === "access" && (
           <motion.div key="access" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
             <AccessPanel />
+          </motion.div>
+        )}
+
+        {/* ── ORGANISATIONS (tree, scoped roles, cases) ── */}
+        {activeTab === "organisations" && (
+          <motion.div key="organisations" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
+            <OrganisationPanel />
           </motion.div>
         )}
 

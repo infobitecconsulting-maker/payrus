@@ -25,6 +25,7 @@ import GovHub from "./pages/gov/page.tsx";
 import ApiHub from "./pages/api-hub/page.tsx";
 import InvestorDeck from "./pages/investor/page.tsx";
 import AdminDashboard from "./pages/admin/page.tsx";
+import OrganisationPage from "./pages/organisation/page.tsx";
 import RegisterCustomer from "./pages/register-customer/page.tsx";
 import SavingsPage from "./pages/savings/page.tsx";
 import InvestPage from "./pages/invest/page.tsx";
@@ -92,6 +93,7 @@ export default function App() {
               <Route path="api-hub" element={<ApiHub />} />
               <Route path="investor" element={<InvestorDeck />} />
               <Route path="admin" element={<AdminDashboard />} />
+              <Route path="organisation" element={<OrganisationPage />} />
               <Route path="register-customer" element={<RegisterCustomer />} />
               <Route path="savings" element={<SavingsPage />} />
               <Route path="invest" element={<InvestPage />} />
