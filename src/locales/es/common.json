@@ -1756,5 +1756,9 @@
   "capability.pilot": "Piloto",
   "capability.sandbox": "Entorno de pruebas",
   "capability.demo": "Demostración",
-  "capability.disabled": "No disponible"
+  "capability.disabled": "No disponible",
+  "mfa.staffRequiredTitle": "Autenticación de dos factores obligatoria",
+  "mfa.staffRequiredDesc": "El acceso administrativo exige una aplicación de autenticación verificada. Actívela abajo para continuar.",
+  "mfa.staffContinue": "Continuar",
+  "mfa.staffBack": "Volver"
 }

@@ -70,6 +70,7 @@ const rules = [
   ["PRS-IAM-003 App has TOTP MFA lib + sign-in gate", () => read(appRoot, "src/lib/mfa.ts").includes("mfa.enroll") && read(appRoot, "src/pages/signin/page.tsx").includes("needsMfaChallenge")],
   ["PRS-IAM-003 console has TOTP MFA lib + sign-in gate", () => read(consoleRoot, "src/lib/mfa.ts").includes("mfa.enroll") && read(consoleRoot, "src/App.tsx").includes("needsMfaChallenge")],
   ["PRS-IAM-003 step-up on App + console money movement", () => read(appRoot, "src/pages/p2p/page.tsx").includes("requireStepUp") && read(consoleRoot, "src/screens/Send.tsx").includes("requireStepUp")],
+  ["PRS-IAM-007 admin/staff screens require MFA in App + console", () => read(appRoot, "src/App.tsx").includes("<StaffMfaGate>") && read(consoleRoot, "src/App.tsx").split("<StaffMfaGate").length >= 3],
   ["Settings 2FA is real (no local-state toggle)", () => !read(appRoot, "src/pages/settings/page.tsx").includes("setTwoFAEnabled")],
   ["PRS-OPS-010 status indicator is a live probe, not static text", () => layout.includes("SystemStatusPill") && !layout.includes("nav.systems")],
   ["PRS-UX-006 investor deck sits under the demo heading, not the customer nav", () => /nav\.investor"\), demo: true/.test(layout) && layout.includes("nav.demoSection")],

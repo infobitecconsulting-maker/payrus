@@ -1772,5 +1772,9 @@
   "capability.pilot": "Pilot",
   "capability.sandbox": "Sandbox",
   "capability.demo": "Demo",
-  "capability.disabled": "Not available"
+  "capability.disabled": "Not available",
+  "mfa.staffRequiredTitle": "Two-factor authentication required",
+  "mfa.staffRequiredDesc": "Administrative access needs a verified authenticator app. Enable it below to continue.",
+  "mfa.staffContinue": "Continue",
+  "mfa.staffBack": "Back"
 }

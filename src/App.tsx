@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { StaffMfaGate } from "@/components/mfa/mfa-ui.tsx";
 import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation } from "react-router-dom";
 import { useServiceWorker } from "@/hooks/use-service-worker.ts";
 import { DefaultProviders } from "./components/providers/default.tsx";
@@ -92,7 +93,7 @@ export default function App() {
               <Route path="gov" element={<GovHub />} />
               <Route path="api-hub" element={<ApiHub />} />
               <Route path="investor" element={<InvestorDeck />} />
-              <Route path="admin" element={<AdminDashboard />} />
+              <Route path="admin" element={<StaffMfaGate><AdminDashboard /></StaffMfaGate>} />
               <Route path="organisation" element={<OrganisationPage />} />
               <Route path="register-customer" element={<RegisterCustomer />} />
               <Route path="savings" element={<SavingsPage />} />

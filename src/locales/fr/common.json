@@ -1756,5 +1756,9 @@
   "capability.pilot": "Pilote",
   "capability.sandbox": "Bac à sable",
   "capability.demo": "Démo",
-  "capability.disabled": "Indisponible"
+  "capability.disabled": "Indisponible",
+  "mfa.staffRequiredTitle": "Authentification à deux facteurs requise",
+  "mfa.staffRequiredDesc": "L'accès administrateur exige une application d'authentification vérifiée. Activez-la ci-dessous pour continuer.",
+  "mfa.staffContinue": "Continuer",
+  "mfa.staffBack": "Retour"
 }

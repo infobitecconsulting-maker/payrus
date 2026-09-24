@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { ShieldCheck, ShieldAlert } from "lucide-react";
@@ -147,6 +147,35 @@ export function MfaSettingsCard({ recommend }: { recommend?: boolean }) {
           />
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * PRS-IAM-007 / PRS-OPS-001: privileged (admin/staff) screens require a verified
+ * authenticator factor AND an AAL2 session. No factor -> enrol first; factor but
+ * AAL1 session -> ask for a code. Wraps the /admin route.
+ */
+export function StaffMfaGate({ children }: { children: ReactNode }) {
+  const { t } = useTranslation("common");
+  const [state, setState] = useState<"checking" | "enrol" | "stepup" | "ok">("checking");
+  const check = async () => {
+    try {
+      if ((await listVerifiedTotp()).length === 0) return setState("enrol");
+      setState((await requireStepUp()) ? "ok" : "stepup");
+    } catch {
+      setState("enrol");
+    }
+  };
+  useEffect(() => { void check(); }, []);
+  if (state === "ok") return <>{children}</>;
+  if (state === "checking") return null;
+  return (
+    <div className="max-w-md mx-auto p-6 space-y-4">
+      <h1 className="text-lg font-bold text-foreground flex items-center gap-2"><ShieldAlert size={18} />{t("mfa.staffRequiredTitle")}</h1>
+      <p className="text-sm text-muted-foreground">{t("mfa.staffRequiredDesc")}</p>
+      {state === "enrol" ? <MfaSettingsCard /> : null}
+      <Button className="w-full" onClick={() => { setState("checking"); void check(); }}>{t("mfa.staffContinue")}</Button>
     </div>
   );
 }

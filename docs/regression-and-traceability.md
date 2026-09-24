@@ -31,7 +31,7 @@ pnpm regression                           # App/ — covers App AND ops-console
 | IAM | PRS-IAM-008 Supabase Auth behind canonical id | Done (both apps, same session model) |
 | IAM | PRS-IAM-002 profile selection, server-side entitlements | Done (`profile_features`, `console_role_tabs`, `role_definitions`, RLS) |
 | IAM | PRS-IAM-009/010 SSO, social, magic link, phone OTP | Coded; SAML/SMS need paid plan / Twilio |
-| IAM | PRS-IAM-003 MFA / step-up | **Done** — real Supabase TOTP in App and console (enrol/disable in Settings → Security, AAL2 gate at sign-in, step-up before money movement). A factor enrolled in either app protects both. Not yet done: passkeys, device binding (PRS-IAM-005), amount/risk-adaptive step-up |
+| IAM | PRS-IAM-003 MFA / step-up | **Done** — real Supabase TOTP in App and console (enrol/disable in Settings → Security, AAL2 gate at sign-in, step-up before money movement). A factor enrolled in either app protects both. Admin/staff screens (App /admin, console Administration + Configuration) now REQUIRE an enrolled factor and an AAL2 session (PRS-IAM-007). Not yet done: passkeys, device binding (PRS-IAM-005), amount/risk-adaptive step-up |
 | Wallet/Transfers | WAL-001..003, TRF-001..003 | Done on real data (wallets, quotes, transfers, idempotency) |
 | Ops | PRS-OPS-003/006/009 queues, audit, four-eyes | Done (audit log, escalations, staff roles/permission matrix) |
 | Ops | PRS-OPS-010 real status | **Done (client probe)** — pill now measures Postgres REST + Auth latency every 60 s (Operational / Degraded / Unreachable). Still needs a server-side monitoring feed for a true public status page |
