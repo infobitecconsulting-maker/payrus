@@ -228,6 +228,10 @@ export function useMyPermissions() {
   return useReactQuery({ queryKey: ["myPermissions"], queryFn: backend.getMyPermissions, staleTime: 60_000 }).data;
 }
 
+export function useMyPermissionsQuery() {
+  return useReactQuery({ queryKey: ["myPermissions"], queryFn: backend.getMyPermissions, staleTime: 60_000, retry: false });
+}
+
 export function useSupportRoles() {
   return useReactQuery({ queryKey: ["supportRoles"], queryFn: backend.listSupportRoles }).data;
 }

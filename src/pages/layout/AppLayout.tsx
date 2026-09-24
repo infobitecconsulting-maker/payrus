@@ -10,8 +10,9 @@ import { useProfile } from "@/contexts/profile-context.tsx";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet.tsx";
 import { useCurrentAppUser } from "@/hooks/use-current-app-user.ts";
 import { clearLocalUserId, getLocalUserId } from "@/lib/local-user.ts";
-import { useProfileFeatures } from "@/hooks/use-backend.ts";
+import { useProfileFeatures, useMyPermissions } from "@/hooks/use-backend.ts";
 import { supabase } from "@/lib/supabase-client.ts";
+import FxRatePill from "@/components/ui/fx-rate-pill.tsx";
 
 export function PayRusLogo({ className }: { className?: string }) {
   return (
@@ -88,7 +89,11 @@ export default function AppLayout() {
   // Called unconditionally (before the early-return guard below) per the
   // Rules of Hooks.
   const features = useProfileFeatures(profile?.type ?? undefined) ?? [];
-  const hasFeature = (key: string) => isAdmin || features.includes(key);
+  // Real staff roles (superadmin / admin / support_agent, from the database —
+  // the same definitions the ops-console uses) also open the Administration page.
+  const perms = useMyPermissions();
+  const hasStaffAccess = !!perms && (perms.isSuperadmin || perms.users.read || perms.transactions.read);
+  const hasFeature = (key: string) => isAdmin || features.includes(key) || (key === "admin_panel" && hasStaffAccess);
 
   // Guard: send anonymous/no-profile visitors to the welcome screen first
   const publicPaths = ["/welcome", "/profile", "/investor", "/fundraise", "/savings", "/wallet", "/payments"];
@@ -303,12 +308,7 @@ export default function AppLayout() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-amber-50 dark:bg-amber-400/10 border border-amber-200 dark:border-amber-400/25">
-              <span className="text-[10px] font-black text-amber-700 dark:text-amber-400">XAF</span>
-              <span className="text-[10px] text-amber-600 dark:text-amber-300/70">·</span>
-              <span className="text-[10px] font-black text-amber-700 dark:text-amber-400">AOA</span>
-              <span className="text-[10px] text-amber-600 dark:text-amber-300/70">{t("nav.refZone")}</span>
-            </div>
+            <FxRatePill />
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary/5 border border-primary/20">
               <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
               <span className="text-xs text-primary font-medium">{t("nav.systems")}</span>

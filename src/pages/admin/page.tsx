@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils.ts";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
-import { useProfileFeatures } from "@/hooks/use-backend.ts";
+import { useProfileFeatures, useMyPermissionsQuery } from "@/hooks/use-backend.ts";
 import { generateTechAnalysisPDF } from "./_components/tech-analysis-pdf.ts";
 import UsersPanel from "./_components/users-panel.tsx";
 import TransactionsPanel from "./_components/transactions-panel.tsx";
@@ -277,6 +277,12 @@ export default function AdminDashboard() {
   // hook in this component has been called.
   const isAdmin = profile?.type === "admin";
   const features = useProfileFeatures(profile?.type ?? undefined) ?? [];
+  const permsQuery = useMyPermissionsQuery();
+  const perms = permsQuery.data;
+  const hasStaffAccess = !!perms && (perms.isSuperadmin || perms.users.read || perms.transactions.read);
+  // Staff who reach this page through their database role (not the demo
+  // "admin" profile) only get the operational tabs.
+  const staffOnly = !isAdmin && !features.includes("admin_panel");
 
   // Simulate live tx stream
   useEffect(() => {
@@ -302,7 +308,10 @@ export default function AdminDashboard() {
   // adjustable from the Roles & Access tab) — while features are loading,
   // this keeps the panel hidden rather than briefly flashing it open.
   // Placed after every hook above so it stays Rules-of-Hooks-safe.
-  if (!isAdmin && !features.includes("admin_panel")) {
+  if (staffOnly && permsQuery.isLoading) {
+    return null;
+  }
+  if (staffOnly && !hasStaffAccess) {
     return <Navigate to={base} replace />;
   }
 
@@ -312,7 +321,7 @@ export default function AdminDashboard() {
     return `$${n.toFixed(2)}`;
   };
 
-  const tabs = [
+  const allTabs = [
     { id: "users", label: "Manage Profiles", icon: UserCog },
     { id: "ledger", label: "Users & Transactions", icon: History },
     { id: "escalations", label: "Escalations", icon: AlertTriangle },
@@ -326,6 +335,8 @@ export default function AdminDashboard() {
     { id: "fx", label: "FX Costs", icon: Globe },
     { id: "corridors", label: "Corridors", icon: Layers },
   ] as const;
+  const STAFF_TABS = ["users", "ledger", "escalations", "staff"];
+  const tabs = staffOnly ? allTabs.filter((tab) => STAFF_TABS.includes(tab.id)) : allTabs;
 
   return (
     <div className="p-4 md:p-6 max-w-6xl mx-auto space-y-5">

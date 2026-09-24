@@ -726,6 +726,12 @@ export async function listCurrenciesByCode(codes: string[]): Promise<AppCurrency
   return mustHaveData(res, "listCurrenciesByCode").map((r) => ({ code: r.code as string, ratePerUsd: r.rate_per_usd === null ? null : Number(r.rate_per_usd) }));
 }
 
+export async function getCurrencyForCountry(countryCode: string): Promise<string | null> {
+  const res = await supabase.from("countries").select("currency").eq("code", countryCode.toUpperCase()).maybeSingle();
+  const row = mustNotError(res, "getCurrencyForCountry") as { currency: string } | null;
+  return row?.currency ?? null;
+}
+
 export interface FxRateUpdate {
   source: string;
   currenciesUpdated: number;

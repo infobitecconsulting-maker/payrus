@@ -17,6 +17,8 @@ import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { changeLocale, setLocaleInPath, SUPPORTED_LOCALES, SUPPORTED_LOCALES_ARRAY, type SupportedLocale } from "@/i18n.ts";
 import { getAnonId } from "@/lib/anon-id.ts";
 import { useAddLinkedPaymentMethodMutation, useLinkedPaymentMethods, useSeedDefaultLinkedPaymentMethodsMutation, useCurrenciesByCode } from "@/hooks/use-backend.ts";
+import { getPreferredFxCurrency, setPreferredFxCurrency } from "@/hooks/use-fx-pill.ts";
+import { useCurrentAppUser } from "@/hooks/use-current-app-user.ts";
 import { getLastFxRateUpdate, type FxRateUpdate } from "@/lib/backend.ts";
 import { useQuery as useReactQuery } from "@tanstack/react-query";
 import AddPaymentMethodSheet, { PAYMENT_PROVIDERS, type LinkedMethodProvider } from "@/components/ui/add-payment-method-sheet.tsx";
@@ -284,7 +286,10 @@ function AppearanceSection() {
   const { t, i18n } = useTranslation("common");
   const navigate = useNavigate();
   const location = useLocation();
-  const [currency, setCurrency] = useState("XAF");
+  // Persisted choice drives the live FX pill in the header (use-fx-pill.ts).
+  const [currency, setCurrency] = useState<string | null>(getPreferredFxCurrency());
+  const user = useCurrentAppUser();
+  const effectiveCurrency = currency ?? user?.defaultCurrency ?? null;
 
   const currencies = ["XAF", "AOA", "CDF", "EUR", "USD", "AED", "CNY", "GBP", "NGN", "KES", "ZAR"];
 
@@ -326,10 +331,10 @@ function AppearanceSection() {
         <div className="bg-card border border-border rounded-2xl p-4">
           <div className="flex flex-wrap gap-2">
             {currencies.map(c => (
-              <button key={c} onClick={() => { setCurrency(c); toast.success(t("settings.appearance.currencyChanged", { currency: c })); }}
+              <button key={c} onClick={() => { setCurrency(c); setPreferredFxCurrency(c); toast.success(t("settings.appearance.currencyChanged", { currency: c })); }}
                 className={cn(
                   "px-3 py-1.5 rounded-xl text-xs font-bold border cursor-pointer transition-all",
-                  currency === c ? "bg-primary/15 text-primary border-primary/35" : "bg-secondary text-muted-foreground border-border hover:border-primary/25"
+                  effectiveCurrency === c ? "bg-primary/15 text-primary border-primary/35" : "bg-secondary text-muted-foreground border-border hover:border-primary/25"
                 )}>
                 {c}
               </button>

@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils.ts";
 import type { AppUserRole, AdminUserRow } from "@/lib/backend.ts";
 import {
   useAdminListUsers, useAdminUpdateUserRoleMutation, useAdminCreateUserMutation,
-  useAdminGrantAdminRoleMutation, useTestUsersCleanupMutation, useAdminUpdateUserMutation,
+  useAdminGrantAdminRoleMutation, useTestUsersCleanupMutation, useAdminUpdateUserMutation, useMyPermissions,
 } from "@/hooks/use-backend.ts";
 
 const ALL_ROLES = [
@@ -263,6 +263,9 @@ export default function UsersPanel() {
   const [creating, setCreating] = useState(false);
   const [editingRoleId, setEditingRoleId] = useState<string | null>(null);
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  const perms = useMyPermissions();
+  const canEdit = perms?.users.update ?? false;
+  const isSuper = perms?.isSuperadmin ?? false;
 
   const filtered = (rows ?? []).filter((row) => {
     if (!search.trim()) return true;
@@ -320,24 +323,24 @@ export default function UsersPanel() {
             className="w-full rounded-xl border border-border bg-card pl-8 pr-3 py-2 text-xs"
           />
         </div>
-        <button
+        {canEdit && <button
           onClick={() => setCreating((v) => !v)}
           className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-semibold cursor-pointer"
         >
           <Plus size={13} /> Add profile
-        </button>
-        <button
+        </button>}
+        {canEdit && <button
           onClick={() => void handleCreateAdminProfile()}
           className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-primary/30 text-primary text-xs font-semibold cursor-pointer hover:bg-primary/5 whitespace-nowrap"
         >
           <KeyRound size={13} /> Create admin profile
-        </button>
-        <button
+        </button>}
+        {isSuper && <button
           onClick={() => void handleCleanup()}
           className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-destructive/30 text-destructive text-xs font-semibold cursor-pointer hover:bg-destructive/5"
         >
           <Trash2 size={13} /> Clean up test data
-        </button>
+        </button>}
       </div>
 
       {creating && <CreateProfileForm onDone={() => setCreating(false)} />}
@@ -387,13 +390,13 @@ export default function UsersPanel() {
                       </div>
                     )}
                   </div>
-                  <button
+                  {canEdit && <button
                     onClick={() => setEditingUserId(editingUserId === row.user.id ? null : row.user.id)}
                     className="text-[10px] font-semibold px-2.5 py-1.5 rounded-lg border border-border hover:bg-secondary cursor-pointer whitespace-nowrap"
                   >
                     {editingUserId === row.user.id ? "Close" : "Edit user"}
-                  </button>
-                  {!row.roles.some((r) => r.role === "admin") && (
+                  </button>}
+                  {canEdit && !row.roles.some((r) => r.role === "admin") && (
                     <button
                       onClick={() => void handleMakeAdmin(row.user.id)}
                       className="text-[10px] font-semibold px-2.5 py-1.5 rounded-lg border border-border hover:bg-secondary cursor-pointer whitespace-nowrap"
