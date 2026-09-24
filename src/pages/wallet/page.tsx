@@ -39,7 +39,7 @@ export default function WalletPage() {
   const convertMutation = useConvertBetweenWalletsMutation();
 
   const heldCurrencies = realWallets?.map(w => w.currency) ?? [];
-  const defaultCurrency = currentUser?.defaultCurrency ?? heldCurrencies[0] ?? "XAF";
+  const defaultCurrency = currentUser?.transactionCurrency ?? heldCurrencies[0] ?? "XAF";
 
   /* ───────────────────── Top-up flow (existing) ───────────────────── */
   const [step, setStep] = useState<Step>("balance");

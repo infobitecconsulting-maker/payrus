@@ -187,7 +187,7 @@ describe("Register", () => {
     expect(screen.getByLabelText(/^street$/i)).toHaveValue("Rue de la Paix");
   });
 
-  it("fetches postal code suggestions automatically once country, city and province are all set, and fills it on pick", async () => {
+  it("fetches postal code suggestions as soon as country and city are set (province optional), and fills it on pick", async () => {
     mockSuggestPostalCodes.mockResolvedValueOnce({
       suggestions: [{ postalCode: "BP 1234", area: "Plateau" }, { postalCode: "BP 5678" }],
     });
@@ -196,17 +196,32 @@ describe("Register", () => {
 
     fireEvent.change(screen.getByLabelText(/country of registration/i), { target: { value: "SN" } });
     fireEvent.change(screen.getByLabelText(/^city$/i), { target: { value: "Dakar" } });
-    fireEvent.change(screen.getByLabelText(/province/i), { target: { value: "Dakar" } });
 
     await waitFor(() =>
-      expect(mockSuggestPostalCodes).toHaveBeenCalledWith({ country: "SN", city: "Dakar", province: "Dakar" }),
+      expect(mockSuggestPostalCodes).toHaveBeenCalledWith({ country: "SN", city: "Dakar", province: undefined }),
     );
     fireEvent.click(await screen.findByText("BP 1234"));
 
     expect(screen.getByLabelText(/postal code/i)).toHaveValue("BP 1234");
+    expect(screen.getByLabelText(/area \/ district/i)).toHaveValue("Plateau");
   });
 
-  it("does not request street suggestions before country, city and province are all chosen", async () => {
+  it("offers area-only suggestions for cities without postal codes and fills the area field", async () => {
+    mockSuggestPostalCodes.mockResolvedValueOnce({
+      suggestions: [{ postalCode: "", area: "Ngaliema" }, { postalCode: "", area: "Kintambo" }],
+    });
+    renderRegister();
+
+    fireEvent.change(screen.getByLabelText(/country of registration/i), { target: { value: "CD" } });
+    fireEvent.change(screen.getByLabelText(/^city$/i), { target: { value: "Kinshasa" } });
+
+    fireEvent.click(await screen.findByText("Ngaliema"));
+
+    expect(screen.getByLabelText(/area \/ district/i)).toHaveValue("Ngaliema");
+    expect(screen.getByLabelText(/postal code/i)).toHaveValue("");
+  });
+
+  it("does not request street suggestions before a country and city are chosen", async () => {
     renderRegister();
     fireEvent.change(screen.getByLabelText(/^street$/i), { target: { value: "Rue de" } });
 

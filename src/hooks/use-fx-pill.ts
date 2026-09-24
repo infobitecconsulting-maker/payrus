@@ -37,11 +37,11 @@ export function useFxPill() {
   const regionCurrency = useQuery({
     queryKey: ["countryCurrency", region],
     queryFn: () => getCurrencyForCountry(region!),
-    enabled: !preferred && !user?.defaultCurrency && !!region,
+    enabled: !preferred && !user?.transactionCurrency && !!region,
     staleTime: Infinity,
   }).data;
 
-  const local = preferred ?? user?.defaultCurrency ?? regionCurrency ?? "USD";
+  const local = preferred ?? user?.transactionCurrency ?? regionCurrency ?? "USD";
   const codes = Array.from(new Set([local, "USD", "EUR"]));
 
   const rates = useQuery({

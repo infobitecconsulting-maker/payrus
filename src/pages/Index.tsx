@@ -78,7 +78,7 @@ export default function Index() {
   const linkedMethods = useLinkedPaymentMethods(getAnonId());
   const recentTx = useRecentTransfersForUser(currentUser?.id, 5);
 
-  const displayCurrency = currentUser?.defaultCurrency ?? "USD";
+  const displayCurrency = currentUser?.transactionCurrency ?? "USD";
   const hasRealWallets = !!realWallets && realWallets.length > 0;
   const totalBalance = hasRealWallets
     ? realWallets!.reduce((sum, w) => sum + midMarketConvert(w.balance, w.currency, displayCurrency), 0)

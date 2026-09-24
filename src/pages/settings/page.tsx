@@ -19,6 +19,10 @@ import { getAnonId } from "@/lib/anon-id.ts";
 import { useAddLinkedPaymentMethodMutation, useLinkedPaymentMethods, useSeedDefaultLinkedPaymentMethodsMutation, useCurrenciesByCode } from "@/hooks/use-backend.ts";
 import { getPreferredFxCurrency, setPreferredFxCurrency } from "@/hooks/use-fx-pill.ts";
 import { useCurrentAppUser } from "@/hooks/use-current-app-user.ts";
+import { useLocationCurrency } from "@/hooks/use-location-currency.ts";
+import { getLocationFollow, setLocationFollow } from "@/lib/location.ts";
+import { clearMyLocation } from "@/lib/backend.ts";
+import { useQueryClient } from "@tanstack/react-query";
 import { getLastFxRateUpdate, type FxRateUpdate } from "@/lib/backend.ts";
 import { useQuery as useReactQuery } from "@tanstack/react-query";
 import AddPaymentMethodSheet, { PAYMENT_PROVIDERS, type LinkedMethodProvider } from "@/components/ui/add-payment-method-sheet.tsx";
@@ -289,7 +293,25 @@ function AppearanceSection() {
   // Persisted choice drives the live FX pill in the header (use-fx-pill.ts).
   const [currency, setCurrency] = useState<string | null>(getPreferredFxCurrency());
   const user = useCurrentAppUser();
-  const effectiveCurrency = currency ?? user?.defaultCurrency ?? null;
+  const effectiveCurrency = currency ?? user?.transactionCurrency ?? null;
+  const queryClient = useQueryClient();
+  const { refresh: refreshLocation } = useLocationCurrency();
+  const [followLocation, setFollowLocation] = useState(getLocationFollow() === "on");
+
+  const handleFollowLocation = async (on: boolean) => {
+    setFollowLocation(on);
+    setLocationFollow(on ? "on" : "off");
+    if (on) {
+      await refreshLocation(true);
+    } else {
+      try {
+        await clearMyLocation();
+        await queryClient.invalidateQueries({ queryKey: ["sessionAppUser"] });
+      } catch {
+        /* signed out: nothing stored to clear */
+      }
+    }
+  };
 
   const currencies = ["XAF", "AOA", "CDF", "EUR", "USD", "AED", "CNY", "GBP", "NGN", "KES", "ZAR"];
 
@@ -324,6 +346,21 @@ function AppearanceSection() {
           })}
         </div>
       </div>
+
+      {/* Live location → transaction currency */}
+      {user && (
+        <div>
+          <div className="text-xs font-bold text-muted-foreground uppercase tracking-wide mb-2 px-1">{t("location.settingTitle")}</div>
+          <div className="bg-card border border-border rounded-2xl overflow-hidden divide-y divide-border">
+            <SettingRow
+              icon={Globe}
+              label={t("location.settingTitle")}
+              description={`${t("location.settingDesc")}${user.locationCountry ? " " + t("location.settingCountry", { country: user.locationCountry }) : ""}`}
+              right={<ToggleSwitch value={followLocation} onChange={(v) => void handleFollowLocation(v)} />}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Currency display */}
       <div>

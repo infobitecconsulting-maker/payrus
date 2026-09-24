@@ -207,6 +207,28 @@ export function useAdminUpdateUserRoleMutation() {
   return mutation.mutateAsync;
 }
 
+export function useAiSuggestions() {
+  return useReactQuery({ queryKey: ["aiSuggestions"], queryFn: backend.listAiSuggestions, retry: false });
+}
+
+export function useRunTriageMutation() {
+  const queryClient = useQueryClient();
+  const mutation = useReactMutation({
+    mutationFn: backend.runTriage,
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["aiSuggestions"] }),
+  });
+  return mutation.mutateAsync;
+}
+
+export function useMarkAiSuggestionMutation() {
+  const queryClient = useQueryClient();
+  const mutation = useReactMutation({
+    mutationFn: (args: { id: string; status: "used" | "dismissed" }) => backend.markAiSuggestion(args.id, args.status),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["aiSuggestions"] }),
+  });
+  return mutation.mutateAsync;
+}
+
 export function useAdminEscalations() {
   return useReactQuery({ queryKey: ["adminEscalations"], queryFn: backend.adminListEscalations });
 }

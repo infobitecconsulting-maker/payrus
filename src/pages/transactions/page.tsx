@@ -58,7 +58,7 @@ export default function Transactions() {
   // single-currency-display convention Index.tsx's dashboard already uses
   // for a user who holds several currency wallets, rather than nonsensically
   // adding different currencies together.
-  const displayCurrency = currentUser?.defaultCurrency ?? "USD";
+  const displayCurrency = currentUser?.transactionCurrency ?? "USD";
   const sameCurrency = all.filter((tx) => tx.currency === displayCurrency);
   const totalIn = sameCurrency.filter((tx) => CREDIT_TX_TYPES.has(tx.type)).reduce((s, tx) => s + tx.amount, 0);
   const totalOut = sameCurrency.filter((tx) => !CREDIT_TX_TYPES.has(tx.type)).reduce((s, tx) => s + tx.amount, 0);

@@ -32,6 +32,11 @@ export interface AppUser {
   profileType: string | null;
   country: string | null;
   defaultCurrency: string | null;
+  /** Country the user is in right now (live location, migration 0028), if they allowed it. */
+  locationCountry: string | null;
+  locationCurrency: string | null;
+  /** Currency transactions default to: the live-location currency, else the registration currency. */
+  transactionCurrency: string | null;
   kycStatus: "unverified" | "submitted" | "verified";
   kycSubmittedAt: string | null;
   isTestData: boolean;
@@ -186,6 +191,8 @@ function toAppUser(row: Record<string, unknown>): AppUser {
     email: (row.email as string) ?? null, phone: (row.phone as string) ?? null, dateOfBirth: (row.date_of_birth as string) ?? null,
     address: (row.address as string) ?? null, idType: (row.id_type as string) ?? null, profileType: (row.profile_type as string) ?? null,
     country: (row.country as string) ?? null, defaultCurrency: (row.default_currency as string) ?? null,
+    locationCountry: (row.location_country as string) ?? null, locationCurrency: (row.location_currency as string) ?? null,
+    transactionCurrency: ((row.location_currency as string) ?? (row.default_currency as string)) ?? null,
     kycStatus: row.kyc_status as AppUser["kycStatus"], kycSubmittedAt: (row.kyc_submitted_at as string) ?? null,
     isTestData: Boolean(row.is_test_data),
   };
@@ -239,6 +246,16 @@ export async function getSessionAppUser(): Promise<AppUser | null> {
   const res = await supabase.from("users").select("*").eq("auth_user_id", authId).maybeSingle();
   const row = mustNotError(res, "getSessionAppUser");
   return row ? toAppUser(row) : null;
+}
+
+export async function updateMyLocation(country: string): Promise<AppUser> {
+  const res = await supabase.rpc("update_my_location", { p_country: country });
+  return toAppUser(mustHaveData(res, "updateMyLocation") as Record<string, unknown>);
+}
+
+export async function clearMyLocation(): Promise<void> {
+  const res = await supabase.rpc("clear_my_location");
+  mustHaveData(res, "clearMyLocation");
 }
 
 export interface ResolvedRecipient { id: string; name: string; username: string | null; defaultCurrency: string | null }
@@ -705,6 +722,61 @@ export async function adminListAuditEvents(objectTable?: string): Promise<AuditE
 export async function adminSetGatePassword(args: { current: string; next: string }): Promise<void> {
   const res = await supabase.rpc("admin_set_gate_password", { p_gate: "admin", p_current: args.current, p_new: args.next });
   if (res.error) throw new Error(`adminSetGatePassword: ${res.error.message}`);
+}
+
+// ---- AI-assisted escalation triage (0027 + convex/aiSupportAssist.ts) ----
+
+export type TriageAction = "approve" | "reject" | "request_info";
+export interface AiSuggestion {
+  id: string; escalationId: string; source: "ai" | "rules"; model: string | null; priority: "low" | "medium" | "high" | "urgent";
+  category: string; summary: string; recommendedAction: TriageAction; rationale: string; draftReply: string;
+  confidence: number; status: "suggested" | "used" | "dismissed"; createdAt: string; createdByName?: string | null;
+}
+
+const toSuggestion = (r: Record<string, unknown>): AiSuggestion => {
+  const c = Object.fromEntries(Object.entries(r).map(([k, v]) => [camelKey(k), v])) as Record<string, unknown>;
+  return { ...(c as unknown as AiSuggestion), confidence: Number(c.confidence) };
+};
+
+export async function listAiSuggestions(): Promise<AiSuggestion[]> {
+  const res = await supabase.rpc("support_list_ai_suggestions");
+  return (mustHaveData(res, "listAiSuggestions") as Record<string, unknown>[]).map(toSuggestion);
+}
+
+export async function markAiSuggestion(id: string, status: "used" | "dismissed"): Promise<void> {
+  const res = await supabase.rpc("support_mark_ai_suggestion", { p_suggestion_id: id, p_status: status });
+  if (res.error) throw new Error(`markAiSuggestion: ${res.error.message}`);
+}
+
+// Tries the AI endpoint first (Claude, run server-side by Convex with the
+// caller's own session); if it is not configured or unavailable, falls back to
+// the deterministic in-database rules triage so the workflow always works.
+export async function runTriage(escalationId: string): Promise<{ suggestion: AiSuggestion; via: "ai" | "rules"; fallbackReason?: string }> {
+  const site = import.meta.env.VITE_CONVEX_SITE_URL as string | undefined;
+  let fallbackReason = "AI is not configured";
+  if (site) {
+    try {
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
+      if (token) {
+        const res = await fetch(`${site}/aiSupportAssist`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ escalationId }),
+        });
+        const body = (await res.json().catch(() => ({}))) as { suggestion?: Record<string, unknown>; error?: string; message?: string };
+        if (res.ok && body.suggestion) return { suggestion: toSuggestion(body.suggestion), via: "ai" };
+        if (res.status === 403 || res.status === 401) throw new Error(body.message ?? "Not permitted");
+        fallbackReason = body.error === "not_configured" ? "AI is not configured" : "AI is unavailable";
+      }
+    } catch (e) {
+      if (e instanceof Error && /permitted|permission|forbidden/i.test(e.message)) throw e;
+      fallbackReason = "AI is unreachable";
+    }
+  }
+  const res = await supabase.rpc("support_rules_triage", { p_escalation_id: escalationId });
+  const row = mustHaveData(res, "runTriage") as Record<string, unknown>;
+  return { suggestion: toSuggestion(row), via: "rules", fallbackReason };
 }
 
 export async function adminCreateUser(args: {

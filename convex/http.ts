@@ -1,6 +1,8 @@
 import { httpRouter } from "convex/server";
 import { httpAction } from "./_generated/server";
 import { api } from "./_generated/api";
+import { assistEscalation } from "./aiSupportAssist.ts";
+import { reverseGeocodePosition } from "./geolocate.ts";
 
 // The only HTTP routes in this app so far. ops-console — a separate app with
 // no Convex client of its own — hits these with a bare `fetch` to reuse
@@ -35,13 +37,13 @@ http.route({
   handler: httpAction(async (ctx, request) => {
     const body: unknown = await request.json().catch(() => null);
     const { country, city, province, query } = (body ?? {}) as Record<string, unknown>;
-    if (
-      typeof country !== "string" || typeof city !== "string" ||
-      typeof province !== "string" || typeof query !== "string"
-    ) {
+    // Province is optional: country + city is enough to search.
+    if (typeof country !== "string" || typeof city !== "string" || typeof query !== "string") {
       return json({ suggestions: [] }, 400);
     }
-    const result = await ctx.runAction(api.addressSuggestions.suggestStreets, { country, city, province, query });
+    const result = await ctx.runAction(api.addressSuggestions.suggestStreets, {
+      country, city, query, province: typeof province === "string" && province ? province : undefined,
+    });
     return json(result);
   }),
 });
@@ -54,10 +56,12 @@ http.route({
   handler: httpAction(async (ctx, request) => {
     const body: unknown = await request.json().catch(() => null);
     const { country, city, province } = (body ?? {}) as Record<string, unknown>;
-    if (typeof country !== "string" || typeof city !== "string" || typeof province !== "string") {
+    if (typeof country !== "string" || typeof city !== "string") {
       return json({ suggestions: [] }, 400);
     }
-    const result = await ctx.runAction(api.addressSuggestions.suggestPostalCodes, { country, city, province });
+    const result = await ctx.runAction(api.addressSuggestions.suggestPostalCodes, {
+      country, city, province: typeof province === "string" && province ? province : undefined,
+    });
     return json(result);
   }),
 });
@@ -96,5 +100,49 @@ http.route({
 });
 
 http.route({ path: "/refreshFxRates", method: "OPTIONS", handler: httpAction(async () => preflight()) });
+
+// Reverse geocoding for the live-location features (convex/geolocate.ts):
+// POST { lat, lng } -> { location: { country, city?, province?, postalCode?, area? } | null }.
+http.route({
+  path: "/reverseGeocode",
+  method: "POST",
+  handler: httpAction(async (_ctx, request) => {
+    const body: unknown = await request.json().catch(() => null);
+    const { lat, lng } = (body ?? {}) as Record<string, unknown>;
+    if (typeof lat !== "number" || typeof lng !== "number") return json({ location: null }, 400);
+    return json({ location: await reverseGeocodePosition(lat, lng) });
+  }),
+});
+
+http.route({ path: "/reverseGeocode", method: "OPTIONS", handler: httpAction(async () => preflight()) });
+
+// AI triage for support escalations (convex/aiSupportAssist.ts). Unlike the
+// routes above this one is authenticated: the caller sends their own Supabase
+// access token, and every database read/write is made WITH that token, so the
+// caller's role permissions apply. 503 {error:"not_configured"} means no
+// ANTHROPIC_API_KEY is set — the apps then use the in-database rules triage.
+const AI_CORS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+};
+
+http.route({
+  path: "/aiSupportAssist",
+  method: "POST",
+  handler: httpAction(async (_ctx, request) => {
+    const respond = (body: unknown, status: number) =>
+      new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json", ...AI_CORS } });
+    const token = /^Bearer (.+)$/.exec(request.headers.get("Authorization") ?? "")?.[1];
+    if (!token) return respond({ error: "unauthorized" }, 401);
+    const body: unknown = await request.json().catch(() => null);
+    const escalationId = (body as Record<string, unknown> | null)?.escalationId;
+    if (typeof escalationId !== "string" || !/^[0-9a-f-]{36}$/i.test(escalationId)) return respond({ error: "bad_request" }, 400);
+    const result = await assistEscalation(escalationId, token);
+    return respond(result.body, result.status);
+  }),
+});
+
+http.route({ path: "/aiSupportAssist", method: "OPTIONS", handler: httpAction(async () => new Response(null, { status: 204, headers: AI_CORS })) });
 
 export default http;

@@ -13,6 +13,7 @@ import { clearLocalUserId, getLocalUserId } from "@/lib/local-user.ts";
 import { useProfileFeatures, useMyPermissions } from "@/hooks/use-backend.ts";
 import { supabase } from "@/lib/supabase-client.ts";
 import FxRatePill from "@/components/ui/fx-rate-pill.tsx";
+import LocationConsentBanner from "@/components/ui/location-consent-banner.tsx";
 
 export function PayRusLogo({ className }: { className?: string }) {
   return (
@@ -315,6 +316,8 @@ export default function AppLayout() {
             </div>
           </div>
         </header>
+
+        <LocationConsentBanner />
 
         <main className="flex-1 overflow-auto pb-20 md:pb-0">
           <motion.div

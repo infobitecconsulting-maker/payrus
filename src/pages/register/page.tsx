@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useAction } from "convex/react";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, MapPin } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/convex/_generated/api.js";
 import LocaleSwitcher from "@/components/ui/locale-switcher.tsx";
@@ -11,6 +11,7 @@ import { useDebouncedCallback } from "@/hooks/use-debounce.ts";
 import { COUNTRY_OPTIONS, callingCodeForCountry } from "@/convex/geo.ts";
 import { provincesForCountry, citiesForCountry } from "@/convex/addressRegister.ts";
 import { setLocalUserId } from "@/lib/local-user.ts";
+import { getBrowserPosition, reverseGeocode } from "@/lib/location.ts";
 import { useProfile } from "@/contexts/profile-context.tsx";
 import { routeAfterIdentity } from "@/lib/post-auth-routing.ts";
 import { supabase } from "@/lib/supabase-client.ts";
@@ -63,6 +64,10 @@ export default function Register() {
   const [postalCodeSuggestions, setPostalCodeSuggestions] = useState<{ postalCode: string; area?: string }[]>([]);
   const [postalCodeSuggestOpen, setPostalCodeSuggestOpen] = useState(false);
   const lastPostalLookupRef = useRef("");
+  const [area, setArea] = useState("");
+  const [postalLoading, setPostalLoading] = useState(false);
+  const [postalLooked, setPostalLooked] = useState(false);
+  const [locating, setLocating] = useState(false);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [saving, setSaving] = useState(false);
@@ -71,12 +76,12 @@ export default function Register() {
   // all chosen (no city/country context, no useful suggestion), and only
   // after a short pause in typing so every keystroke doesn't fire a request.
   const fetchStreetSuggestions = useDebouncedCallback(async (query: string) => {
-    if (!country || !city.trim() || !province || query.trim().length < 2) {
+    if (!country || !city.trim() || query.trim().length < 2) {
       setStreetSuggestions([]);
       setStreetSuggestOpen(false);
       return;
     }
-    const { suggestions } = await suggestStreets({ country, city: city.trim(), province, query: query.trim() });
+    const { suggestions } = await suggestStreets({ country, city: city.trim(), province: province || undefined, query: query.trim() });
     setStreetSuggestions(suggestions);
     setStreetSuggestOpen(suggestions.length > 0);
   }, 400);
@@ -99,29 +104,89 @@ export default function Register() {
   // newer result.
   useEffect(() => {
     const trimmedCity = city.trim();
-    if (!country || !trimmedCity || !province) {
+    if (!country || !trimmedCity) {
       setPostalCodeSuggestions([]);
       setPostalCodeSuggestOpen(false);
+      setPostalLoading(false);
+      setPostalLooked(false);
+      lastPostalLookupRef.current = "";
       return;
     }
     const key = `${country}|${trimmedCity}|${province}`;
     if (lastPostalLookupRef.current === key) return;
     lastPostalLookupRef.current = key;
+    setPostalLoading(true);
+    setPostalLooked(false);
     void (async () => {
-      const { suggestions } = await suggestPostalCodes({ country, city: trimmedCity, province });
+      let suggestions: { postalCode: string; area?: string }[] = [];
+      try {
+        ({ suggestions } = await suggestPostalCodes({ country, city: trimmedCity, province: province || undefined }));
+      } catch {
+        /* lookup unavailable — the fields stay editable */
+      }
       if (lastPostalLookupRef.current !== key) return; // a newer lookup has since started
       setPostalCodeSuggestions(suggestions);
       setPostalCodeSuggestOpen(suggestions.length > 0);
+      setPostalLoading(false);
+      setPostalLooked(true);
     })();
     // suggestPostalCodes is a stable useAction identity — omitting it (and
     // the other handlers) keeps this effect keyed purely on the address
-    // fields it actually needs to react to.
+    // fields it actually needs to react to. Province is optional: country +
+    // city are enough to list that city's postal codes and areas.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [country, city, province]);
 
   const handlePickPostalCode = (suggestion: { postalCode: string; area?: string }) => {
-    setPostalCode(suggestion.postalCode);
+    if (suggestion.postalCode) setPostalCode(suggestion.postalCode);
+    if (suggestion.area) setArea(suggestion.area);
     setPostalCodeSuggestOpen(false);
+  };
+
+  // Country change: reset the province, and adapt the phone field's country
+  // code — re-runs on every country change as long as the field is still empty
+  // or still holds exactly what we last auto-filled, so a number the user
+  // actually typed is never clobbered.
+  const applyCountry = (nextCountry: string) => {
+    setCountry(nextCountry);
+    setProvince("");
+    if (!phone.trim() || phone === autoFilledPhoneRef.current) {
+      const dial = callingCodeForCountry(nextCountry);
+      if (dial) {
+        const nextPhone = `+${dial} `;
+        setPhone(nextPhone);
+        autoFilledPhoneRef.current = nextPhone;
+      }
+    }
+  };
+
+  // "Use my current location": browser position -> reverse geocode (Convex,
+  // server-side, coordinates never stored) -> pre-fill country, province,
+  // city, area and postal code. Fields the country's dropdowns can't hold are
+  // left for the user, and everything stays editable.
+  const handleUseLocation = async () => {
+    setLocating(true);
+    try {
+      const pos = await getBrowserPosition();
+      const place = await reverseGeocode(pos.lat, pos.lng);
+      if (!place || !COUNTRY_OPTIONS.some((c) => c.code === place.country)) {
+        toast.error(t("location.registerFailed"));
+        return;
+      }
+      applyCountry(place.country);
+      const match = (list: string[], value?: string) => list.find((x) => x.toLowerCase() === value?.toLowerCase());
+      const provinces = provincesForCountry(place.country);
+      const cities = citiesForCountry(place.country);
+      setProvince(provinces.length > 0 ? (match(provinces, place.province) ?? "") : (place.province ?? ""));
+      setCity(cities.length > 0 ? (match(cities, place.city) ?? "") : (place.city ?? ""));
+      if (place.postalCode) setPostalCode(place.postalCode);
+      if (place.area) setArea(place.area);
+      toast.success(t("location.registerFilled"));
+    } catch {
+      toast.error(t("location.registerFailed"));
+    } finally {
+      setLocating(false);
+    }
   };
 
   // OAuth sign-up is really just sign-in: the account is found-or-created
@@ -182,7 +247,7 @@ export default function Register() {
       });
       await callCompleteRegistrationProfile({
         userId, phone: phone.trim(), country,
-        street: street.trim(), houseNumber: houseNumber.trim(), city: city.trim(), province,
+        street: [street.trim(), area.trim() && !street.toLowerCase().includes(area.trim().toLowerCase()) ? area.trim() : ""].filter(Boolean).join(", "), houseNumber: houseNumber.trim(), city: city.trim(), province,
         postalCode: postalCode.trim() || undefined,
       });
 
@@ -270,30 +335,22 @@ export default function Register() {
                 className="rounded-xl border border-[#E4EAF0] bg-white px-3.5 py-3 text-[14px] text-[#0A2F5C] focus:outline-none focus:ring-2 focus:ring-[#0E7FB0]/30"
               />
             </div>
+            <div className="col-span-2">
+              <button
+                type="button"
+                onClick={() => void handleUseLocation()}
+                disabled={locating}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-[#0E7FB0]/30 bg-[#0E7FB0]/5 px-3 py-2 text-[12px] font-semibold text-[#0A2F5C] cursor-pointer hover:bg-[#0E7FB0]/10 disabled:opacity-60"
+              >
+                <MapPin size={14} /> {locating ? "…" : t("location.registerButton")}
+              </button>
+            </div>
             <div className="flex flex-col gap-1.5 col-span-2">
               <label className="text-[11px] font-bold tracking-wide text-[#66798F]" htmlFor="reg-country">{t("register.country")}</label>
               <select
                 id="reg-country"
                 value={country}
-                onChange={(e) => {
-                  const nextCountry = e.target.value;
-                  setCountry(nextCountry);
-                  setProvince("");
-                  // Adapt the phone field's country code to match. Re-runs on
-                  // every country change (not just the first) as long as the
-                  // field is still empty or still holds exactly what we last
-                  // auto-filled — so switching country repeatedly keeps the
-                  // prefix in sync, while a number the user actually typed is
-                  // never clobbered.
-                  if (!phone.trim() || phone === autoFilledPhoneRef.current) {
-                    const dial = callingCodeForCountry(nextCountry);
-                    if (dial) {
-                      const nextPhone = `+${dial} `;
-                      setPhone(nextPhone);
-                      autoFilledPhoneRef.current = nextPhone;
-                    }
-                  }
-                }}
+                onChange={(e) => applyCountry(e.target.value)}
                 className="rounded-xl border border-[#E4EAF0] bg-white px-3.5 py-3 text-[14px] text-[#0A2F5C] focus:outline-none focus:ring-2 focus:ring-[#0E7FB0]/30"
               >
                 <option value="" disabled>{t("register.countryPlaceholder")}</option>
@@ -429,17 +486,29 @@ export default function Register() {
                 >
                   {postalCodeSuggestions.map((s) => (
                     <button
-                      key={s.postalCode}
+                      key={s.postalCode || s.area}
                       type="button"
                       onClick={() => handlePickPostalCode(s)}
                       className="w-full flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg text-left text-sm hover:bg-secondary cursor-pointer"
                     >
-                      <span className="text-[#0A2F5C] font-medium">{s.postalCode}</span>
-                      {s.area && <span className="text-[11px] text-[#66798F]">{s.area}</span>}
+                      <span className="text-[#0A2F5C] font-medium">{s.postalCode || s.area}</span>
+                      {s.postalCode && s.area && <span className="text-[11px] text-[#66798F]">{s.area}</span>}
                     </button>
                   ))}
                 </PopoverContent>
               </Popover>
+              {postalLoading && <span className="text-[11px] text-[#66798F]">{t("location.postalLooking")}</span>}
+              {!postalLoading && postalLooked && postalCodeSuggestions.length === 0 && <span className="text-[11px] text-[#66798F]">{t("location.postalNone")}</span>}
+            </div>
+            <div className="flex flex-col gap-1.5 col-span-2">
+              <label className="text-[11px] font-bold tracking-wide text-[#66798F]" htmlFor="reg-area">{t("location.areaLabel")}</label>
+              <input
+                id="reg-area"
+                value={area}
+                onChange={(e) => setArea(e.target.value)}
+                autoComplete="off"
+                className="rounded-xl border border-[#E4EAF0] bg-white px-3.5 py-3 text-[14px] text-[#0A2F5C] focus:outline-none focus:ring-2 focus:ring-[#0E7FB0]/30"
+              />
             </div>
             <div className="flex flex-col gap-1.5">
               <label className="text-[11px] font-bold tracking-wide text-[#66798F]" htmlFor="reg-password">{t("register.password")}</label>

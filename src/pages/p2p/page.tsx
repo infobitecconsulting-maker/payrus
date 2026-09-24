@@ -137,8 +137,8 @@ export default function P2PTransfer() {
   // with (src/pages/register/page.tsx sets this from their country) rather
   // than a fixed constant, once we know it.
   useEffect(() => {
-    if (currentUser?.defaultCurrency) setCurrency(currentUser.defaultCurrency);
-  }, [currentUser?.defaultCurrency]);
+    if (currentUser?.transactionCurrency) setCurrency(currentUser.transactionCurrency);
+  }, [currentUser?.transactionCurrency]);
 
   const filtered = query.trim().length > 0
     ? PAYRUS_USERS.filter(u =>
