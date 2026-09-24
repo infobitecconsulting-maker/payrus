@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { motion, AnimatePresence } from "motion/react";
 import { useAddLinkedPaymentMethodMutation, useCardsForUser, useLinkedPaymentMethods, useSeedDefaultLinkedPaymentMethodsMutation } from "@/hooks/use-backend.ts";
 import { useCurrentAppUser } from "@/hooks/use-current-app-user.ts";
+import CapabilityBadge from "@/components/ui/capability-badge.tsx";
 import PageHeader from "@/components/ui/page-header.tsx";
 import {
   Eye, EyeOff, Lock, Unlock, Settings2, Plus, Wifi, Shield,
@@ -351,7 +352,7 @@ export default function Cards() {
             <div className="rounded-lg bg-white px-2 py-1 shadow-md shadow-black/30">
               <PayRusLogo className="h-5 w-auto" />
             </div>
-            <h1 className="text-xl font-bold text-foreground tracking-tight">PayRus Card</h1>
+            <h1 className="text-xl font-bold text-foreground tracking-tight flex items-center gap-2">PayRus Card <CapabilityBadge capability="card.issue" /></h1>
           </div>
           <p className="text-xs text-muted-foreground">
             {t("cards.subtitle")}

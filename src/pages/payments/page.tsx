@@ -1,4 +1,5 @@
 import { useState } from "react";
+import CapabilityBadge from "@/components/ui/capability-badge.tsx";
 import { motion, AnimatePresence } from "motion/react";
 import { CreditCard, QrCode, Smartphone, Banknote, ChevronRight, NfcIcon, ArrowLeft, Wallet } from "lucide-react";
 import { cn } from "@/lib/utils.ts";
@@ -85,7 +86,7 @@ export default function Payments() {
           </button>
         )}
         <div>
-          <h1 className="text-2xl font-bold text-foreground">{t("payments.title")}</h1>
+          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">{t("payments.title")} <CapabilityBadge capability="payments.methods" /></h1>
           <p className="text-sm text-muted-foreground">{t("payments.subtitle")}</p>
         </div>
       </div>

@@ -7,6 +7,9 @@ import LocaleSwitcher from "@/components/ui/locale-switcher.tsx";
 import { useProfile } from "@/contexts/profile-context.tsx";
 import { setLocalUserId } from "@/lib/local-user.ts";
 import { routeAfterIdentity } from "@/lib/post-auth-routing.ts";
+import { needsMfaChallenge, verifyTotpCode } from "@/lib/mfa.ts";
+import { MfaCodeForm } from "@/components/mfa/mfa-ui.tsx";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog.tsx";
 import { supabase } from "@/lib/supabase-client.ts";
 import { OAUTH_PROVIDERS, authCallbackUrl, signInWithOAuthProvider, type OAuthProviderId } from "@/lib/supabase-providers.ts";
 import { listUserRolesForUser, resolveEmailByIdentifier, upsertSupabaseUser as callUpsertSupabaseUser } from "@/lib/backend.ts";
@@ -23,6 +26,9 @@ export default function SignIn() {
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [checking, setChecking] = useState(false);
+  // Set when the password was right but the account has a verified TOTP factor: the
+  // session is only AAL1 until the code is entered (PRS-IAM-003).
+  const [mfaPending, setMfaPending] = useState<{ userId: string; name: string } | null>(null);
   const [oauthPending, setOauthPending] = useState<OAuthProviderId | null>(null);
   const [panel, setPanel] = useState<SecondaryPanel>(null);
 
@@ -91,6 +97,10 @@ export default function SignIn() {
         firstName: typeof meta.firstName === "string" ? meta.firstName : undefined,
         lastName: typeof meta.lastName === "string" ? meta.lastName : undefined,
       });
+      if (await needsMfaChallenge()) {
+        setMfaPending({ userId, name });
+        return;
+      }
       await finishLogin(userId, name);
     } catch {
       toast.error(t("profile.org.saveFailed"));
@@ -440,6 +450,36 @@ export default function SignIn() {
       <p className="relative z-10 text-[11px] leading-relaxed text-[#9BAAB9] text-center px-8 pb-8 max-w-md mx-auto w-full">
         {t("signin.terms")}
       </p>
+
+      <Dialog
+        open={!!mfaPending}
+        onOpenChange={(open) => {
+          if (!open) {
+            setMfaPending(null);
+            void supabase.auth.signOut();
+          }
+        }}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{t("mfa.signinTitle")}</DialogTitle>
+            <DialogDescription>{t("mfa.signinDesc")}</DialogDescription>
+          </DialogHeader>
+          <MfaCodeForm
+            label={t("mfa.verify")}
+            onSubmit={async (code) => {
+              if (!mfaPending) return;
+              if (await verifyTotpCode(code)) {
+                const { userId, name } = mfaPending;
+                setMfaPending(null);
+                await finishLogin(userId, name);
+              } else {
+                toast.error(t("mfa.codeInvalid"));
+              }
+            }}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

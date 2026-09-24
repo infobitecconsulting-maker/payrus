@@ -11,6 +11,7 @@ import {
 import { Button } from "@/components/ui/button.tsx";
 import { cn } from "@/lib/utils.ts";
 import { toast } from "sonner";
+import { requireStepUp } from "@/lib/mfa.ts";
 import { useP2pTransferMutation, useWalletViewsForUser, useMyCounterparts } from "@/hooks/use-backend.ts";
 import { resolveUserByIdentifier, type Counterpart, type P2pReceipt } from "@/lib/backend.ts";
 import { PayRusLogo } from "@/pages/layout/AppLayout.tsx";
@@ -243,6 +244,7 @@ export default function P2PTransfer() {
       toast.error(t("p2p.transferFailed"));
       return;
     }
+    if (!(await requireStepUp())) { toast.error(t("mfa.codeInvalid")); return; }
     setSending(true);
     try {
       const result = await p2pTransfer({ senderId: currentUser.id, recipientId: selectedUser.realId, amount: numAmt, currency, note: note || undefined });

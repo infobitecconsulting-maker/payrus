@@ -1,4 +1,5 @@
 import { motion } from "motion/react";
+import { flagToIso, useCapabilityLevel } from "@/lib/capability.ts";
 import { useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import PageHeader from "@/components/ui/page-header.tsx";
@@ -167,9 +168,12 @@ function SectionHeader({ eyebrow, title, sub }: { eyebrow: string; title: string
 }
 
 function CountryCard({ c, i }: { c: typeof COUNTRIES[number]; i: number }) {
+  const level = useCapabilityLevel("country.status", flagToIso(c.flag));
   const borderColor = c.status === "active" ? "border-primary/30" : c.status === "pipeline" ? "border-accent/25" : c.status === "phase3" ? "border-blue-200" : "border-border/60";
-  const badgeColor = c.status === "active" ? "bg-primary/15 border-primary/30 text-primary" : c.status === "pipeline" ? "bg-accent/15 border-accent/30 text-accent-foreground" : c.status === "phase3" ? "bg-blue-50 border-blue-200 text-blue-700" : "bg-muted/50 border-border text-muted-foreground";
-  const badgeLabel = c.status === "active" ? "● LIVE" : c.status === "pipeline" ? "◐ PHASE 2" : c.status === "phase3" ? "◑ PHASE 3" : "○ PHASE 4";
+  const badgeColor = c.status === "active" && level !== "live" ? "bg-muted/50 border-border text-muted-foreground" : c.status === "active" ? "bg-primary/15 border-primary/30 text-primary" : c.status === "pipeline" ? "bg-accent/15 border-accent/30 text-accent-foreground" : c.status === "phase3" ? "bg-blue-50 border-blue-200 text-blue-700" : "bg-muted/50 border-border text-muted-foreground";
+  // "● LIVE" now requires a production/enabled row in the capability registry (PRS-BR-013);
+  // Phase-1 markets without one read "PHASE 1" rather than claiming to be live.
+  const badgeLabel = c.status === "active" ? (level === "live" ? "● LIVE" : "◐ PHASE 1") : c.status === "pipeline" ? "◐ PHASE 2" : c.status === "phase3" ? "◑ PHASE 3" : "○ PHASE 4";
   return (
     <motion.div
       initial={{ opacity: 0, y: 16 }}

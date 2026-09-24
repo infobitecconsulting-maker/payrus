@@ -11,6 +11,8 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { useCurrentAppUser } from "@/hooks/use-current-app-user.ts";
 import { clearLocalUserId, getLocalUserId } from "@/lib/local-user.ts";
 import { useProfileFeatures, useMyPermissions, useMyOrgMemberships } from "@/hooks/use-backend.ts";
+import SystemStatusPill from "@/components/ui/system-status-pill.tsx";
+import { MfaStepUpHost } from "@/components/mfa/mfa-ui.tsx";
 import { supabase } from "@/lib/supabase-client.ts";
 import FxRatePill from "@/components/ui/fx-rate-pill.tsx";
 import LocationConsentBanner from "@/components/ui/location-consent-banner.tsx";
@@ -144,13 +146,15 @@ export default function AppLayout() {
     // for consistency/discoverability.
     ...(hasFeature("register_customer") ? [{ to: `${base}/register-customer`, icon: UserPlus, label: t("nav.registerCustomer") }] : []),
 
-    // Always available
-    { to: `${base}/investor`, icon: PresentationIcon, label: t("nav.investor") },
     // Gated — previously visible to every profile regardless of admin
     // status; now requires the admin_panel feature (admin-only by default,
     // seeded in 0014, adjustable from the Roles & Access tab).
     ...(hasOrgAccess ? [{ to: `${base}/organisation`, icon: Landmark, label: t("nav.organisation", "Organisation") }] : []),
     ...(hasFeature("admin_panel") ? [{ to: `${base}/admin`, icon: ShieldCheck, label: t("nav.admin"), highlight: true as const }] : []),
+
+    // PRS-UX-006: investor/demo content is kept apart from the production customer
+    // navigation — rendered under its own "Demo & investor content" heading.
+    { to: `${base}/investor`, icon: PresentationIcon, label: t("nav.investor"), demo: true as const },
   ];
 
   // Mobile bottom nav — context-aware based on profile. Kept as simple
@@ -193,12 +197,16 @@ export default function AppLayout() {
 
         {/* Nav */}
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-          {navItems.map((item) => {
+          {navItems.map((item, idx) => {
             const active = isActive(item.to);
             const isHighlight = "highlight" in item && item.highlight === true;
             const isFiHighlight = "highlight" in item && item.highlight === "fi";
             return (
-              <NavLink key={item.to} to={item.to} end={item.to === base}>
+              <div key={item.to}>
+              {"demo" in item && item.demo && !("demo" in (navItems[idx - 1] ?? {})) && (
+                <div className="pt-3 mt-2 border-t border-border px-3 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">{t("nav.demoSection")}</div>
+              )}
+              <NavLink to={item.to} end={item.to === base}>
                 <div className={cn(
                   "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200",
                   active
@@ -214,6 +222,7 @@ export default function AppLayout() {
                   {active && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-primary" />}
                 </div>
               </NavLink>
+              </div>
             );
           })}
         </nav>
@@ -313,10 +322,7 @@ export default function AppLayout() {
           </div>
           <div className="flex items-center gap-2">
             <FxRatePill />
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary/5 border border-primary/20">
-              <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-              <span className="text-xs text-primary font-medium">{t("nav.systems")}</span>
-            </div>
+            <SystemStatusPill />
           </div>
         </header>
 
@@ -331,6 +337,7 @@ export default function AppLayout() {
             className="h-full"
           >
             <Outlet />
+            <MfaStepUpHost />
           </motion.div>
         </main>
 
@@ -400,11 +407,14 @@ export default function AppLayout() {
 
           {/* Navigation list */}
           <nav className="flex-1 px-3 py-3 space-y-0.5 overflow-y-auto">
-            {navItems.map((item) => {
+            {navItems.map((item, idx) => {
               const active = isActive(item.to);
               return (
+                <div key={item.to}>
+                {"demo" in item && item.demo && !("demo" in (navItems[idx - 1] ?? {})) && (
+                <div className="pt-3 mt-2 border-t border-border px-3 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">{t("nav.demoSection")}</div>
+              )}
                 <NavLink
-                  key={item.to}
                   to={item.to}
                   end={item.to === base}
                   onClick={() => setMobileMenuOpen(false)}
@@ -420,6 +430,7 @@ export default function AppLayout() {
                     {active && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-primary" />}
                   </div>
                 </NavLink>
+                </div>
               );
             })}
           </nav>

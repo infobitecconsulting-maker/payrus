@@ -1,4 +1,5 @@
 import { useState } from "react";
+import SystemStatusPill from "@/components/ui/system-status-pill.tsx";
 import { useTranslation } from "react-i18next";
 import { useProfile } from "@/contexts/profile-context.tsx";
 import { useCurrentAppUser } from "@/hooks/use-current-app-user.ts";
@@ -811,10 +812,7 @@ export default function ApiHub() {
             <p className="text-xs text-muted-foreground">{t("apiHub.subtitle")}</p>
           </div>
           <div className="ml-auto hidden md:flex items-center gap-2">
-            <span className="text-[11px] bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full px-2.5 py-1 font-semibold flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              {t("apiHub.liveStatus")}
-            </span>
+            <SystemStatusPill label="long" />
             <button onClick={() => toast.info("Full API documentation opened in new tab.")} className="text-xs px-3 py-1.5 rounded-lg bg-secondary border border-border text-muted-foreground hover:text-foreground transition-colors cursor-pointer flex items-center gap-1.5">
               <ExternalLink size={12} /> {t("apiHub.viewDocs")}
             </button>

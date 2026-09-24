@@ -25,6 +25,7 @@ import { clearMyLocation } from "@/lib/backend.ts";
 import { useQueryClient } from "@tanstack/react-query";
 import { getLastFxRateUpdate, type FxRateUpdate } from "@/lib/backend.ts";
 import { useQuery as useReactQuery } from "@tanstack/react-query";
+import { MfaSettingsCard } from "@/components/mfa/mfa-ui.tsx";
 import AddPaymentMethodSheet, { PAYMENT_PROVIDERS, type LinkedMethodProvider } from "@/components/ui/add-payment-method-sheet.tsx";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -197,12 +198,13 @@ function ProfileSection() {
 // ── Security Section ──────────────────────────────────────────────────────────
 function SecuritySection() {
   const { t } = useTranslation("common");
-  const [twoFAEnabled, setTwoFAEnabled] = useState(true);
+  const { profile } = useProfile();
   const [biometricEnabled, setBiometricEnabled] = useState(false);
   const [loginAlerts, setLoginAlerts] = useState(true);
 
   return (
     <div className="space-y-4">
+      <MfaSettingsCard recommend={profile?.type === "admin"} />
       <div className="bg-card border border-border rounded-2xl overflow-hidden divide-y divide-border">
         <SettingRow icon={Key} label={t("settings.security.changePin")}
           description={t("settings.security.changePinDesc")}
@@ -216,9 +218,6 @@ function SecuritySection() {
       </div>
 
       <div className="bg-card border border-border rounded-2xl overflow-hidden divide-y divide-border">
-        <SettingRow icon={Smartphone} label={t("settings.security.twoFA")}
-          description={t("settings.security.twoFADesc")}
-          right={<ToggleSwitch value={twoFAEnabled} onChange={v => { setTwoFAEnabled(v); toast.success(v ? t("settings.security.twoFAOn") : t("settings.security.twoFAOff")); }} />} />
         <SettingRow icon={Bell} label={t("settings.security.loginAlerts")}
           description={t("settings.security.loginAlertsDesc")}
           right={<ToggleSwitch value={loginAlerts} onChange={v => { setLoginAlerts(v); }} />} />

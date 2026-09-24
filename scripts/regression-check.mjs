@@ -58,6 +58,26 @@ const types = readFileSync(join(consoleRoot, "src", "types.ts"), "utf8");
 const TAB_KEYS = ["overview", "transactions", "payouts", "merchants", "agents", "mandates", "grants", "members"];
 for (const k of TAB_KEYS) types.includes(`"${k}"`) ? ok(k) : fail(`TabKey "${k}" missing from ops-console/src/types.ts`);
 
+// --- 2b. Spec guards (v2.0) ---------------------------------------------------
+section("Spec guards: MFA, real status, demo separation, registry-driven badges");
+const read = (base, rel) => {
+  const f = join(base, rel);
+  return existsSync(f) ? readFileSync(f, "utf8") : "";
+};
+const layout = read(appRoot, "src/pages/layout/AppLayout.tsx");
+const investor = read(appRoot, "src/pages/investor/page.tsx");
+const rules = [
+  ["PRS-IAM-003 App has TOTP MFA lib + sign-in gate", () => read(appRoot, "src/lib/mfa.ts").includes("mfa.enroll") && read(appRoot, "src/pages/signin/page.tsx").includes("needsMfaChallenge")],
+  ["PRS-IAM-003 console has TOTP MFA lib + sign-in gate", () => read(consoleRoot, "src/lib/mfa.ts").includes("mfa.enroll") && read(consoleRoot, "src/App.tsx").includes("needsMfaChallenge")],
+  ["PRS-IAM-003 step-up on App + console money movement", () => read(appRoot, "src/pages/p2p/page.tsx").includes("requireStepUp") && read(consoleRoot, "src/screens/Send.tsx").includes("requireStepUp")],
+  ["Settings 2FA is real (no local-state toggle)", () => !read(appRoot, "src/pages/settings/page.tsx").includes("setTwoFAEnabled")],
+  ["PRS-OPS-010 status indicator is a live probe, not static text", () => layout.includes("SystemStatusPill") && !layout.includes("nav.systems")],
+  ["PRS-UX-006 investor deck sits under the demo heading, not the customer nav", () => /nav\.investor"\), demo: true/.test(layout) && layout.includes("nav.demoSection")],
+  ["PRS-BR-013 investor LIVE badge comes from the capability registry", () => investor.includes("useCapabilityLevel") && !/status === "active" \? "● LIVE"/.test(investor)],
+  ["PRS-PAY-001/012 cards + payments carry registry badges", () => read(appRoot, "src/pages/cards/page.tsx").includes("CapabilityBadge") && read(appRoot, "src/pages/payments/page.tsx").includes("CapabilityBadge")],
+];
+for (const [name, test] of rules) test() ? ok(name) : fail(name);
+
 // --- 3. Live shared backend --------------------------------------------------
 function loadEnv() {
   const env = { ...process.env };
