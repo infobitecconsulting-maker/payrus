@@ -60,12 +60,24 @@ function errorMessage(data: unknown): string {
 }
 
 async function ask(model: string, system: string, context: unknown, maxTokens: number, apiKey: string): Promise<Record<string, unknown> | null> {
+  try {
+    return await askModel(model, system, context, maxTokens, apiKey);
+  } catch (e) {
+    console.error("aiOrgCaseAssist model call failed", model, e instanceof Error ? e.message : e);
+    return null;
+  }
+}
+
+async function askModel(model: string, system: string, context: unknown, maxTokens: number, apiKey: string): Promise<Record<string, unknown> | null> {
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: { "x-api-key": apiKey, "anthropic-version": "2023-06-01", "content-type": "application/json" },
     body: JSON.stringify({ model, max_tokens: maxTokens, system, messages: [{ role: "user", content: `Case data (JSON):\n${JSON.stringify(context)}` }] }),
   });
-  if (!res.ok) return null;
+  if (!res.ok) {
+    console.error("aiOrgCaseAssist model HTTP", model, res.status);
+    return null;
+  }
   const json = (await res.json()) as { content?: { type: string; text?: string }[] };
   const text = (json.content ?? []).filter((b) => b.type === "text").map((b) => b.text ?? "").join("");
   const start = text.indexOf("{");
@@ -82,7 +94,7 @@ export async function assistOrgCase(caseId: string, accessToken: string): Promis
     return { status: context.status === 401 ? 401 : 403, body: { error: "forbidden", message: errorMessage(context.data) } };
   }
   const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return { status: 503, body: { error: "not_configured" } };
+  if (!apiKey) return { status: 200, body: { error: "not_configured" } };
 
   const fast = process.env.ANTHROPIC_MODEL_FAST || FAST_DEFAULT;
   const analysis = process.env.ANTHROPIC_MODEL_ANALYSIS || ANALYSIS_DEFAULT;
@@ -90,7 +102,7 @@ export async function assistOrgCase(caseId: string, accessToken: string): Promis
     ask(fast, ROUTE_PROMPT, context.data, 300, apiKey),
     ask(analysis, ANALYSIS_PROMPT, context.data, 900, apiKey),
   ]);
-  if (!deep) return { status: 502, body: { error: "ai_unavailable" } };
+  if (!deep) return { status: 200, body: { error: "ai_unavailable" } };
 
   const ctx = context.data as { policy_flags?: string[] };
   const action = ACTIONS.includes(String(deep.suggested_action)) ? String(deep.suggested_action) : null;
@@ -108,7 +120,7 @@ export async function assistOrgCase(caseId: string, accessToken: string): Promis
     draft_reply: str(deep.draft_reply, 1500),
     confidence: typeof deep.confidence === "number" ? Math.max(0, Math.min(1, deep.confidence)) : 0.5,
   };
-  if (!payload.summary || !payload.draft_reply) return { status: 502, body: { error: "ai_unparseable" } };
+  if (!payload.summary || !payload.draft_reply) return { status: 200, body: { error: "ai_unparseable" } };
 
   const stored = await rpc("org_case_store_ai_suggestion", { p_case_id: caseId, p_model: `${fast}+${analysis}`, p_payload: payload }, accessToken);
   if (!stored.ok) return { status: 403, body: { error: "forbidden", message: errorMessage(stored.data) } };
