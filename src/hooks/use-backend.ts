@@ -40,6 +40,54 @@ export function useMyCounterparts(userId: string | undefined, query: string) {
   });
 }
 
+export function useOpenCorridors() {
+  return useReactQuery({
+    queryKey: ["openCorridors"],
+    queryFn: backend.listOpenCorridors,
+    staleTime: 60_000,
+    retry: false,
+  }).data;
+}
+
+export function useRemittanceQuote(from: string, to: string, amount: number, enabled: boolean) {
+  return useReactQuery({
+    queryKey: ["remittanceQuote", from, to, amount],
+    queryFn: () => backend.getRemittanceQuote(from, to, amount),
+    enabled: enabled && amount > 0 && from !== to,
+    staleTime: 15_000,
+    retry: false,
+    placeholderData: (prev) => prev,
+  });
+}
+
+export function useSendRemittanceMutation() {
+  const invalidate = useInvalidateWalletQueries();
+  return useReactMutation({
+    mutationFn: backend.sendRemittance,
+    onSuccess: (_d, v) => invalidate(v.userId),
+  }).mutateAsync;
+}
+
+export function useSavedRecipients(userId: string | undefined) {
+  return useReactQuery({
+    queryKey: ["savedRecipients", userId],
+    queryFn: backend.listSavedRecipients,
+    enabled: !!userId,
+    staleTime: 30_000,
+  });
+}
+
+function useRecipientMutation<A, R>(fn: (a: A) => Promise<R>) {
+  const queryClient = useQueryClient();
+  return useReactMutation({
+    mutationFn: fn,
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["savedRecipients"] }),
+  }).mutateAsync;
+}
+export const useSaveRecipientMutation = () => useRecipientMutation(backend.saveRecipient);
+export const useTouchSavedRecipientMutation = () => useRecipientMutation(backend.touchSavedRecipient);
+export const useDeleteSavedRecipientMutation = () => useRecipientMutation(backend.deleteSavedRecipient);
+
 export function useP2pTransferMutation() {
   const queryClient = useQueryClient();
   const mutation = useReactMutation({

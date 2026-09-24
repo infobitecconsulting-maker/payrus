@@ -283,6 +283,74 @@ export async function searchMyCounterparts(query: string, limit = 8): Promise<Co
   }));
 }
 
+export type DeliveryMethod = "mobile_money" | "bank" | "cash_pickup" | "wallet";
+export interface SavedRecipient {
+  id: string; fullName: string; country: string | null; currency: string | null; deliveryMethod: DeliveryMethod;
+  provider: string | null; account: string; timesSent: number; lastSentAt: string | null;
+}
+
+// The signed-in user's remittance recipient book (migration 0032). Owner-only.
+export async function listSavedRecipients(): Promise<SavedRecipient[]> {
+  const res = await supabase.rpc("list_saved_recipients");
+  return ((mustNotError(res, "listSavedRecipients") ?? []) as Record<string, unknown>[]).map((r) => ({
+    id: r.id as string, fullName: r.full_name as string, country: (r.country as string) ?? null, currency: (r.currency as string) ?? null,
+    deliveryMethod: r.delivery_method as DeliveryMethod, provider: (r.provider as string) ?? null, account: r.account as string,
+    timesSent: Number(r.times_sent), lastSentAt: (r.last_sent_at as string) ?? null,
+  }));
+}
+
+export async function saveRecipient(args: {
+  fullName: string; deliveryMethod: DeliveryMethod; account: string; country?: string; currency?: string; provider?: string;
+}): Promise<string> {
+  const res = await supabase.rpc("save_recipient", {
+    p_full_name: args.fullName, p_delivery_method: args.deliveryMethod, p_account: args.account,
+    p_country: args.country ?? null, p_currency: args.currency ?? null, p_provider: args.provider ?? null,
+  });
+  return mustHaveData(res, "saveRecipient") as string;
+}
+
+export async function touchSavedRecipient(id: string): Promise<void> {
+  mustNotError(await supabase.rpc("touch_saved_recipient", { p_id: id }), "touchSavedRecipient");
+}
+
+export async function deleteSavedRecipient(id: string): Promise<void> {
+  mustNotError(await supabase.rpc("delete_saved_recipient", { p_id: id }), "deleteSavedRecipient");
+}
+
+export type CorridorBlockReason = "invalid" | "no_rate" | "suspended" | "not_offered" | "below_min" | "above_max" | "below_floor";
+export interface RemittanceQuote {
+  ok: boolean; blockedReason: CorridorBlockReason | null; appliedMargin: number; fee: number; fxCost: number;
+  receiveAmount: number; totalCostPct: number;
+}
+
+// Execution-time price for a corridor, checked against the ops-console guardrails (migration 0033).
+export async function getRemittanceQuote(from: string, to: string, amount: number): Promise<RemittanceQuote> {
+  const res = await supabase.rpc("remittance_quote", { p_from: from, p_to: to, p_amount: amount });
+  const r = ((mustNotError(res, "getRemittanceQuote") ?? []) as Record<string, unknown>[])[0];
+  if (!r) throw new Error("getRemittanceQuote: empty response");
+  return {
+    ok: r.ok as boolean, blockedReason: (r.blocked_reason as CorridorBlockReason) ?? null, appliedMargin: Number(r.applied_margin),
+    fee: Number(r.fee), fxCost: Number(r.fx_cost), receiveAmount: Number(r.receive_amount), totalCostPct: Number(r.total_cost_pct),
+  };
+}
+
+// Runs the guardrail check again server-side, then moves money exactly like applyWalletTransfer.
+// Falls back to it when migration 0033 is not applied yet, so the flow keeps working either way.
+export async function sendRemittance(args: { userId: string; amount: number; from: string; to: string; note?: string }): Promise<AppTransfer> {
+  const res = await supabase.rpc("send_remittance", { p_user_id: args.userId, p_amount: args.amount, p_from: args.from, p_to: args.to, p_note: args.note ?? null });
+  if (res.error && /could not find the function|PGRST202/i.test(`${res.error.code ?? ""} ${res.error.message}`)) {
+    return applyWalletTransfer({ userId: args.userId, amount: args.amount, currency: args.from, type: "remittance", note: args.note });
+  }
+  return toAppTransfer(mustHaveData(res, "sendRemittance") as Record<string, unknown>);
+}
+
+// Configured, switched-on send->receive pairs (migration 0037). A convenience for the pickers only;
+// remittance_quote / send_remittance still enforce the rules.
+export async function listOpenCorridors(): Promise<{ from: string; to: string }[]> {
+  const res = await supabase.rpc("list_open_corridors");
+  return ((mustNotError(res, "listOpenCorridors") ?? []) as Record<string, unknown>[]).map((x) => ({ from: x.from_currency as string, to: x.to_currency as string }));
+}
+
 export interface P2pReceipt { reference: string; senderName: string; recipientName: string; amount: number; currency: string }
 
 export async function p2pTransfer(args: {

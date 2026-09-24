@@ -12,6 +12,7 @@ import type * as addressRegister from "../addressRegister.js";
 import type * as addressSuggestions from "../addressSuggestions.js";
 import type * as addresses from "../addresses.js";
 import type * as admin from "../admin.js";
+import type * as aiOrgCaseAssist from "../aiOrgCaseAssist.js";
 import type * as aiSupportAssist from "../aiSupportAssist.js";
 import type * as cards from "../cards.js";
 import type * as crons from "../crons.js";
@@ -45,6 +46,7 @@ declare const fullApi: ApiFromModules<{
   addressSuggestions: typeof addressSuggestions;
   addresses: typeof addresses;
   admin: typeof admin;
+  aiOrgCaseAssist: typeof aiOrgCaseAssist;
   aiSupportAssist: typeof aiSupportAssist;
   cards: typeof cards;
   crons: typeof crons;

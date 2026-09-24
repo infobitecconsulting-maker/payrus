@@ -1,15 +1,20 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { ArrowLeftRight, Globe, TrendingUp, ArrowLeft, ChevronDown } from "lucide-react";
+import { ArrowLeftRight, Globe, TrendingUp, ArrowLeft, ChevronDown, Smartphone, Landmark, Banknote, Wallet, Zap, Star, Trash2, Clock, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button.tsx";
 import { Input } from "@/components/ui/input.tsx";
 import { cn } from "@/lib/utils.ts";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import TransactionReceipt from "@/components/ui/transaction-receipt.tsx";
-import { commissionFor, midMarketConvert } from "@/convex/fx.ts";
+import { commissionFor, midMarketConvert, FX_MARGIN_RATE } from "@/convex/fx.ts";
 import { useCurrentAppUser } from "@/hooks/use-current-app-user.ts";
-import { useApplyWalletTransferMutation } from "@/hooks/use-backend.ts";
+import {
+  useSavedRecipients, useSaveRecipientMutation, useTouchSavedRecipientMutation,
+  useDeleteSavedRecipientMutation, useRecentTransfersForUser, useCurrentFxMarginConfig, useRemittanceQuote, useOpenCorridors, useSendRemittanceMutation,
+} from "@/hooks/use-backend.ts";
+import type { DeliveryMethod } from "@/lib/backend.ts";
+import { requireStepUp } from "@/lib/mfa.ts";
 
 // Launch-phase priority corridors lead the list: XAF (CEMAC — Cameroon, Congo-Brazzaville,
 // CAR/Bangui, Gabon, Chad, Eq. Guinea) and AOA (Angola). AED and CNY are visible for
@@ -40,12 +45,27 @@ const corridorPairs: [string, string, string][] = [
 ];
 const flagFor = (code: string) => currencies.find(c => c.code === code)?.flag ?? "🏳️";
 const corridors = corridorPairs.map(([fromLabel, from, to]) => ({
+  fromCode: from,
+  toCode: to,
   from: fromLabel,
   to: `${flagFor(to)} ${to}`,
   rate: midMarketConvert(1, from, to).toLocaleString(undefined, { maximumFractionDigits: 2 }),
 }));
 
 type Step = "form" | "confirm" | "success";
+
+// Delivery options, the way Taptap Send / Remitly / Ria / MoneyGram present them:
+// pick how the money reaches the recipient, see the expected delivery time up front.
+const DELIVERY: { id: DeliveryMethod; icon: typeof Smartphone; eta: string; providers: string[] }[] = [
+  { id: "mobile_money", icon: Smartphone, eta: "remittance.eta.minutes", providers: ["M-Pesa", "Orange Money", "MTN MoMo", "Airtel Money"] },
+  { id: "bank", icon: Landmark, eta: "remittance.eta.hours", providers: [] },
+  { id: "cash_pickup", icon: Banknote, eta: "remittance.eta.minutes", providers: [] },
+  { id: "wallet", icon: Wallet, eta: "remittance.eta.instant", providers: [] },
+];
+const maskAccount = (a: string) => (a.length > 4 ? `••••${a.slice(-4)}` : a);
+// World Bank Remittance Prices Worldwide, Q3 2025: global mean cost of sending USD 200 (all corridors/instruments).
+const WORLD_BANK_MEAN_COST = 0.0636;
+const STATE_STEPS = ["quoted", "pending", "paid"] as const;
 
 export default function Remittance() {
   const { t } = useTranslation("common");
@@ -58,19 +78,64 @@ export default function Remittance() {
   const [showFromPicker, setShowFromPicker] = useState(false);
   const [showToPicker, setShowToPicker] = useState(false);
 
+  const [method, setMethod] = useState<DeliveryMethod>("mobile_money");
+  const [provider, setProvider] = useState("");
+  const [saveIt, setSaveIt] = useState(true);
+  const [pickedId, setPickedId] = useState<string | null>(null);
+
   const currentUser = useCurrentAppUser();
-  const applyTransaction = useApplyWalletTransferMutation();
+  const { data: savedRecipients } = useSavedRecipients(currentUser?.id);
+  const saveRecipient = useSaveRecipientMutation();
+  const touchRecipient = useTouchSavedRecipientMutation();
+  const deleteRecipient = useDeleteSavedRecipientMutation();
+  const recent = useRecentTransfersForUser(currentUser?.id, 30);
+  const myRemittances = (recent ?? []).filter(x => x.type === "remittance").slice(0, 5);
+  const sendRemittance = useSendRemittanceMutation();
   const [sending, setSending] = useState(false);
 
   const fromCurr = currencies.find(c => c.code === fromCurrency)!;
   const toCurr = currencies.find(c => c.code === toCurrency)!;
   const numAmt = parseFloat(amount) || 0;
-  const convertedAmount = amount ? midMarketConvert(numAmt, fromCurrency, toCurrency).toFixed(2) : "0.00";
-  const fxRate = midMarketConvert(1, fromCurrency, toCurrency).toFixed(4);
-  const fee = commissionFor(numAmt);
+  // Customer-facing figures include PayRus's live FX margin (set in the ops console), so
+  // "they receive" is what the backend quote actually delivers, not the mid-market rate.
+  const marginCfg = useCurrentFxMarginConfig();
+  // When signed in, the corridor quote from the backend (per-corridor margin + guardrails, migration 0033) wins;
+  // otherwise, or if it is not available, fall back to the global margin computed locally.
+  const { data: quote } = useRemittanceQuote(fromCurrency, toCurrency, numAmt, !!currentUser);
+  const marginRate = quote ? quote.appliedMargin : fromCurrency === toCurrency ? 0 : (marginCfg?.marginRate ?? FX_MARGIN_RATE);
+  const convertedAmount = quote ? quote.receiveAmount.toFixed(2)
+    : amount ? (midMarketConvert(numAmt, fromCurrency, toCurrency) * (1 - marginRate)).toFixed(2) : "0.00";
+  const fxRate = numAmt > 0 && quote ? (quote.receiveAmount / numAmt).toFixed(4) : (midMarketConvert(1, fromCurrency, toCurrency) * (1 - marginRate)).toFixed(4);
+  const blockedReason = quote && !quote.ok ? quote.blockedReason : null;
+  const fee = quote ? quote.fee : commissionFor(numAmt);
+  const totalToPay = numAmt + fee;
+  // All-in cost as a share of the amount sent: fee + FX margin (the measure the World Bank and Wise/Remitly comparisons use).
+  const totalCostPct = numAmt > 0 ? (fee + numAmt * marginRate) / numAmt : 0;
+  const delivery = DELIVERY.find(d => d.id === method)!;
+  const canReview = !blockedReason && numAmt > 0 && recipient.trim().length >= 2 && recipientAccount.trim().length >= 3;
 
-  const swap = () => { setFromCurrency(toCurrency); setToCurrency(fromCurrency); };
-  const handleSend = () => { if (!amount || !recipient) { toast.error(t("common.error")); return; } setStep("confirm"); };
+  const pickRecipient = (r: NonNullable<typeof savedRecipients>[number]) => {
+    setPickedId(r.id); setRecipient(r.fullName); setRecipientAccount(r.account);
+    setMethod(r.deliveryMethod); setProvider(r.provider ?? "");
+    if (r.currency && r.currency !== fromCurrency) setToCurrency(r.currency);
+  };
+  const clearPick = () => { setPickedId(null); setRecipient(""); setRecipientAccount(""); setProvider(""); };
+
+  // Only offer routes that are open (migration 0037). While the list is loading, or if it is unavailable
+  // (e.g. the migration is not applied yet), fall back to offering every currency as before.
+  const openCorridors = useOpenCorridors();
+  const isOpen = (from: string, to: string) => !openCorridors || openCorridors.some(o => o.from === from && o.to === to);
+  const fromOptions = currencies.filter(c => !openCorridors || openCorridors.some(o => o.from === c.code));
+  const toOptions = currencies.filter(c => c.code !== fromCurrency && isOpen(fromCurrency, c.code));
+  useEffect(() => {
+    if (!openCorridors || openCorridors.length === 0 || isOpen(fromCurrency, toCurrency)) return;
+    const next = openCorridors.find(o => o.from === fromCurrency) ?? openCorridors[0];
+    setFromCurrency(next.from); setToCurrency(next.to);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openCorridors, fromCurrency, toCurrency]);
+  const canSwap = isOpen(toCurrency, fromCurrency);
+  const swap = () => { if (canSwap) { setFromCurrency(toCurrency); setToCurrency(fromCurrency); } };
+  const handleSend = () => { if (!canReview) { toast.error(t("remittance.fillRequired")); return; } setStep("confirm"); };
   const [txReference, setTxReference] = useState(() => `REF-${Date.now().toString().slice(-10)}`);
 
   const handleConfirm = async () => {
@@ -80,28 +145,42 @@ export default function Remittance() {
       toast.success(t("common.success"));
       return;
     }
+    if (!(await requireStepUp())) { toast.error(t("mfa.codeInvalid")); return; }
     setSending(true);
     try {
-      const result = await applyTransaction({ userId: currentUser.id, amount: numAmt, currency: fromCurrency, type: "remittance", note: recipient || undefined });
+      const via = [t(`remittance.method.${method}`), provider].filter(Boolean).join(" · ");
+      const note = `${recipient} · ${via} · ${maskAccount(recipientAccount)} · ${fromCurrency}→${toCurrency}`;
+      const result = await sendRemittance({ userId: currentUser.id, amount: numAmt, from: fromCurrency, to: toCurrency, note });
       setTxReference(result.reference);
+      // Recipient book upkeep is best-effort: a failure here must never mask a completed transfer.
+      try {
+        if (pickedId) await touchRecipient(pickedId);
+        else if (saveIt) {
+          const id = await saveRecipient({ fullName: recipient.trim(), deliveryMethod: method, account: recipientAccount.trim(), currency: toCurrency, provider: provider || undefined });
+          await touchRecipient(id);
+        }
+      } catch { /* ignore */ }
       setStep("success");
       toast.success(t("common.success"));
-    } catch {
-      toast.error(t("common.error"));
+    } catch (e) {
+      const m = /corridor_blocked:(\w+)/.exec(e instanceof Error ? e.message : "");
+      toast.error(m ? t(`remittance.blocked.${m[1]}`) : t("common.error"));
     } finally {
       setSending(false);
     }
   };
 
-  const reset = () => { setStep("form"); setAmount(""); setRecipient(""); setRecipientAccount(""); };
+  const reset = () => { setStep("form"); setAmount(""); setRecipient(""); setRecipientAccount(""); setPickedId(null); setProvider(""); };
 
   const confirmRows = [
     { label: t("remittance.youSend"), value: `${amount} ${fromCurrency}` },
     { label: t("remittance.theyReceive"), value: `${parseFloat(convertedAmount).toLocaleString()} ${toCurrency}` },
     { label: t("remittance.rate"), value: `1 ${fromCurrency} = ${fxRate} ${toCurrency}` },
     { label: t("remittance.fee"), value: `${fromCurrency} ${fee.toFixed(2)}` },
+    { label: t("remittance.totalToPay"), value: `${totalToPay.toFixed(2)} ${fromCurrency}` },
     { label: t("remittance.recipient"), value: recipient || "—" },
-    { label: t("remittance.delivery"), value: t("remittance.instant") },
+    { label: t("remittance.deliveryMethod"), value: [t(`remittance.method.${method}`), provider, maskAccount(recipientAccount)].filter(Boolean).join(" · ") },
+    { label: t("remittance.delivery"), value: t(delivery.eta) },
   ];
 
   return (
@@ -124,7 +203,7 @@ export default function Remittance() {
           <span className="text-xs font-medium text-muted-foreground">{t("remittance.liveRates")}</span>
         </div>
         <div className="grid grid-cols-2 gap-2">
-          {corridors.map(c => (
+          {corridors.filter(c => isOpen(c.fromCode, c.toCode)).map(c => (
             <div key={c.from + c.to} className="flex items-center justify-between text-xs">
               <span className="text-muted-foreground">{c.from} → {c.to}</span>
               <span className="font-mono font-semibold text-foreground">{c.rate}</span>
@@ -150,7 +229,7 @@ export default function Remittance() {
                 </div>
                 {showFromPicker && (
                   <motion.div initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} className="rounded-xl border border-border bg-popover p-2 grid grid-cols-2 gap-1 shadow-xl z-10">
-                    {currencies.filter(c => c.code !== toCurrency).map(c => (
+                    {fromOptions.filter(c => c.code !== toCurrency || isOpen(c.code, toCurrency)).map(c => (
                       <button key={c.code} onClick={() => { setFromCurrency(c.code); setShowFromPicker(false); }} className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-secondary text-sm text-left cursor-pointer">
                         <span>{c.flag}</span><span className="font-medium">{c.code}</span>
                       </button>
@@ -159,7 +238,7 @@ export default function Remittance() {
                 )}
               </div>
               <div className="flex items-center justify-center">
-                <button onClick={swap} className="w-9 h-9 rounded-full bg-primary/10 border border-primary/30 flex items-center justify-center hover:bg-primary/20 transition-colors cursor-pointer">
+                <button onClick={swap} disabled={!canSwap} className="w-9 h-9 disabled:opacity-40 disabled:cursor-not-allowed rounded-full bg-primary/10 border border-primary/30 flex items-center justify-center hover:bg-primary/20 transition-colors cursor-pointer">
                   <ArrowLeftRight size={15} className="text-primary" />
                 </button>
               </div>
@@ -177,7 +256,7 @@ export default function Remittance() {
                 </div>
                 {showToPicker && (
                   <motion.div initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} className="rounded-xl border border-border bg-popover p-2 grid grid-cols-2 gap-1 shadow-xl z-10">
-                    {currencies.filter(c => c.code !== fromCurrency).map(c => (
+                    {toOptions.map(c => (
                       <button key={c.code} onClick={() => { setToCurrency(c.code); setShowToPicker(false); }} className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-secondary text-sm text-left cursor-pointer">
                         <span>{c.flag}</span><span className="font-medium">{c.code}</span>
                       </button>
@@ -195,6 +274,49 @@ export default function Remittance() {
             </div>
             <div className="rounded-2xl bg-card border border-border p-4 space-y-3">
               <h2 className="font-semibold text-foreground">{t("remittance.recipientTitle")}</h2>
+              {currentUser && savedRecipients && savedRecipients.length > 0 && (
+                <div className="space-y-1.5">
+                  <label className="text-xs text-muted-foreground flex items-center gap-1"><Star size={11} /> {t("remittance.savedRecipients")}</label>
+                  <div className="flex flex-wrap gap-2">
+                    {savedRecipients.map(r => (
+                      <span key={r.id} className={cn("inline-flex items-center rounded-full border text-xs", pickedId === r.id ? "border-primary bg-primary/10" : "border-border bg-secondary")}>
+                        <button type="button" onClick={() => (pickedId === r.id ? clearPick() : pickRecipient(r))} className="px-3 py-1.5 cursor-pointer font-medium">
+                          {r.fullName}<span className="text-muted-foreground"> · {t(`remittance.method.${r.deliveryMethod}`)}</span>
+                        </button>
+                        <button type="button" aria-label={t("remittance.removeRecipient")} onClick={() => { if (pickedId === r.id) clearPick(); void deleteRecipient(r.id).catch(() => toast.error(t("common.error"))); }} className="pr-2 text-muted-foreground hover:text-destructive cursor-pointer">
+                          <Trash2 size={11} />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div className="space-y-1.5">
+                <label className="text-xs text-muted-foreground">{t("remittance.deliveryMethod")}</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {DELIVERY.map(d => (
+                    <button key={d.id} type="button" onClick={() => { setMethod(d.id); setProvider(""); }}
+                      className={cn("flex items-center gap-2 rounded-xl border p-2.5 text-left cursor-pointer transition-colors", method === d.id ? "border-primary bg-primary/10" : "border-border bg-secondary hover:border-primary/50")}>
+                      <d.icon size={16} className="text-primary shrink-0" />
+                      <span className="min-w-0">
+                        <span className="block text-sm font-semibold text-foreground leading-tight">{t(`remittance.method.${d.id}`)}</span>
+                        <span className="flex items-center gap-1 text-[11px] text-muted-foreground"><Zap size={10} />{t(d.eta)}</span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {delivery.providers.length > 0 && (
+                <div className="space-y-1.5">
+                  <label className="text-xs text-muted-foreground">{t("remittance.provider")}</label>
+                  <div className="flex flex-wrap gap-2">
+                    {delivery.providers.map(p => (
+                      <button key={p} type="button" onClick={() => setProvider(provider === p ? "" : p)}
+                        className={cn("px-3 py-1.5 rounded-full border text-xs font-medium cursor-pointer", provider === p ? "border-primary bg-primary/10 text-primary" : "border-border bg-secondary")}>{p}</button>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div className="space-y-1.5">
                 <label className="text-xs text-muted-foreground">{t("remittance.fullName")}</label>
                 <Input value={recipient} onChange={e => setRecipient(e.target.value)} placeholder={t("remittance.fullNamePlaceholder")} className="bg-secondary border-border" />
@@ -204,7 +326,55 @@ export default function Remittance() {
                 <Input value={recipientAccount} onChange={e => setRecipientAccount(e.target.value)} placeholder={t("remittance.accountPhonePlaceholder")} className="bg-secondary border-border" />
               </div>
             </div>
-            <Button onClick={handleSend} className="w-full h-12 text-base font-semibold rounded-xl">{t("remittance.reviewTransfer")}</Button>
+            {currentUser && !pickedId && (
+              <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
+                <input type="checkbox" checked={saveIt} onChange={e => setSaveIt(e.target.checked)} className="accent-primary" />
+                {t("remittance.saveRecipient")}
+              </label>
+            )}
+            {blockedReason && (
+              <div role="alert" className="rounded-xl border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">{t(`remittance.blocked.${blockedReason}`)}</div>
+            )}
+            {numAmt > 0 && (
+              <div className="rounded-2xl bg-card border border-border p-4 space-y-2 text-sm">
+                <div className="flex justify-between"><span className="text-muted-foreground">{t("remittance.youSend")}</span><span className="font-mono">{numAmt.toFixed(2)} {fromCurrency}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">{t("remittance.fee")}</span><span className="font-mono">{fee.toFixed(2)} {fromCurrency}</span></div>
+                <div className="flex justify-between border-t border-border pt-2 font-semibold"><span>{t("remittance.totalToPay")}</span><span className="font-mono">{totalToPay.toFixed(2)} {fromCurrency}</span></div>
+                <div className="flex justify-between text-primary font-semibold"><span>{t("remittance.theyReceive")}</span><span className="font-mono">{parseFloat(convertedAmount).toLocaleString()} {toCurrency}</span></div>
+                <div className="flex justify-between text-xs text-muted-foreground"><span>{t("remittance.fxMargin")} ({(marginRate * 100).toFixed(1)}%)</span><span className="font-mono">{(numAmt * marginRate).toFixed(2)} {fromCurrency}</span></div>
+                <div className={cn("flex justify-between text-xs font-semibold", totalCostPct <= WORLD_BANK_MEAN_COST ? "text-primary" : "text-destructive")}>
+                  <span>{t("remittance.totalCost")}</span><span>{(totalCostPct * 100).toFixed(2)}% · {t("remittance.worldBankMean", { pct: (WORLD_BANK_MEAN_COST * 100).toFixed(2) })}</span>
+                </div>
+                <p className="text-[11px] text-muted-foreground flex items-center gap-1"><Clock size={11} />{t("remittance.arrives")}: {t(delivery.eta)}</p>
+              </div>
+            )}
+            <Button onClick={handleSend} disabled={!canReview} className="w-full h-12 text-base font-semibold rounded-xl">{t("remittance.reviewTransfer")}</Button>
+            {myRemittances.length > 0 && (
+              <div className="rounded-2xl bg-card border border-border p-4 space-y-3">
+                <h2 className="font-semibold text-foreground">{t("remittance.trackTitle")}</h2>
+                {myRemittances.map(x => {
+                  const idx = Math.max(0, STATE_STEPS.indexOf(x.state as (typeof STATE_STEPS)[number]));
+                  const failed = x.state === "failed";
+                  return (
+                    <div key={x.id} className="space-y-1.5">
+                      <div className="flex justify-between text-xs">
+                        <span className="font-mono text-muted-foreground">{x.reference}</span>
+                        <span className="font-semibold">{x.amount.toLocaleString()} {x.currency}</span>
+                      </div>
+                      {x.note && <p className="text-xs text-muted-foreground truncate">{x.note}</p>}
+                      <div className="flex items-center gap-1">
+                        {STATE_STEPS.map((st, i) => (
+                          <div key={st} className="flex-1 flex items-center gap-1">
+                            <CheckCircle2 size={12} className={failed ? "text-destructive" : i <= idx ? "text-primary" : "text-muted-foreground/40"} />
+                            <span className={cn("text-[10px]", i <= idx && !failed ? "text-foreground" : "text-muted-foreground")}>{t(`remittance.state.${st}`)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </motion.div>
         )}
 
