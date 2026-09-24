@@ -17,6 +17,8 @@ import UsersPanel from "./_components/users-panel.tsx";
 import TransactionsPanel from "./_components/transactions-panel.tsx";
 import StaffPanel from "./_components/staff-panel.tsx";
 import EscalationsPanel from "./_components/escalations-panel.tsx";
+import OperationsPanel from "./_components/operations-panel.tsx";
+import AuditPanel from "./_components/audit-panel.tsx";
 import ConfigPanel from "./_components/config-panel.tsx";
 import AccessPanel from "./_components/access-panel.tsx";
 import { useProfile, getDefaultProfile } from "@/contexts/profile-context.tsx";
@@ -265,7 +267,7 @@ export default function AdminDashboard() {
   const [txCount, setTxCount] = useState(2648);
   const [avgMargin, setAvgMargin] = useState(7.3);
   const [newTxId, setNewTxId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"overview" | "transactions" | "fx" | "corridors" | "pilot" | "demo" | "users" | "ledger" | "escalations" | "staff" | "config" | "access">("users");
+  const [activeTab, setActiveTab] = useState<"overview" | "transactions" | "fx" | "corridors" | "pilot" | "demo" | "users" | "ledger" | "escalations" | "staff" | "operations" | "audit" | "config" | "access">("users");
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const navigate = useNavigate();
   const { lng } = useParams<{ lng: string }>();
@@ -326,6 +328,8 @@ export default function AdminDashboard() {
     { id: "ledger", label: "Users & Transactions", icon: History },
     { id: "escalations", label: "Escalations", icon: AlertTriangle },
     { id: "staff", label: "Staff & Permissions", icon: Shield },
+    { id: "operations", label: "Operations", icon: Layers },
+    { id: "audit", label: "Audit Log", icon: History },
     { id: "config", label: "Configuration", icon: SlidersHorizontal },
     { id: "access", label: "Roles & Access", icon: ShieldCheck },
     { id: "pilot", label: "Pilot Countries", icon: Flag },
@@ -335,8 +339,13 @@ export default function AdminDashboard() {
     { id: "fx", label: "FX Costs", icon: Globe },
     { id: "corridors", label: "Corridors", icon: Layers },
   ] as const;
+  // Database roles decide what a real staff account sees: support agents get
+  // the four operational tabs; admin/superadmin also get Operations, Audit Log,
+  // Configuration and Roles & Access — the same set the ops-console offers.
   const STAFF_TABS = ["users", "ledger", "escalations", "staff"];
-  const tabs = staffOnly ? allTabs.filter((tab) => STAFF_TABS.includes(tab.id)) : allTabs;
+  const ADMIN_TIER_TABS = [...STAFF_TABS, "operations", "audit", "config", "access"];
+  const allowedIds = perms?.isAdmin ? ADMIN_TIER_TABS : STAFF_TABS;
+  const tabs = staffOnly ? allTabs.filter((tab) => allowedIds.includes(tab.id)) : allTabs;
 
   return (
     <div className="p-4 md:p-6 max-w-6xl mx-auto space-y-5">
@@ -430,6 +439,20 @@ export default function AdminDashboard() {
         {activeTab === "staff" && (
           <motion.div key="staff" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
             <StaffPanel />
+          </motion.div>
+        )}
+
+        {/* ── OPERATIONS (mirrors ops-console Configuration lists) ── */}
+        {activeTab === "operations" && (
+          <motion.div key="operations" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
+            <OperationsPanel />
+          </motion.div>
+        )}
+
+        {/* ── AUDIT LOG ── */}
+        {activeTab === "audit" && (
+          <motion.div key="audit" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
+            <AuditPanel />
           </motion.div>
         )}
 

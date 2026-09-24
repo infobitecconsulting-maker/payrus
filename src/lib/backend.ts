@@ -565,6 +565,8 @@ export async function adminListTransfers(limit = 300, userId?: string): Promise<
 
 export interface MyPermissions {
   isSuperadmin: boolean;
+  /** admin OR superadmin — unlocks the admin-tier tabs (audit log, access, configuration). */
+  isAdmin: boolean;
   users: { create: boolean; read: boolean; update: boolean; delete: boolean };
   transactions: { create: boolean; read: boolean; update: boolean; delete: boolean };
 }
@@ -576,7 +578,7 @@ export async function getMyPermissions(): Promise<MyPermissions> {
     const r = rows.find((x) => x.resource === resource);
     return { create: Boolean(r?.can_create), read: Boolean(r?.can_read), update: Boolean(r?.can_update), delete: Boolean(r?.can_delete) };
   };
-  return { isSuperadmin: rows.some((r) => Boolean(r.is_superadmin)), users: pick("users"), transactions: pick("transactions") };
+  return { isSuperadmin: rows.some((r) => Boolean(r.is_superadmin)), isAdmin: rows.some((r) => Boolean(r.is_admin)), users: pick("users"), transactions: pick("transactions") };
 }
 
 export interface SupportRole { slug: string; label: string; description: string }
@@ -666,6 +668,43 @@ export async function supportRequestEscalation(args: {
 export async function adminResolveEscalation(args: { escalationId: string; decision: "approve" | "reject" | "done"; note?: string; password?: string }): Promise<void> {
   const res = await supabase.rpc("admin_resolve_escalation", { p_escalation_id: args.escalationId, p_decision: args.decision, p_note: args.note ?? null, p_password: args.password ?? null });
   mustHaveData(res, "adminResolveEscalation");
+}
+
+// ---- Operations visibility + audit trail (0021 / 0026) — same RPCs the
+// ops-console Configuration screen reads, so an admin sees identical data in
+// both apps. Rows come back camelCased.
+const camelKey = (k: string) => k.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase());
+
+export async function adminRpcRows<T>(name: string, args?: Record<string, unknown>): Promise<T[]> {
+  const res = await supabase.rpc(name, args);
+  const rows = (mustHaveData(res, name) as Record<string, unknown>[]);
+  return rows.map((r) => Object.fromEntries(Object.entries(r).map(([k, v]) => [camelKey(k), v])) as T);
+}
+
+export interface OpsExpenseReport { id: string; title: string; amount: number; currency: string; category: string; status: string; employeeName: string | null; project: string | null; submittedAt: string; userName: string | null; userEmail: string | null }
+export interface OpsCorporateCard { id: string; holderName: string; role: string; limitAmount: number; spentAmount: number; currency: string; ownerName: string | null; ownerEmail: string | null }
+export interface OpsLoyaltyAccount { id: string; venueName: string; points: number; currency: string; monthlySpend: number; cashbackRate: number; userName: string | null; userEmail: string | null }
+export interface OpsGameBet { id: string; kind: string; stakeAmount: number; currency: string; status: string; payoutAmount: number | null; placedAt: string; userName: string | null; userEmail: string | null }
+export interface OpsTontineMember { circleId: string; circleName: string; memberPosition: number; joinedAt: string; userName: string | null; userEmail: string | null }
+export interface OpsPitch { id: string; title: string; category: string | null; goal: number; raised: number; currency: string; risk: string; createdAt: string; ownerName: string | null; ownerEmail: string | null }
+
+export async function adminResolveExpenseReport(args: { reportId: string; status: "approved" | "rejected"; password: string }): Promise<void> {
+  const res = await supabase.rpc("resolve_expense_report", { p_report_id: args.reportId, p_status: args.status, p_admin_password: args.password });
+  mustHaveData(res, "adminResolveExpenseReport");
+}
+
+export interface AuditEvent {
+  seq: number; occurredAt: string; actorName: string | null; actorEmail: string | null; actorLabel: string; action: string;
+  objectTable: string; objectId: string | null; reason: string | null; beforeData: unknown; afterData: unknown;
+}
+
+export async function adminListAuditEvents(objectTable?: string): Promise<AuditEvent[]> {
+  return adminRpcRows<AuditEvent>("admin_list_audit_events", { p_limit: 200, p_object_table: objectTable ?? null });
+}
+
+export async function adminSetGatePassword(args: { current: string; next: string }): Promise<void> {
+  const res = await supabase.rpc("admin_set_gate_password", { p_gate: "admin", p_current: args.current, p_new: args.next });
+  if (res.error) throw new Error(`adminSetGatePassword: ${res.error.message}`);
 }
 
 export async function adminCreateUser(args: {

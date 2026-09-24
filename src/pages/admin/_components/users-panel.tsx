@@ -6,6 +6,7 @@ import {
   Trash2, CheckCircle2, Clock, AlertCircle, KeyRound,
 } from "lucide-react";
 import { cn } from "@/lib/utils.ts";
+import EscalateForm from "./escalate-form.tsx";
 import type { AppUserRole, AdminUserRow } from "@/lib/backend.ts";
 import {
   useAdminListUsers, useAdminUpdateUserRoleMutation, useAdminCreateUserMutation,
@@ -263,6 +264,7 @@ export default function UsersPanel() {
   const [creating, setCreating] = useState(false);
   const [editingRoleId, setEditingRoleId] = useState<string | null>(null);
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  const [escalateUserId, setEscalateUserId] = useState<string | null>(null);
   const perms = useMyPermissions();
   const canEdit = perms?.users.update ?? false;
   const isSuper = perms?.isSuperadmin ?? false;
@@ -396,6 +398,14 @@ export default function UsersPanel() {
                   >
                     {editingUserId === row.user.id ? "Close" : "Edit user"}
                   </button>}
+                  {!canEdit && (
+                    <button
+                      onClick={() => setEscalateUserId(escalateUserId === row.user.id ? null : row.user.id)}
+                      className="text-[10px] font-semibold px-2.5 py-1.5 rounded-lg border border-border hover:bg-secondary cursor-pointer whitespace-nowrap"
+                    >
+                      {escalateUserId === row.user.id ? "Close" : "Escalate"}
+                    </button>
+                  )}
                   {canEdit && !row.roles.some((r) => r.role === "admin") && (
                     <button
                       onClick={() => void handleMakeAdmin(row.user.id)}
@@ -406,6 +416,10 @@ export default function UsersPanel() {
                   )}
                 </div>
               </div>
+
+              {escalateUserId === row.user.id && (
+                <EscalateForm userId={row.user.id} userLabel={row.user.name ?? row.user.email ?? row.user.id} onDone={() => setEscalateUserId(null)} />
+              )}
 
               {editingUserId === row.user.id && (
                 <EditUserForm user={row.user} onDone={() => setEditingUserId(null)} />

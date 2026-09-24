@@ -232,6 +232,14 @@ export function useMyPermissionsQuery() {
   return useReactQuery({ queryKey: ["myPermissions"], queryFn: backend.getMyPermissions, staleTime: 60_000, retry: false });
 }
 
+export function useAdminOpsRows<T>(rpcName: string) {
+  return useReactQuery({ queryKey: ["adminOps", rpcName], queryFn: () => backend.adminRpcRows<T>(rpcName), retry: false });
+}
+
+export function useAdminAuditEvents(objectTable?: string) {
+  return useReactQuery({ queryKey: ["adminAudit", objectTable ?? "all"], queryFn: () => backend.adminListAuditEvents(objectTable), retry: false });
+}
+
 export function useSupportRoles() {
   return useReactQuery({ queryKey: ["supportRoles"], queryFn: backend.listSupportRoles }).data;
 }
@@ -252,6 +260,21 @@ function useStaffMutation<TArgs>(fn: (args: TArgs) => Promise<void>) {
 }
 
 export function useAdminSetSupportPermissionMutation() { return useStaffMutation(backend.adminSetSupportPermission); }
+export function useAdminResolveExpenseReportMutation() {
+  const queryClient = useQueryClient();
+  const mutation = useReactMutation({
+    mutationFn: backend.adminResolveExpenseReport,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["adminOps"] });
+      void queryClient.invalidateQueries({ queryKey: ["adminAudit"] });
+    },
+  });
+  return mutation.mutateAsync;
+}
+export function useAdminSetGatePasswordMutation() {
+  const mutation = useReactMutation({ mutationFn: backend.adminSetGatePassword });
+  return mutation.mutateAsync;
+}
 export function useAdminAssignStaffRoleMutation() { return useStaffMutation(backend.adminAssignStaffRole); }
 export function useAdminRevokeStaffRoleMutation() { return useStaffMutation(backend.adminRevokeStaffRole); }
 export function useSupportCompleteTransferMutation() { return useStaffMutation(backend.supportCompleteTransfer); }

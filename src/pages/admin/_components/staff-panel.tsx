@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils.ts";
 import {
   useAdminListUsers, useMyPermissions, useSupportRoles, useSupportPermissions,
-  useAdminSetSupportPermissionMutation, useAdminAssignStaffRoleMutation, useAdminRevokeStaffRoleMutation,
+  useAdminSetSupportPermissionMutation, useAdminAssignStaffRoleMutation, useAdminRevokeStaffRoleMutation, useAdminSetGatePasswordMutation,
 } from "@/hooks/use-backend.ts";
 
 const ACTIONS = ["create", "read", "update", "delete"] as const;
@@ -26,6 +26,9 @@ export default function StaffPanel() {
   const revoke = useAdminRevokeStaffRoleMutation();
   const [userId, setUserId] = useState("");
   const [roleSlug, setRoleSlug] = useState("support_agent");
+  const setGatePassword = useAdminSetGatePasswordMutation();
+  const [currentPw, setCurrentPw] = useState("");
+  const [nextPw, setNextPw] = useState("");
 
   const isSuper = perms?.isSuperadmin ?? false;
   const staffSlugs = new Set((roles ?? []).map((r) => r.slug));
@@ -145,6 +148,24 @@ export default function StaffPanel() {
             </select>
             <button onClick={() => void handleAssign()} disabled={!userId} className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary text-primary-foreground cursor-pointer disabled:opacity-60">
               Assign
+            </button>
+          </div>
+        </div>
+      )}
+
+      {isSuper && (
+        <div className="bg-card border border-border rounded-2xl p-4 space-y-3">
+          <div className="text-xs font-bold">Change the admin password</div>
+          <div className="text-[10px] text-muted-foreground">The shared gate password asked for by voids, role changes, permission edits and expense approvals. Stored only as a salted hash.</div>
+          <div className="flex gap-2 flex-wrap">
+            <input type="password" aria-label="Current admin password" placeholder="Current password" value={currentPw} onChange={(e) => setCurrentPw(e.target.value)} className="flex-1 min-w-[150px] rounded-lg border border-border bg-card px-2 py-1.5 text-xs" />
+            <input type="password" aria-label="New admin password" placeholder="New password (4+ characters)" value={nextPw} onChange={(e) => setNextPw(e.target.value)} className="flex-1 min-w-[150px] rounded-lg border border-border bg-card px-2 py-1.5 text-xs" />
+            <button
+              disabled={!currentPw || nextPw.length < 4}
+              onClick={() => void setGatePassword({ current: currentPw, next: nextPw }).then(() => { toast.success("Admin password changed"); setCurrentPw(""); setNextPw(""); }).catch(fail)}
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary text-primary-foreground cursor-pointer disabled:opacity-60"
+            >
+              Change
             </button>
           </div>
         </div>

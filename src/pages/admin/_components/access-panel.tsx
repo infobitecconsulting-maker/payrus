@@ -6,11 +6,14 @@ import {
   useProfileFeatures, useAdminSetProfileFeaturesMutation, useAdminSetConsoleRoleTabsMutation,
 } from "@/hooks/use-backend.ts";
 import { supabase } from "@/lib/supabase-client.ts";
+import { useRoleDefinitions } from "@/hooks/use-backend.ts";
 
-const ALL_ROLES = [
-  "personal", "merchant", "agent", "treasury", "public_institution",
-  "ngo", "group", "starter", "admin",
-] as const;
+// Role list comes from public.role_definitions — the same table the ops-console
+// reads — so both apps always offer the same roles (incl. superadmin).
+function useRoleSlugs(): string[] {
+  const defs = useRoleDefinitions();
+  return (defs ?? []).map((d) => d.slug);
+}
 
 // The 16 admin-editable nav-item keys AppLayout.tsx now reads from
 // public.profile_features (supabase/migrations/0014) instead of its old
@@ -42,10 +45,11 @@ const CONSOLE_TABS = ["overview", "transactions", "payouts", "merchants", "agent
 
 function ReassignRemoveSection() {
   const rows = useAdminListUsers();
+  const roleSlugs = useRoleSlugs();
   const reassignRole = useAdminReassignUserRoleMutation();
   const removeRole = useAdminRemoveUserRoleMutation();
   const [expandedRoleId, setExpandedRoleId] = useState<string | null>(null);
-  const [newRole, setNewRole] = useState<(typeof ALL_ROLES)[number]>("personal");
+  const [newRole, setNewRole] = useState<string>("personal");
   const [password, setPassword] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -96,7 +100,7 @@ function ReassignRemoveSection() {
                   <div className="flex items-center justify-between gap-2 bg-card rounded-lg px-3 py-2 border border-border/60">
                     <span className="text-xs font-semibold capitalize">{role.role.replace("_", " ")}</span>
                     <button
-                      onClick={() => { setExpandedRoleId(expandedRoleId === role.id ? null : role.id); setNewRole(role.role as (typeof ALL_ROLES)[number]); }}
+                      onClick={() => { setExpandedRoleId(expandedRoleId === role.id ? null : role.id); setNewRole(role.role as string); }}
                       className="text-[10px] font-semibold text-primary cursor-pointer shrink-0"
                     >
                       {expandedRoleId === role.id ? "Cancel" : "Manage"}
@@ -106,10 +110,10 @@ function ReassignRemoveSection() {
                     <div className="mt-1.5 pl-1 flex items-center gap-2 flex-wrap">
                       <select
                         value={newRole}
-                        onChange={(e) => setNewRole(e.target.value as (typeof ALL_ROLES)[number])}
+                        onChange={(e) => setNewRole(e.target.value as string)}
                         className="rounded-lg border border-border bg-card px-2 py-1.5 text-xs"
                       >
-                        {ALL_ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
+                        {roleSlugs.map((r) => <option key={r} value={r}>{r}</option>)}
                       </select>
                       <input
                         type="password" value={password} onChange={(e) => setPassword(e.target.value)}
@@ -142,7 +146,8 @@ function ReassignRemoveSection() {
 }
 
 function AppFeaturesSection() {
-  const [profileType, setProfileType] = useState<(typeof ALL_ROLES)[number]>("personal");
+  const roleSlugs = useRoleSlugs();
+  const [profileType, setProfileType] = useState<string>("personal");
   const features = useProfileFeatures(profileType);
   const setFeatures = useAdminSetProfileFeaturesMutation();
   const [selected, setSelected] = useState<Set<string> | null>(null);
@@ -180,10 +185,10 @@ function AppFeaturesSection() {
       </div>
       <select
         value={profileType}
-        onChange={(e) => { setProfileType(e.target.value as (typeof ALL_ROLES)[number]); setSelected(null); setPassword(""); }}
+        onChange={(e) => { setProfileType(e.target.value as string); setSelected(null); setPassword(""); }}
         className="mb-3 rounded-lg border border-border bg-secondary/40 px-3 py-2 text-xs"
       >
-        {ALL_ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
+        {roleSlugs.map((r) => <option key={r} value={r}>{r}</option>)}
       </select>
       {features === undefined ? (
         <div className="text-xs text-muted-foreground py-2">Loading...</div>
