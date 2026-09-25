@@ -7,7 +7,7 @@ import { COUNTRY_OPTIONS, callingCodeForCountry, currencyForCountry } from "@/co
 import { commissionFor } from "@/convex/fx.ts";
 import { requireStepUp } from "@/lib/mfa.ts";
 import { geocodeAddress } from "@/lib/geocode.ts";
-import { ensureDemoAgentsNear, findPayoutAgents, resolveUserByIdentifier, type PayoutAgent, type PayoutMethod, type PayoutReceipt, type PayoutRow, type Receiver, type ResolvedRecipient } from "@/lib/backend.ts";
+import { ensureDemoAgentsNear, findPayoutAgents, listCountryAgents, resolveUserByIdentifier, type PayoutAgent, type PayoutMethod, type PayoutReceipt, type PayoutRow, type Receiver, type ResolvedRecipient } from "@/lib/backend.ts";
 import { useMyPayouts, useMyReceivers, useRemittanceQuote, useSendToReceiverMutation } from "@/hooks/use-backend.ts";
 
 const METHODS: { id: PayoutMethod; icon: typeof Smartphone; eta: string }[] = [
@@ -57,6 +57,8 @@ export default function NewReceiverFlow({ senderId, wallets, defaultCurrency, on
   const [agents, setAgents] = useState<PayoutAgent[] | null>(null);
   const [located, setLocated] = useState(false);
   const [agentId, setAgentId] = useState<string | null>(null);
+  const [allAgents, setAllAgents] = useState<PayoutAgent[] | null>(null);
+  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
 
   const [amount, setAmount] = useState("");
   const [from, setFrom] = useState(defaultCurrency ?? wallets[0]?.currency ?? "USD");
@@ -75,7 +77,7 @@ export default function NewReceiverFlow({ senderId, wallets, defaultCurrency, on
   const short = !!wallet && total > wallet.balance;
   const blocked = cross && quote && !quote.ok ? quote.blockedReason : null;
   const currencies = Array.from(new Set([...wallets.map((w) => w.currency), ...(defaultCurrency ? [defaultCurrency] : []), from]));
-  const chosenAgent = agents?.find((a) => a.id === agentId) ?? null;
+  const chosenAgent = agents?.find((a) => a.id === agentId) ?? allAgents?.find((a) => a.id === agentId) ?? null;
 
   useEffect(() => {
     const ids = [phone.trim().length >= 7 ? phone.trim() : "", email.includes("@") ? email.trim() : ""].filter(Boolean);
@@ -94,17 +96,22 @@ export default function NewReceiverFlow({ senderId, wallets, defaultCurrency, on
   useEffect(() => {
     if (step !== "how" || method !== "cash_pickup") return;
     let live = true;
-    setAgents(null); setLocated(false);
+    setAgents(null); setLocated(false); setAllAgents(null); setCoords(null);
     void (async () => {
       const at = await geocodeAddress(address.trim(), city.trim(), country);
       let list: PayoutAgent[] = [];
       if (at) { try { await ensureDemoAgentsNear({ country, city: city.trim(), address: address.trim(), lat: at.lat, lng: at.lng }); } catch { /* demo helper only */ } }
       try { list = await findPayoutAgents({ country, city: city.trim(), lat: at?.lat, lng: at?.lng }); } catch { /* keep empty */ }
       if (!live) return;
+      setCoords(at ? { lat: at.lat, lng: at.lng } : null);
       setLocated(!!at); setAgents(list); setAgentId((cur) => (cur && list.some((a) => a.id === cur) ? cur : list[0]?.id ?? null));
     })();
     return () => { live = false; };
   }, [step, method, country, city, address]);
+
+  const showAllInCountry = async () => {
+    try { setAllAgents(await listCountryAgents({ country, lat: coords?.lat, lng: coords?.lng })); } catch { setAllAgents([]); }
+  };
 
   const pickReceiver = (r: Receiver) => {
     setFullName(r.fullName); setPhone(r.phone ?? ""); setCountry(r.country ?? ""); setCity(r.city ?? ""); setAddress(r.address ?? ""); setEmail(r.email ?? "");
@@ -327,6 +334,22 @@ export default function NewReceiverFlow({ senderId, wallets, defaultCurrency, on
                         {(a.hours || a.phone) && <div className="text-[10px] text-muted-foreground">{[a.hours, a.phone].filter(Boolean).join(" · ")}</div>}
                       </button>
                     ))}
+                    <div className="text-[11px] text-muted-foreground">{t("p2p.new.pickupAnywhere", { country })}</div>
+                    {agents !== null && allAgents === null && (
+                      <button onClick={() => void showAllInCountry()} className="text-[11px] font-semibold text-primary cursor-pointer">{t("p2p.new.agents.showAll", { country })}</button>
+                    )}
+                    {allAgents && (
+                      <div className="space-y-1.5">
+                        <div className="text-[11px] font-semibold">{t("p2p.new.agents.allTitle", { country })}</div>
+                        {allAgents.filter((a) => !(agents ?? []).some((x) => x.id === a.id)).map((a) => (
+                          <button key={a.id} onClick={() => setAgentId(a.id)} aria-pressed={agentId === a.id}
+                            className={cn("w-full text-left rounded-lg border px-3 py-2 cursor-pointer", agentId === a.id ? "border-primary bg-primary/5" : "border-border hover:border-primary/40")}>
+                            <div className="text-xs font-semibold">{a.name} <span className="font-normal text-muted-foreground">· {a.kind === "payrus_direct" ? t("p2p.new.agents.direct") : t("p2p.new.agents.correspondent")}</span></div>
+                            <div className="text-[11px] text-muted-foreground">{a.address}, {a.city}{a.distanceKm != null ? ` · ${t("p2p.new.agents.away", { km: a.distanceKm })}` : ""}</div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </>
               )}
@@ -410,6 +433,7 @@ export default function NewReceiverFlow({ senderId, wallets, defaultCurrency, on
               <div className="text-3xl font-mono font-bold tracking-widest">{receipt.pickupCode}</div>
               <button onClick={() => { void navigator.clipboard?.writeText(receipt.pickupCode ?? ""); toast.success(t("p2p.new.copied")); }} className="text-[11px] text-primary font-semibold cursor-pointer inline-flex items-center gap-1"><Copy size={11} />{t("p2p.new.copy")}</button>
               {receipt.agentName && <p className="text-xs font-semibold">{t("p2p.new.pickupAt", { agent: receipt.agentName, address: receipt.agentAddress ?? "" })}</p>}
+              <p className="text-xs text-muted-foreground">{t("p2p.new.pickupAnywhere", { country })}</p>
               <p className="text-xs text-muted-foreground">{t("p2p.new.pickupHelp", { name: receipt.receiverName, idType: idLabel, idNumber })}</p>
             </div>
           )}

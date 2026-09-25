@@ -371,6 +371,12 @@ export async function findPayoutAgents(a: { country: string; city: string; lat?:
   return ((mustNotError(res, "findPayoutAgents") ?? []) as Record<string, unknown>[]).map((r) => ({ ...camelRow<PayoutAgent>(r), distanceKm: r.distance_km == null ? null : Number(r.distance_km) }));
 }
 
+// Every cash-pickup point in the receiver's country (migration 0042) — the nearby list is only a suggestion.
+export async function listCountryAgents(a: { country: string; lat?: number | null; lng?: number | null }): Promise<PayoutAgent[]> {
+  const res = await supabase.rpc("list_country_agents", { p_country: a.country, p_lat: a.lat ?? null, p_lng: a.lng ?? null, p_limit: 30 });
+  return ((mustNotError(res, "listCountryAgents") ?? []) as Record<string, unknown>[]).map((r) => ({ ...camelRow<PayoutAgent>(r), distanceKm: r.distance_km == null ? null : Number(r.distance_km) }));
+}
+
 export async function listMyPayouts(): Promise<PayoutRow[]> {
   const res = await supabase.rpc("list_my_payouts", { p_limit: 20 });
   return ((mustNotError(res, "listMyPayouts") ?? []) as Record<string, unknown>[]).map((r) => ({
