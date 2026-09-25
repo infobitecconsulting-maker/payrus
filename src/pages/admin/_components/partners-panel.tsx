@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils.ts";
 import { useMyPermissions } from "@/hooks/use-backend.ts";
 import PayoutTypesPanel from "./payout-types-panel.tsx";
 import {
-  contractReadiness, contractTerms, draftOfferWithAi, importOffer, integrationTasks, listContracts, listPolicies, recordPrefund, setAdapter,
+  contractReadiness, contractTerms, listPriorities, setPriority, draftOfferWithAi, importOffer, integrationTasks, listContracts, listPolicies, recordPrefund, setAdapter,
   setContractStatus, setIntegrationStep, setPolicy, setTermActivation, simulatePricing,
   type ContractRow, type IntegrationTask, type PolicyRow, type ReadinessRow, type SimRow, type TermRow,
 } from "@/lib/partners.ts";
@@ -30,10 +30,13 @@ function Detail({ c, reload }: { c: ContractRow; reload: () => void }) {
   const [tasks, setTasks] = useState<IntegrationTask[]>([]);
   const [terms, setTerms] = useState<TermRow[]>([]);
   const [amount, setAmount] = useState("");
+  const perms = useMyPermissions();
+  const [prio, setPrio] = useState<string>("");
   const refresh = useCallback(() => {
     void contractReadiness(c.contractId).then(setReady).catch((e) => toast.error(errText(e)));
     void integrationTasks(c.contractId).then(setTasks).catch(() => undefined);
     void contractTerms(c.contractId).then(setTerms).catch(() => undefined);
+    void listPriorities().then((m) => setPrio(String(m[c.contractId] ?? ""))).catch(() => undefined);
   }, [c.contractId]);
   useEffect(refresh, [refresh]);
   const run = (fn: () => Promise<unknown>) => { fn().then(() => { toast.success("Saved"); refresh(); reload(); }).catch((e) => toast.error(errText(e))); };
@@ -64,6 +67,12 @@ function Detail({ c, reload }: { c: ContractRow; reload: () => void }) {
         {tasks.map((t) => (
           <label key={t.step} className="flex items-center gap-2 text-xs"><input type="checkbox" checked={t.done} onChange={(e) => run(() => setIntegrationStep(c.contractId, t.step, e.target.checked))} />{t.label}</label>
         ))}
+      </div>
+      <div className="border-t border-border pt-3 flex items-center gap-2 flex-wrap text-xs">
+        <span className="font-bold">Routing priority (1 = first)</span>
+        <input className={cn(field, "w-20")} type="number" min={1} max={1000} disabled={!perms?.isSuperadmin} aria-label="Routing priority" value={prio} onChange={(e) => setPrio(e.target.value)} />
+        <button className={btn} disabled={!perms?.isSuperadmin || !Number(prio)} onClick={() => { const r = window.prompt("Written reason (5+ characters):"); if (r === null) return; run(() => setPriority(c.contractId, Number(prio), r)); }}>Save priority</button>
+        <span className="text-muted-foreground">Lower numbers are used first on a corridor; the pricing objective picks between equals.</span>
       </div>
       <div className="border-t border-border pt-3 flex items-center gap-2 flex-wrap text-xs">
         <span className="font-bold">Prefund: {n2(c.prefundBalance)} {c.settlementCurrency}</span>
