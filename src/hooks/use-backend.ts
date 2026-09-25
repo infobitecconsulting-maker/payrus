@@ -100,9 +100,9 @@ export function useMyPayouts(enabled: boolean) {
 export function useSendToReceiverMutation() {
   const queryClient = useQueryClient();
   const mutation = useReactMutation({
-    mutationFn: async (a: backend.ReceiverInput & { senderId: string; amount: number; from: string; note?: string }) => {
+    mutationFn: async (a: backend.ReceiverInput & { senderId: string; amount: number; from: string; note?: string; agentId?: string }) => {
       const receiverId = await backend.saveReceiver(a);
-      return backend.sendToReceiver({ senderId: a.senderId, receiverId, amount: a.amount, from: a.from, note: a.note });
+      return backend.sendToReceiver({ senderId: a.senderId, receiverId, amount: a.amount, from: a.from, note: a.note, agentId: a.agentId });
     },
     onSuccess: (_d, v) => {
       void queryClient.invalidateQueries({ queryKey: ["walletViews", v.senderId] });

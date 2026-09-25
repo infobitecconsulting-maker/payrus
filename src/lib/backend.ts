@@ -321,18 +321,22 @@ export async function deleteSavedRecipient(id: string): Promise<void> {
 export type PayoutMethod = "mobile_money" | "bank" | "cash_pickup";
 export interface Receiver {
   id: string; fullName: string; country: string | null; currency: string | null; deliveryMethod: PayoutMethod; provider: string | null;
-  account: string; phone: string | null; idType: string | null; idNumber: string | null; city: string | null; timesSent: number; lastSentAt: string | null;
+  account: string; phone: string | null; idType: string | null; idNumber: string | null; city: string | null; address: string | null; email: string | null; timesSent: number; lastSentAt: string | null;
 }
 export interface PayoutRow {
   id: string; reference: string | null; receiverName: string; country: string | null; deliveryMethod: PayoutMethod; provider: string | null;
   accountMasked: string; amount: number; fromCurrency: string; toCurrency: string; receiveAmount: number;
-  status: "processing" | "ready_for_pickup" | "paid_out" | "blocked" | "cancelled"; pickupCode: string | null; createdAt: string; completedAt: string | null;
+  status: "processing" | "ready_for_pickup" | "paid_out" | "blocked" | "cancelled"; pickupCode: string | null; agentName: string | null; agentAddress: string | null; createdAt: string; completedAt: string | null;
 }
 export interface ReceiverInput {
-  fullName: string; country: string; currency: string; deliveryMethod: PayoutMethod; provider?: string; account?: string; phone?: string;
-  idType?: string; idNumber?: string; city?: string;
+  fullName: string; phone: string; country: string; city: string; address: string; email?: string; currency: string; deliveryMethod: PayoutMethod;
+  provider?: string; account?: string; idType?: string; idNumber?: string;
 }
-export interface PayoutReceipt { reference: string; payoutStatus: PayoutRow["status"]; pickupCode: string | null; receiveAmount: number; toCurrency: string; receiverName: string; deliveryMethod: PayoutMethod }
+export interface PayoutAgent {
+  id: string; name: string; kind: "payrus_direct" | "correspondent"; partner: string | null; country: string; city: string; address: string; phone: string | null;
+  hours: string | null; distanceKm: number | null; matchLevel: "city" | "country" | "nearby";
+}
+export interface PayoutReceipt { reference: string; payoutStatus: PayoutRow["status"]; pickupCode: string | null; receiveAmount: number; toCurrency: string; receiverName: string; deliveryMethod: PayoutMethod; agentName: string | null; agentAddress: string | null }
 
 const camelRow = <T,>(r: Record<string, unknown>): T => Object.fromEntries(Object.entries(r).map(([k, v]) => [camelKey(k), v])) as T;
 
@@ -343,16 +347,28 @@ export async function listMyReceivers(): Promise<Receiver[]> {
 
 export async function saveReceiver(a: ReceiverInput): Promise<string> {
   const res = await supabase.rpc("save_receiver", {
-    p_full_name: a.fullName, p_country: a.country, p_currency: a.currency, p_delivery_method: a.deliveryMethod, p_provider: a.provider ?? null,
-    p_account: a.account ?? null, p_phone: a.phone ?? null, p_id_type: a.idType ?? null, p_id_number: a.idNumber ?? null, p_city: a.city ?? null,
+    p_full_name: a.fullName, p_phone: a.phone, p_country: a.country, p_city: a.city, p_address: a.address, p_email: a.email ?? null,
+    p_currency: a.currency, p_delivery_method: a.deliveryMethod, p_provider: a.provider ?? null, p_account: a.account ?? null,
+    p_id_type: a.idType ?? null, p_id_number: a.idNumber ?? null,
   });
   return mustHaveData(res, "saveReceiver") as string;
 }
 
-export async function sendToReceiver(a: { senderId: string; receiverId: string; amount: number; from: string; note?: string }): Promise<PayoutReceipt> {
-  const res = await supabase.rpc("send_to_receiver", { p_sender_id: a.senderId, p_receiver_id: a.receiverId, p_amount: a.amount, p_from: a.from, p_note: a.note ?? null });
+export async function sendToReceiver(a: { senderId: string; receiverId: string; amount: number; from: string; note?: string; agentId?: string }): Promise<PayoutReceipt> {
+  const res = await supabase.rpc("send_to_receiver", { p_sender_id: a.senderId, p_receiver_id: a.receiverId, p_amount: a.amount, p_from: a.from, p_note: a.note ?? null, p_agent_id: a.agentId ?? null });
   const r = ((mustHaveData(res, "sendToReceiver") as Record<string, unknown>[]))[0];
-  return { reference: r.reference as string, payoutStatus: r.payout_status as PayoutRow["status"], pickupCode: (r.pickup_code as string) ?? null, receiveAmount: Number(r.receive_amount), toCurrency: r.to_currency as string, receiverName: r.receiver_name as string, deliveryMethod: r.delivery_method as PayoutMethod };
+  return { reference: r.reference as string, payoutStatus: r.payout_status as PayoutRow["status"], pickupCode: (r.pickup_code as string) ?? null, receiveAmount: Number(r.receive_amount), toCurrency: r.to_currency as string, receiverName: r.receiver_name as string, deliveryMethod: r.delivery_method as PayoutMethod, agentName: (r.agent_name as string) ?? null, agentAddress: (r.agent_address as string) ?? null };
+}
+
+// Demo mode (migration 0039): tops the located area up with sample agents. Best-effort, never blocks the flow.
+export async function ensureDemoAgentsNear(a: { country: string; city: string; address: string; lat: number; lng: number }): Promise<void> {
+  await supabase.rpc("ensure_demo_agents_near", { p_country: a.country, p_city: a.city, p_address: a.address, p_lat: a.lat, p_lng: a.lng });
+}
+
+// PayRus direct and corresponding partner agents near a receiver (migration 0039).
+export async function findPayoutAgents(a: { country: string; city: string; lat?: number | null; lng?: number | null; service?: PayoutMethod }): Promise<PayoutAgent[]> {
+  const res = await supabase.rpc("find_payout_agents", { p_country: a.country, p_city: a.city, p_lat: a.lat ?? null, p_lng: a.lng ?? null, p_service: a.service ?? "cash_pickup", p_limit: 5 });
+  return ((mustNotError(res, "findPayoutAgents") ?? []) as Record<string, unknown>[]).map((r) => ({ ...camelRow<PayoutAgent>(r), distanceKm: r.distance_km == null ? null : Number(r.distance_km) }));
 }
 
 export async function listMyPayouts(): Promise<PayoutRow[]> {
