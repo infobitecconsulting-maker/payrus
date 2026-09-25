@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import {
-  ArrowDownLeft, ArrowLeft, Banknote, Copy, CreditCard, Flag, Globe, MapPin, Plus, Receipt, Repeat, Send, Wallet,
+  ArrowDownLeft, ArrowLeft, Banknote, Copy, CreditCard, FileDown, Flag, Globe, MapPin, Plus, Receipt, Repeat, Send, Wallet,
 } from "lucide-react";
 import { cn } from "@/lib/utils.ts";
 import PageHeader from "@/components/ui/page-header.tsx";
@@ -51,7 +51,8 @@ export default function TransactionDetailPage() {
   const access = useFeatureAccess();
   const list = useRecentTransfersForUser(currentUser?.id, 200);
   const detailQuery = useTransactionDetail(reference);
-  const [showReceipt, setShowReceipt] = useState(false);
+  const navigate = useNavigate();
+  const [showReceipt, setShowReceipt] = useState<false | "view" | "pdf">(false);
 
   // The list is already cached, so the basics show instantly; the full detail (fee, FX, payout) fills in when it arrives.
   const fromList = list?.find((x) => x.reference === reference);
@@ -84,9 +85,13 @@ export default function TransactionDetailPage() {
   const restricted = t("txd.restricted");
 
   // Actions that lead to the related feature. A restricted profile sees the button disabled with the reason, never a dead click.
-  type Action = { key: string; label: string; icon: typeof Send; to?: string; onClick?: () => void; feature?: string; primary?: boolean };
+  type Action = { key: string; label: string; icon: typeof Send; to?: string; onClick?: () => void; feature?: string; primary?: boolean; unavailable?: string };
   const actions: Action[] = [];
-  actions.push({ key: "receipt", label: t("txd.action.receipt"), icon: Receipt, onClick: () => setShowReceipt(true), primary: true });
+  // The receipt (PDF first, print second) is proof of a finished transaction, so it is offered once the transaction is completed.
+  const receiptStatus: "completed" | "pending" | "failed" = ["paid", "resolved"].includes(tr.state) ? "completed"
+    : ["failed", "reversed", "cancelled", "expired"].includes(tr.state) ? "failed" : "pending";
+  actions.push({ key: "pdf", label: t("receipt.download"), icon: FileDown, onClick: () => setShowReceipt("pdf"), primary: true, unavailable: receiptStatus === "completed" ? undefined : t("receipt.notCompleted") });
+  actions.push({ key: "receipt", label: t("txd.action.receipt"), icon: Receipt, onClick: () => setShowReceipt("view") });
   if (pay) {
     actions.push({ key: "track", label: t("txd.action.trackPayout"), icon: Banknote, to: `${base}/p2p?mode=new`, feature: "p2p" });
     if (pay.receiverId) actions.push({ key: "again", label: t("txd.action.sendAgain", { name: pay.receiverName }), icon: Send, to: `${base}/p2p?mode=new&receiver=${pay.receiverId}`, feature: "p2p" });
@@ -96,6 +101,7 @@ export default function TransactionDetailPage() {
   actions.push({ key: "wallet", label: t("txd.action.wallet"), icon: Wallet, to: `${base}/wallet` });
   actions.push({ key: "report", label: t("txd.action.report"), icon: Flag, to: `${base}/disputes?ref=${encodeURIComponent(tr.reference)}` });
 
+  const related = actions.find((a) => a.to && !["wallet", "report", "track"].includes(a.key) && access.can(a.feature)) ?? actions.find((a) => a.key === "wallet");
   const actionCls = (primary?: boolean, disabled?: boolean) => cn(
     "inline-flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-xs font-semibold transition-colors",
     primary ? "bg-primary text-primary-foreground hover:opacity-90" : "bg-card border border-border text-foreground hover:border-primary/40",
@@ -173,15 +179,16 @@ export default function TransactionDetailPage() {
       <div className="grid grid-cols-2 gap-2 mb-6">
         {actions.map((a) => {
           const allowed = access.can(a.feature);
-          const disabled = !allowed;
+          const disabled = !allowed || !!a.unavailable;
           const Ic = a.icon;
           const content = (<><Ic size={15} />{a.label}</>);
-          if (disabled) return <button key={a.key} type="button" disabled title={access.loading ? t("txd.loading") : restricted} aria-label={`${a.label} — ${restricted}`} className={actionCls(a.primary, true)}>{content}</button>;
+          if (disabled) return <button key={a.key} type="button" disabled title={a.unavailable ?? (access.loading ? t("txd.loading") : restricted)} aria-label={`${a.label} — ${a.unavailable ?? restricted}`} className={actionCls(a.primary, true)}>{content}</button>;
           if (a.to) return <Link key={a.key} to={a.to} className={actionCls(a.primary)}>{content}</Link>;
           return <button key={a.key} type="button" onClick={a.onClick} className={actionCls(a.primary)}>{content}</button>;
         })}
       </div>
       {actions.some((a) => a.feature && !access.can(a.feature)) && !access.loading && <p className="text-[11px] text-muted-foreground -mt-4 mb-6">{restricted}</p>}
+      {receiptStatus !== "completed" && <p className="text-[11px] text-muted-foreground -mt-4 mb-6">{t("receipt.notCompleted")}</p>}
 
       {showReceipt && (
         <TransactionReceipt
@@ -193,10 +200,17 @@ export default function TransactionDetailPage() {
           convertedCurrency={rem?.toCurrency}
           recipient={pay?.receiverName}
           method={pay ? t(`p2p.new.method.${pay.deliveryMethod}`) : typeLabel(tr.type)}
+          status={receiptStatus}
+          autoDownload={showReceipt === "pdf"}
+          extraRows={[
+            ...(rem ? [[t("txd.route"), `${rem.fromCurrency} → ${rem.toCurrency}`] as [string, string]] : []),
+            ...(pay ? [[t("txd.country"), pay.country ? t(`p2p.country.${pay.country}`, { defaultValue: pay.country }) : "—"] as [string, string]] : []),
+          ]}
+          newTransactionLabel={related?.label}
+          onNewTransaction={() => { setShowReceipt(false); if (related?.to) navigate(related.to); }}
           fee={fee != null ? `${tr.currency} ${fee.toFixed(2)}` : undefined}
           date={new Date(tr.createdAt).toLocaleString()}
           onClose={() => setShowReceipt(false)}
-          onNewTransaction={() => setShowReceipt(false)}
         />
       )}
     </div>

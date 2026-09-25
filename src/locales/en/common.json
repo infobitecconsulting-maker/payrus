@@ -1956,5 +1956,14 @@
   "cta.requested": "{{action}}: request submitted.",
   "cta.refresh": "Refresh",
   "cta.refreshed": "Data refreshed",
-  "cta.settings": "Settings"
+  "cta.settings": "Settings",
+  "receipt.pending": "Pending",
+  "receipt.failed": "Failed",
+  "receipt.notCompleted": "The PDF and print options are available once the transaction is completed.",
+  "receipt.pdfSaved": "Receipt saved as PDF",
+  "receipt.pdfFailed": "Could not create the PDF",
+  "receipt.printFailed": "Could not open the print dialog. Download the PDF instead.",
+  "receipt.generating": "Preparing…",
+  "receipt.type_deposit": "Deposit",
+  "receipt.type_convert": "Conversion"
 }

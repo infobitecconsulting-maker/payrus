@@ -1940,5 +1940,14 @@
   "cta.requested": "{{action}}: solicitud enviada.",
   "cta.refresh": "Actualizar",
   "cta.refreshed": "Datos actualizados",
-  "cta.settings": "Ajustes"
+  "cta.settings": "Ajustes",
+  "receipt.pending": "Pendiente",
+  "receipt.failed": "Fallido",
+  "receipt.notCompleted": "Las opciones de PDF e impresión estarán disponibles cuando la transacción esté completada.",
+  "receipt.pdfSaved": "Recibo guardado en PDF",
+  "receipt.pdfFailed": "No se pudo crear el PDF",
+  "receipt.printFailed": "No se pudo abrir la impresión. Descarga el PDF.",
+  "receipt.generating": "Preparando…",
+  "receipt.type_deposit": "Depósito",
+  "receipt.type_convert": "Conversión"
 }
