@@ -362,6 +362,16 @@ export async function listMyPayouts(): Promise<PayoutRow[]> {
   }));
 }
 
+export interface PickupResult { ok: boolean; reason: string | null; receiverName: string | null; amount: number | null; currency: string | null }
+
+// Agent counter (migration 0038): pays out a cash pickup when code and ID number both match.
+export async function confirmPickup(code: string, idNumber: string): Promise<PickupResult> {
+  const res = await supabase.rpc("payout_confirm_pickup", { p_code: code, p_id_number: idNumber });
+  if (res.error) throw new Error(res.error.message);
+  const r = ((res.data ?? []) as Record<string, unknown>[])[0];
+  return { ok: Boolean(r?.ok), reason: (r?.reason as string) ?? null, receiverName: (r?.receiver_name as string) ?? null, amount: r?.amount == null ? null : Number(r.amount), currency: (r?.currency as string) ?? null };
+}
+
 export type CorridorBlockReason = "invalid" | "no_rate" | "suspended" | "not_offered" | "below_min" | "above_max" | "below_floor";
 export interface RemittanceQuote {
   ok: boolean; blockedReason: CorridorBlockReason | null; appliedMargin: number; fee: number; fxCost: number;

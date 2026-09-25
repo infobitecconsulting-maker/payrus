@@ -13,6 +13,8 @@ import { cn } from "@/lib/utils.ts";
 import { toast } from "sonner";
 import { requireStepUp } from "@/lib/mfa.ts";
 import NewReceiverFlow from "./_components/new-receiver-flow.tsx";
+import PickupCounter from "./_components/pickup-counter.tsx";
+import { useProfile } from "@/contexts/profile-context.tsx";
 import { useP2pTransferMutation, useWalletViewsForUser, useMyCounterparts } from "@/hooks/use-backend.ts";
 import { resolveUserByIdentifier, type Counterpart, type P2pReceipt } from "@/lib/backend.ts";
 import { PayRusLogo } from "@/pages/layout/AppLayout.tsx";
@@ -130,6 +132,8 @@ export default function P2PTransfer() {
   const [realSearching, setRealSearching] = useState(false);
 
   const currentUser = useCurrentAppUser();
+  const { profile } = useProfile();
+  const isAgentCounter = profile?.type === "agent" || profile?.type === "admin";
   const [mode, setMode] = useState<"member" | "new">("member");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [showSuggest, setShowSuggest] = useState(false);
@@ -333,6 +337,8 @@ export default function P2PTransfer() {
                 </button>
               )}
             </div>}
+
+            {!demoMode && isAgentCounter && <PickupCounter />}
 
             {!demoMode && (
               <div className="mb-5 space-y-3">
