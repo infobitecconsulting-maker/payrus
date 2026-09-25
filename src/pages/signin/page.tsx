@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { ArrowLeft } from "lucide-react";
@@ -12,7 +12,7 @@ import { MfaCodeForm } from "@/components/mfa/mfa-ui.tsx";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog.tsx";
 import { supabase } from "@/lib/supabase-client.ts";
 import { OAUTH_PROVIDERS, authCallbackUrl, signInWithOAuthProvider, type OAuthProviderId } from "@/lib/supabase-providers.ts";
-import { listUserRolesForUser, resolveEmailByIdentifier, upsertSupabaseUser as callUpsertSupabaseUser } from "@/lib/backend.ts";
+import { getSessionAppUser, listUserRolesForUser, resolveEmailByIdentifier, upsertSupabaseUser as callUpsertSupabaseUser } from "@/lib/backend.ts";
 
 type SecondaryPanel = "magic" | "phone" | "sso" | null;
 
@@ -69,6 +69,19 @@ export default function SignIn() {
       finishingRef.current = false;
     }
   };
+
+  // Already signed in (live session)? Continue straight into the app.
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const existing = await getSessionAppUser();
+        if (!cancelled && existing) await finishLogin(existing.id, existing.name ?? "");
+      } catch { /* not signed in — show the form */ }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleLogin = async () => {
     if (!identifier.trim() || !password) {

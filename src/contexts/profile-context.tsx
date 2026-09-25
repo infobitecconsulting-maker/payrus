@@ -56,7 +56,14 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   // Falling back to "guest" for a visitor with no local identity would let
   // unrelated accounts on the same browser share one profile's data.
   const storageKey = `payrus_profile:${getLocalUserId() ?? "guest"}`;
-  const [profile, setProfileState] = useState<ProfileData | null>(null);
+  const [profile, setProfileState] = useState<ProfileData | null>(() => {
+    try {
+      const stored = localStorage.getItem(storageKey);
+      return stored ? (JSON.parse(stored) as ProfileData) : null;
+    } catch {
+      return null;
+    }
+  });
   const roleDefinitions = useRoleDefinitions();
   if (roleDefinitions) loadTemplates(roleDefinitions);
 

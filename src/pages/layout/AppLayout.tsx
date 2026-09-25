@@ -8,7 +8,10 @@ import LocaleSwitcher from "@/components/ui/locale-switcher.tsx";
 import ProfileSwitcher from "@/components/ui/profile-switcher.tsx";
 import { useProfile } from "@/contexts/profile-context.tsx";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet.tsx";
-import { useCurrentAppUser } from "@/hooks/use-current-app-user.ts";
+import { useCurrentAppUserState } from "@/hooks/use-current-app-user.ts";
+import { listUserRolesForUser } from "@/lib/backend.ts";
+import { routeAfterIdentity } from "@/lib/post-auth-routing.ts";
+import { getDefaultProfile, type ProfileType } from "@/contexts/profile-context.tsx";
 import { clearLocalUserId, getLocalUserId } from "@/lib/local-user.ts";
 import { useProfileFeatures, useMyPermissions, useMyOrgMemberships } from "@/hooks/use-backend.ts";
 import SystemStatusPill from "@/components/ui/system-status-pill.tsx";
@@ -43,9 +46,10 @@ export default function AppLayout() {
   const location = useLocation();
   const { lng } = useParams<{ lng: string }>();
   const { t } = useTranslation("common");
-  const { profile, clearProfile } = useProfile();
+  const { profile, clearProfile, setProfile } = useProfile();
   const navigate = useNavigate();
-  const currentUser = useCurrentAppUser();
+  const { user: currentUser, isFetched: sessionFetched } = useCurrentAppUserState();
+  const [autoRouting, setAutoRouting] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const base = `/${lng ?? "en"}`;
   // "Logged in" for navigation purposes means having an active profile.
@@ -103,7 +107,35 @@ export default function AppLayout() {
   // Guard: send anonymous/no-profile visitors to the welcome screen first
   const publicPaths = ["/welcome", "/profile", "/investor", "/fundraise", "/savings", "/wallet", "/payments"];
   const isPublicPath = publicPaths.some(p => location.pathname.endsWith(p));
+
+  // A live session without a saved profile (first load on this browser, or the
+  // profile was cleared) goes straight in: one role activates it and keeps the
+  // requested page, several roles / none go to the role picker. Only a visitor
+  // with no session is sent to the welcome screen.
+  useEffect(() => {
+    if (profile !== null || isPublicPath || !sessionFetched || !currentUser || autoRouting) return;
+    setAutoRouting(true);
+    void (async () => {
+      try {
+        const roles = await listUserRolesForUser(currentUser.id);
+        if (roles.length === 1) {
+          const p = getDefaultProfile(roles[0].role as ProfileType);
+          p.name = roles[0].kind === "organisation" && roles[0].orgName ? roles[0].orgName : currentUser.name ?? p.name;
+          setProfile(p);
+        } else {
+          routeAfterIdentity({ userId: currentUser.id, roles, navigate, base, setProfile, displayName: currentUser.name ?? undefined });
+        }
+      } catch {
+        navigate(`${base}/welcome`, { replace: true });
+      } finally {
+        setAutoRouting(false);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile, isPublicPath, sessionFetched, currentUser?.id]);
+
   if (profile === null && !isPublicPath) {
+    if (!sessionFetched || currentUser) return null;
     return <Navigate to={`${base}/welcome`} replace />;
   }
 

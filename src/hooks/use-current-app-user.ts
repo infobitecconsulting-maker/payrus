@@ -11,7 +11,7 @@ import { clearLocalUserId, setLocalUserId } from "@/lib/local-user.ts";
  * debited can never differ from the account that is logged in. The
  * localStorage id is only kept in sync for the few legacy readers.
  */
-export function useCurrentAppUser() {
+export function useCurrentAppUserState() {
   const queryClient = useQueryClient();
 
   useEffect(() => {
@@ -32,5 +32,9 @@ export function useCurrentAppUser() {
     else clearLocalUserId();
   }, [data, isFetched]);
 
-  return data ?? undefined;
+  return { user: data ?? undefined, isFetched };
+}
+
+export function useCurrentAppUser() {
+  return useCurrentAppUserState().user;
 }
