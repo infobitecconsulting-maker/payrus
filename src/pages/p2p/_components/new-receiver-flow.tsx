@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { ArrowLeft, Smartphone, Landmark, Banknote, BadgeCheck, Wallet, Copy, MapPin, Store } from "lucide-react";
@@ -26,8 +26,9 @@ const errText = (e: unknown) => (e instanceof Error ? e.message.replace(/^[A-Za-
 
 type Step = "who" | "how" | "amount" | "confirm" | "success";
 
-export default function NewReceiverFlow({ senderId, wallets, defaultCurrency, onExit, onSendToMember }: {
+export default function NewReceiverFlow({ senderId, wallets, defaultCurrency, onExit, onSendToMember, initialReceiverId }: {
   senderId: string;
+  initialReceiverId?: string;
   wallets: { currency: string; balance: number }[];
   defaultCurrency: string | null;
   onExit: () => void;
@@ -35,7 +36,8 @@ export default function NewReceiverFlow({ senderId, wallets, defaultCurrency, on
 }) {
   const { t } = useTranslation("common");
   const [step, setStep] = useState<Step>("who");
-  const receivers = useMyReceivers(true).data ?? [];
+  const receiversData = useMyReceivers(true).data;
+  const receivers = useMemo(() => receiversData ?? [], [receiversData]);
   const payouts = useMyPayouts(true).data ?? [];
   const send = useSendToReceiverMutation();
 
@@ -170,6 +172,13 @@ export default function NewReceiverFlow({ senderId, wallets, defaultCurrency, on
     setMethod(r.deliveryMethod); setProvider(r.provider ?? ""); setAccount(r.deliveryMethod === "bank" ? r.account : "");
     setIdType(r.idType ?? ID_TYPES[0]); setIdNumber(r.idNumber ?? "");
   };
+
+  const [preselected, setPreselected] = useState(false);
+  useEffect(() => {
+    if (preselected || !initialReceiverId || receivers.length === 0) return;
+    const r = receivers.find((x) => x.id === initialReceiverId);
+    if (r) { pickReceiver(r); setPreselected(true); }
+  }, [receivers, initialReceiverId, preselected]);
 
   const basicsOk = fullName.trim().length >= 2 && phone.trim().length >= 7 && !!country && !!city.trim() && address.trim().length >= 5;
   const channelOk = method === "mobile_money" ? !!provider && (account || phone).trim().length >= 7

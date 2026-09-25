@@ -313,7 +313,7 @@ export default function Dashboard() {
           <div>
             <div className="flex items-center justify-between mb-2.5">
               <h2 className="text-sm font-semibold text-foreground">{t("dashboard.mobileWallets")}</h2>
-              <button onClick={() => toast.info(t("dashboard.linkWalletSoon"))} className="text-[11px] text-primary flex items-center gap-1 cursor-pointer hover:underline">
+              <button type="button" onClick={() => navigate(`/${lng}/settings`, { state: { section: "payments" } })} className="text-[11px] text-primary flex items-center gap-1 cursor-pointer hover:underline">
                 <Plus size={11} /> {t("dashboard.linkWallet")}
               </button>
             </div>

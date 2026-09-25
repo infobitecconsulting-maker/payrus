@@ -350,7 +350,7 @@ function DonateModal({ campaign, currentUserId, onDonate, onClose }: {
             <h3 className="font-black text-lg">Thank you!</h3>
             <p className="text-sm text-muted-foreground">Your donation to <span className="text-foreground font-semibold">{campaign.title}</span> has been processed and the campaign has been notified.</p>
             <div className="flex gap-2 w-full">
-              <Button variant="secondary" className="flex-1 text-xs" onClick={() => { toast.info("Share link copied!"); }}>
+              <Button variant="secondary" className="flex-1 text-xs" onClick={() => { void navigator.clipboard?.writeText(window.location.href).then(() => toast.success("Share link copied!"), () => toast.error("Could not copy the link")); }}>
                 <Share2 size={12} className="mr-1" /> Share
               </Button>
               <Button className="flex-1 text-xs" onClick={onClose}>Done</Button>
@@ -449,7 +449,7 @@ function CampaignDetail({ campaign, onBack, onDonate }: {
           <Button className="flex-1 font-bold" onClick={() => onDonate(campaign)}>
             <Heart size={15} className="mr-2" /> Donate Now
           </Button>
-          <Button variant="secondary" className="px-4" onClick={() => toast.info("Share link copied!")}>
+          <Button variant="secondary" className="px-4" onClick={() => { void navigator.clipboard?.writeText(window.location.href).then(() => toast.success("Share link copied!"), () => toast.error("Could not copy the link")); }}>
             <Share2 size={15} />
           </Button>
         </div>
@@ -473,6 +473,7 @@ function CreateCampaign({ currentUserId, onCreate, onBack }: {
   onBack: () => void;
 }) {
   const [form, setForm] = useState({ title: "", story: "", goal: "", category: "agriculture" as Category, deadline: "", org: "" });
+  const [photoName, setPhotoName] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
@@ -541,10 +542,11 @@ function CreateCampaign({ currentUserId, onCreate, onBack }: {
 
       <div className="flex-1 overflow-y-auto p-5 space-y-4">
         {/* Photo placeholder */}
-        <div className="h-28 border-2 border-dashed border-border rounded-2xl flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-primary/50 transition-colors">
+        <label htmlFor="campaign-photo" className="h-28 border-2 border-dashed border-border rounded-2xl flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-primary/50 focus-within:border-primary transition-colors">
           <Camera size={24} className="text-muted-foreground" />
-          <span className="text-xs text-muted-foreground">Add a campaign photo</span>
-        </div>
+          <span className="text-xs text-muted-foreground">{photoName ?? "Add a campaign photo"}</span>
+          <input id="campaign-photo" type="file" accept="image/*" className="sr-only" onChange={(e) => setPhotoName(e.target.files?.[0]?.name ?? null)} />
+        </label>
 
         <div className="space-y-1">
           <label className="text-xs font-semibold text-muted-foreground">Campaign title *</label>

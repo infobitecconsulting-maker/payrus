@@ -11,6 +11,9 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils.ts";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { useProfileFeatures, useMyPermissionsQuery } from "@/hooks/use-backend.ts";
 import { generateTechAnalysisPDF } from "./_components/tech-analysis-pdf.ts";
 import UsersPanel from "./_components/users-panel.tsx";
@@ -272,6 +275,8 @@ export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState<"overview" | "transactions" | "fx" | "corridors" | "pilot" | "demo" | "users" | "ledger" | "escalations" | "staff" | "operations" | "audit" | "config" | "access" | "organisations" | "partners">("users");
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const { t } = useTranslation("common");
   const { lng } = useParams<{ lng: string }>();
   const { profile, setProfile } = useProfile();
   const base = `/${lng ?? "en"}`;
@@ -376,7 +381,7 @@ export default function AdminDashboard() {
           >
             <FileDown size={13} /> Tech Analysis PDF
           </button>
-          <button className="w-8 h-8 rounded-xl bg-secondary border border-border flex items-center justify-center cursor-pointer hover:bg-secondary/80 transition-colors">
+          <button type="button" aria-label={t("cta.refresh")} title={t("cta.refresh")} onClick={() => { void queryClient.invalidateQueries(); toast.success(t("cta.refreshed")); }} className="w-8 h-8 rounded-xl bg-secondary border border-border flex items-center justify-center cursor-pointer hover:bg-secondary/80 transition-colors">
             <RefreshCw size={13} className="text-muted-foreground" />
           </button>
         </div>
@@ -736,7 +741,7 @@ export default function AdminDashboard() {
                       animate={{ opacity: 1, backgroundColor: "oklch(0 0 0 / 0)" }}
                       transition={{ duration: 1.2 }}
                       className={cn(
-                        "grid md:grid-cols-[1.5fr_1.2fr_0.8fr_0.7fr_0.7fr_0.8fr_0.7fr] gap-2 px-4 py-3 hover:bg-secondary/30 transition-colors cursor-pointer",
+                        "grid md:grid-cols-[1.5fr_1.2fr_0.8fr_0.7fr_0.7fr_0.8fr_0.7fr] gap-2 px-4 py-3 hover:bg-secondary/30 transition-colors",
                         newTxId === tx.id && "bg-primary/8"
                       )}
                     >
@@ -893,7 +898,7 @@ export default function AdminDashboard() {
               <div className="divide-y divide-border">
                 {corridorData.map((c, i) => (
                   <motion.div key={c.corridor} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.06 }}
-                    className="grid md:grid-cols-4 gap-2 px-4 py-3.5 hover:bg-secondary/30 transition-colors cursor-pointer">
+                    className="grid md:grid-cols-4 gap-2 px-4 py-3.5 hover:bg-secondary/30 transition-colors">
                     <div className="flex items-center gap-2">
                       <div className="w-7 h-7 rounded-lg bg-accent/10 flex items-center justify-center">
                         <ArrowDownLeft size={13} className="text-accent" />

@@ -18,6 +18,7 @@ import Dashboard from "./pages/dashboard/page.tsx";
 import Payments from "./pages/payments/page.tsx";
 import Remittance from "./pages/remittance/page.tsx";
 import Transactions from "./pages/transactions/page.tsx";
+import TransactionDetailPage from "./pages/transactions/detail.tsx";
 import Cards from "./pages/cards/page.tsx";
 import ProfileSelection from "./pages/profile/page.tsx";
 import P2PTransfer from "./pages/p2p/page.tsx";
@@ -86,6 +87,7 @@ export default function App() {
               <Route path="payments" element={<Payments />} />
               <Route path="remittance" element={<Remittance />} />
               <Route path="transactions" element={<Transactions />} />
+              <Route path="transactions/:reference" element={<TransactionDetailPage />} />
               <Route path="cards" element={<Cards />} />
               <Route path="p2p" element={<P2PTransfer />} />
               <Route path="groups" element={<GroupTransfers />} />

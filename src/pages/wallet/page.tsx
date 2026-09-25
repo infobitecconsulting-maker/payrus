@@ -44,6 +44,7 @@ export default function WalletPage() {
   /* ───────────────────── Top-up flow (existing) ───────────────────── */
   const [step, setStep] = useState<Step>("balance");
   const [method, setMethod] = useState<TopUpMethod | null>(null);
+  const [mobileOp, setMobileOp] = useState<string | null>(null);
   const [amount, setAmount] = useState("");
   const [currency, setCurrency] = useState(defaultCurrency);
   const [showCurrencyPicker, setShowCurrencyPicker] = useState(false);
@@ -446,7 +447,7 @@ export default function WalletPage() {
                     <p className="text-xs text-muted-foreground">{t("wallet.mobileDesc")}</p>
                     <div className="grid grid-cols-3 gap-2">
                       {["Orange Money", "MTN MoMo", "Airtel Money"].map(op => (
-                        <button key={op} className="p-2.5 rounded-xl bg-secondary border border-border text-xs font-medium text-center hover:border-primary/50 transition-colors cursor-pointer">
+                        <button key={op} type="button" onClick={() => setMobileOp(op)} aria-pressed={mobileOp === op} className={cn("p-2.5 rounded-xl border text-xs font-medium text-center transition-colors cursor-pointer", mobileOp === op ? "bg-primary/10 border-primary text-primary" : "bg-secondary border-border hover:border-primary/50")}>
                           {op}
                         </button>
                       ))}

@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { useFeatureAccess } from "@/hooks/use-feature-access.ts";
 import { useTranslation } from "react-i18next";
 import { motion, AnimatePresence } from "motion/react";
 import { useAddLinkedPaymentMethodMutation, useCardsForUser, useLinkedPaymentMethods, useSeedDefaultLinkedPaymentMethodsMutation } from "@/hooks/use-backend.ts";
@@ -280,6 +282,9 @@ function CardFace({
 /* ─── Main Page ────────────────────────────────────────── */
 export default function Cards() {
   const { t } = useTranslation("common");
+  const navigate = useNavigate();
+  const { lng } = useParams<{ lng: string }>();
+  const access = useFeatureAccess();
   const [cards, setCards] = useState<CardData[]>(CARDS.map(c => ({ ...c })));
   const [showBalances, setShowBalances] = useState(true);
   const [activeCard, setActiveCard] = useState(0);
@@ -490,10 +495,10 @@ export default function Cards() {
 
               {/* Quick actions */}
               <div className="grid grid-cols-2 gap-2">
-                <button onClick={() => toast.info(t("cards.toast.sendSoon"))} className="flex items-center gap-2 p-3 rounded-2xl bg-secondary border border-border hover:bg-primary/10 transition-colors cursor-pointer text-sm font-medium">
+                <button onClick={() => (access.can("p2p") ? navigate(`/${lng}/p2p`) : toast.info(t("txd.restricted")))} className="flex items-center gap-2 p-3 rounded-2xl bg-secondary border border-border hover:bg-primary/10 transition-colors cursor-pointer text-sm font-medium">
                   <ArrowUpRight size={16} className="text-primary" /> {t("cards.sendMoney")}
                 </button>
-                <button onClick={() => toast.info(t("cards.toast.topUpSoon"))} className="flex items-center gap-2 p-3 rounded-2xl bg-secondary border border-border hover:bg-primary/10 transition-colors cursor-pointer text-sm font-medium">
+                <button onClick={() => navigate(`/${lng}/wallet`)} className="flex items-center gap-2 p-3 rounded-2xl bg-secondary border border-border hover:bg-primary/10 transition-colors cursor-pointer text-sm font-medium">
                   <ArrowDownLeft size={16} className="text-accent" /> {t("cards.topUpCard")}
                 </button>
               </div>

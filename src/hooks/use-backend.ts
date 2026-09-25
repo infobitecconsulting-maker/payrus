@@ -999,3 +999,14 @@ export function useTravelInstallmentPlansForUser(userId: string | undefined) {
     enabled: !!userId,
   }).data;
 }
+
+// One transaction in full (migration 0050); polled while a payout is still moving so its status flips on screen.
+export function useTransactionDetail(reference: string | undefined) {
+  return useReactQuery({
+    queryKey: ["transactionDetail", reference],
+    queryFn: () => backend.getTransactionDetail(reference!),
+    enabled: !!reference,
+    refetchInterval: (q) => (q.state.data?.payout && ["processing", "ready_for_pickup"].includes(q.state.data.payout.status) ? 20_000 : false),
+    retry: false,
+  });
+}

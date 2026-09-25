@@ -566,7 +566,7 @@ export default function InvestorDeck() {
                 </div>
               </div>
               <p className="text-[11px] text-muted-foreground leading-relaxed">{org.role}</p>
-              <div className="mt-3 flex items-center gap-1 text-[10px] text-primary font-semibold cursor-pointer hover:underline">
+              <div className="mt-3 flex items-center gap-1 text-[10px] text-primary font-semibold">
                 <Landmark size={11} />
                 Regulatory roadmap available
               </div>
@@ -791,14 +791,14 @@ export default function InvestorDeck() {
               {t("investor.ctaDesc")}
             </p>
             <div className="flex flex-wrap items-center justify-center gap-4">
-              <button className="flex items-center gap-2 bg-primary text-primary-foreground font-bold px-6 py-3 rounded-xl hover:bg-primary/90 transition-colors text-sm cursor-pointer">
+              <a href={`mailto:partnerships@payrus.finance?subject=${encodeURIComponent(t("investor.requestDeck"))}`} className="flex items-center gap-2 bg-primary text-primary-foreground font-bold px-6 py-3 rounded-xl hover:bg-primary/90 transition-colors text-sm cursor-pointer">
                 {t("investor.requestDeck")}
                 <ArrowUpRight size={16} />
-              </button>
-              <button className="flex items-center gap-2 bg-secondary text-secondary-foreground font-bold px-6 py-3 rounded-xl hover:bg-secondary/80 transition-colors text-sm cursor-pointer">
+              </a>
+              <a href={`mailto:partnerships@payrus.finance?subject=${encodeURIComponent(t("investor.scheduleCall"))}`} className="flex items-center gap-2 bg-secondary text-secondary-foreground font-bold px-6 py-3 rounded-xl hover:bg-secondary/80 transition-colors text-sm cursor-pointer">
                 {t("investor.scheduleCall")}
                 <ChevronRight size={16} />
-              </button>
+              </a>
             </div>
             <p className="mt-6 text-[10px] text-muted-foreground">
               Contact: partnerships@payrus.finance · Bangui · Brazzaville · Brussels · Dakar

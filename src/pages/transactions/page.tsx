@@ -1,6 +1,7 @@
 import { useState } from "react";
+import { Link, useParams } from "react-router-dom";
 import { motion } from "motion/react";
-import { Search, ArrowUpRight, ArrowDownLeft, Send, CreditCard, Globe, Plus, Repeat } from "lucide-react";
+import { Search, ArrowUpRight, ArrowDownLeft, Send, CreditCard, Globe, Plus, Repeat, ChevronRight } from "lucide-react";
 import { Input } from "@/components/ui/input.tsx";
 import { cn } from "@/lib/utils.ts";
 import { useTranslation } from "react-i18next";
@@ -19,6 +20,7 @@ const TYPE_ICONS: Record<AppTransfer["type"], typeof Send> = {
 
 export default function Transactions() {
   const { t } = useTranslation("common");
+  const { lng } = useParams<{ lng: string }>();
   const currentUser = useCurrentAppUser();
   // 200, not the hook's default 10 — this page is the full history view,
   // Index.tsx's dashboard is the "recent 5" summary.
@@ -119,8 +121,12 @@ export default function Transactions() {
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.03, duration: 0.2 }}
-              className="flex items-center gap-3 p-3 rounded-xl bg-card border border-border hover:border-primary/30 transition-colors cursor-pointer"
             >
+              <Link
+                to={`/${lng}/transactions/${encodeURIComponent(tx.reference)}`}
+                aria-label={t("txd.open", { ref: tx.reference })}
+                className="flex items-center gap-3 p-3 rounded-xl bg-card border border-border hover:border-primary/30 focus-visible:border-primary transition-colors cursor-pointer"
+              >
               <div className={cn(
                 "w-10 h-10 rounded-xl flex items-center justify-center shrink-0",
                 isCredit ? "bg-primary/10 text-primary" : "bg-secondary text-muted-foreground"
@@ -140,6 +146,8 @@ export default function Transactions() {
                 </div>
                 <div className="text-xs text-muted-foreground">{tx.currency}</div>
               </div>
+              <ChevronRight size={16} className="text-muted-foreground shrink-0" />
+              </Link>
             </motion.div>
           );
         })}

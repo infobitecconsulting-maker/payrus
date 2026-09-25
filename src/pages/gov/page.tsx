@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
+import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import PageHeader from "@/components/ui/page-header.tsx";
 import {
@@ -172,6 +173,8 @@ export default function GovHub() {
   const { t } = useTranslation("common");
   const { profile } = useProfile();
   const { lng } = useParams<{ lng: string }>();
+  const navigate = useNavigate();
+  const requested = (action: string) => toast.success(t("cta.requested", { action }));
 
   const [activeTab, setActiveTab] = useState<"overview" | "integrations" | "collections" | "disbursements">("overview");
   const [expandedIntegration, setExpandedIntegration] = useState<string | null>(null);
@@ -300,7 +303,7 @@ export default function GovHub() {
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   {balancesToShow.map((b, i) => (
                     <motion.div key={b.currency} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
-                      className="rounded-2xl bg-card border border-border p-4 hover:border-primary/30 transition-colors cursor-pointer">
+                      className="rounded-2xl bg-card border border-border p-4 hover:border-primary/30 transition-colors">
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-xl">{b.flag}</span>
                         <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded-md",
@@ -320,12 +323,12 @@ export default function GovHub() {
                 <h2 className="text-sm font-semibold text-foreground mb-3">{t("gov.quickActions")}</h2>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   {[
-                    { label: t("gov.action.collectTax"),       icon: ArrowDownLeft, gradient: "from-amber-500 to-yellow-400", desc: t("gov.action.collectTaxDesc") },
-                    { label: t("gov.action.disburse"),         icon: ArrowUpRight,  gradient: "from-primary to-emerald-400", desc: t("gov.action.disburseDesc") },
-                    { label: t("gov.action.fxTransfer"),       icon: Globe,         gradient: "from-cyan-500 to-blue-400",   desc: t("gov.action.fxTransferDesc") },
-                    { label: t("gov.action.report"),           icon: FileText,      gradient: "from-violet-500 to-purple-400", desc: t("gov.action.reportDesc") },
+                    { label: t("gov.action.collectTax"),       icon: ArrowDownLeft, gradient: "from-amber-500 to-yellow-400", desc: t("gov.action.collectTaxDesc"), go: () => setActiveTab("collections") },
+                    { label: t("gov.action.disburse"),         icon: ArrowUpRight,  gradient: "from-primary to-emerald-400", desc: t("gov.action.disburseDesc"), go: () => setActiveTab("disbursements") },
+                    { label: t("gov.action.fxTransfer"),       icon: Globe,         gradient: "from-cyan-500 to-blue-400",   desc: t("gov.action.fxTransferDesc"), go: () => navigate(`/${lng}/remittance`) },
+                    { label: t("gov.action.report"),           icon: FileText,      gradient: "from-violet-500 to-purple-400", desc: t("gov.action.reportDesc"), go: () => navigate(`/${lng}/transactions`) },
                   ].map(a => (
-                    <button key={a.label} className="flex flex-col gap-3 p-4 rounded-2xl bg-card border border-border hover:border-primary/30 text-left cursor-pointer transition-all group hover:scale-[1.02]">
+                    <button key={a.label} type="button" onClick={a.go} className="flex flex-col gap-3 p-4 rounded-2xl bg-card border border-border hover:border-primary/30 text-left cursor-pointer transition-all group hover:scale-[1.02]">
                       <div className={cn("w-10 h-10 rounded-xl bg-gradient-to-br flex items-center justify-center shrink-0 group-hover:shadow-lg", a.gradient)}>
                         <a.icon size={17} className="text-white" />
                       </div>
@@ -374,7 +377,7 @@ export default function GovHub() {
                 <div className="rounded-2xl bg-card border border-border overflow-hidden divide-y divide-border">
                   {recentTxToShow.map((tx, i) => (
                     <motion.div key={tx.id} initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.05 * i }}
-                      className="flex items-center gap-3 px-4 py-3.5 hover:bg-secondary/40 transition-colors cursor-pointer">
+                      className="flex items-center gap-3 px-4 py-3.5 hover:bg-secondary/40 transition-colors">
                       <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center shrink-0",
                         tx.type === "collection"   ? "bg-emerald-50" :
                         tx.type === "disbursement" ? "bg-amber-50" : "bg-blue-50")}>
@@ -501,21 +504,21 @@ export default function GovHub() {
                                 </div>
                                 <div className="flex items-center gap-2 shrink-0">
                                   {integ.status === "connected" && (
-                                    <button className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-primary/10 border border-primary/25 text-[11px] text-primary font-medium cursor-pointer hover:bg-primary/20 transition-colors">
+                                    <button type="button" onClick={() => requested(`${t("gov.sync")} · ${t(`gov.sys.${integ.key}`)}`)} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-primary/10 border border-primary/25 text-[11px] text-primary font-medium cursor-pointer hover:bg-primary/20 transition-colors">
                                       <RefreshCw size={11} /> {t("gov.sync")}
                                     </button>
                                   )}
                                   {integ.status === "pending" && (
-                                    <button className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-[11px] text-amber-700 font-medium cursor-pointer hover:bg-amber-50 transition-colors">
+                                    <button type="button" onClick={() => requested(`${t("gov.verify")} · ${t(`gov.sys.${integ.key}`)}`)} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-[11px] text-amber-700 font-medium cursor-pointer hover:bg-amber-50 transition-colors">
                                       <Wifi size={11} /> {t("gov.verify")}
                                     </button>
                                   )}
                                   {integ.status === "error" && (
-                                    <button className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-destructive/10 border border-destructive/25 text-[11px] text-destructive font-medium cursor-pointer hover:bg-destructive/20 transition-colors">
+                                    <button type="button" onClick={() => requested(`${t("gov.reconnect")} · ${t(`gov.sys.${integ.key}`)}`)} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-destructive/10 border border-destructive/25 text-[11px] text-destructive font-medium cursor-pointer hover:bg-destructive/20 transition-colors">
                                       <WifiOff size={11} /> {t("gov.reconnect")}
                                     </button>
                                   )}
-                                  <button className="p-1.5 rounded-lg bg-secondary border border-border cursor-pointer hover:bg-secondary/80 transition-colors">
+                                  <button type="button" aria-label={t("cta.settings")} title={t("cta.settings")} onClick={() => navigate(`/${lng}/settings`)} className="p-1.5 rounded-lg bg-secondary border border-border cursor-pointer hover:bg-secondary/80 transition-colors">
                                     <Settings size={12} className="text-muted-foreground" />
                                   </button>
                                 </div>
@@ -607,7 +610,7 @@ export default function GovHub() {
               <div className="rounded-2xl bg-card border border-border overflow-hidden">
                 <div className="flex items-center justify-between px-4 py-3 border-b border-border">
                   <h2 className="text-sm font-semibold text-foreground">{t("gov.pendingCollections")}</h2>
-                  <button className="flex items-center gap-1.5 text-[11px] text-primary hover:underline cursor-pointer">
+                  <button type="button" onClick={() => requested(t("gov.exportCSV"))} className="flex items-center gap-1.5 text-[11px] text-primary hover:underline cursor-pointer">
                     <Download size={11} /> {t("gov.exportCSV")}
                   </button>
                 </div>
@@ -619,7 +622,7 @@ export default function GovHub() {
                     { entity: "MTN Congo SPRL",              ref: "IS-2024-Q3-0017",  amount: 290000,  currency: "USD", due: "Nov 25", type: t("gov.col.corpTax") },
                     { entity: "AirBelgo Cargo",              ref: "DD-2024-11-0318",  amount: 61000,   currency: "EUR", due: "Nov 24", type: t("gov.col.import") },
                   ].map((row, i) => (
-                    <div key={i} className="flex items-center gap-3 px-4 py-3.5 hover:bg-secondary/40 transition-colors cursor-pointer">
+                    <div key={i} className="flex items-center gap-3 px-4 py-3.5 hover:bg-secondary/40 transition-colors">
                       <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center shrink-0">
                         <FileText size={14} className="text-amber-700" />
                       </div>
@@ -670,7 +673,7 @@ export default function GovHub() {
               <div className="rounded-2xl bg-card border border-border overflow-hidden">
                 <div className="flex items-center justify-between px-4 py-3 border-b border-border">
                   <h2 className="text-sm font-semibold text-foreground">{t("gov.disbursementRuns")}</h2>
-                  <button className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary/10 border border-primary/25 text-[11px] text-primary font-medium cursor-pointer hover:bg-primary/20 transition-colors">
+                  <button type="button" onClick={() => setActiveTab("disbursements")} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary/10 border border-primary/25 text-[11px] text-primary font-medium cursor-pointer hover:bg-primary/20 transition-colors">
                     <Upload size={11} /> {t("gov.initiateRun")}
                   </button>
                 </div>
@@ -682,7 +685,7 @@ export default function GovHub() {
                     { name: "gov.run.bondRepayment",  amount: "820,000",    currency: "EUR", count: "1",        status: "pending",    date: "Nov 28" },
                     { name: "gov.run.payrollOct",     amount: "12,100,000", currency: "USD", count: "95,840",   status: "completed",  date: "Oct 25" },
                   ].map((run, i) => (
-                    <div key={i} className="flex items-center gap-3 px-4 py-3.5 hover:bg-secondary/40 transition-colors cursor-pointer">
+                    <div key={i} className="flex items-center gap-3 px-4 py-3.5 hover:bg-secondary/40 transition-colors">
                       <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center shrink-0",
                         run.status === "completed" ? "bg-emerald-50" : run.status === "processing" ? "bg-amber-50" : "bg-secondary")}>
                         {run.status === "completed" ? <CheckCircle2 size={14} className="text-emerald-700" /> :

@@ -667,7 +667,7 @@ function WebhooksTab() {
                 <label className="text-xs text-muted-foreground mb-2 block">Subscribe to Events</label>
                 <div className="flex flex-wrap gap-2">
                   {EVENT_TYPES.map(ev => (
-                    <span key={ev} className="text-[10px] font-mono px-2 py-0.5 bg-secondary border border-border text-muted-foreground rounded cursor-pointer hover:text-foreground hover:border-primary/30 transition-colors">
+                    <span key={ev} className="text-[10px] font-mono px-2 py-0.5 bg-secondary border border-border text-muted-foreground rounded hover:text-foreground hover:border-primary/30 transition-colors">
                       {ev}
                     </span>
                   ))}

@@ -214,7 +214,7 @@ function PotCard({ pot, index, onFund }: { pot: SavingsPot; index: number; onFun
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.07 }}
-      className="bg-card border border-border rounded-2xl p-4 relative overflow-hidden cursor-pointer hover:border-border/80 hover:shadow-lg hover:shadow-black/20 transition-all group"
+      className="bg-card border border-border rounded-2xl p-4 relative overflow-hidden hover:border-border/80 hover:shadow-lg hover:shadow-black/20 transition-all group"
     >
       {completed && (
         <div className="absolute top-3 right-3">

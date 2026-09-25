@@ -124,14 +124,14 @@ export default function Index() {
               <div className="text-[15px] font-bold text-[#0A2F5C]" style={{ fontFamily: "'Sora', sans-serif" }}>Welcome</div>
             </div>
           </div>
-          <button
-            type="button"
+          <Link
+            to={`/${lng}/notifications`}
             aria-label="Notifications"
             className="relative w-[38px] h-[38px] rounded-xl bg-white border border-[#E4EAF0] text-[#0A2F5C] flex items-center justify-center"
           >
             <Bell size={18} strokeWidth={1.8} />
             <span className="absolute top-1.5 right-1.5 w-[7px] h-[7px] rounded-full bg-[#D6455A] border-[1.5px] border-white" />
-          </button>
+          </Link>
         </div>
 
         <div className="mt-5 grid gap-5 xl:grid-cols-[1.2fr_0.8fr] xl:items-start">
@@ -240,7 +240,7 @@ export default function Index() {
                     const Icon = isCredit ? ArrowDownLeft : (typeIcons[tx.type] ?? Send);
                     const typeLabels: Record<string, string> = { transfer: "Transfer", payment: "Payment", remittance: "Remittance", deposit: "Deposit", convert_out: "Conversion out", convert_in: "Conversion in" };
                     return (
-                      <div key={tx.id} className="rounded-[20px] bg-white border border-[#E4EAF0] p-3.5 flex items-center gap-3" style={{ boxShadow: "0 1px 2px rgba(10,42,74,0.06)" }}>
+                      <Link key={tx.id} to={`/${lng}/transactions/${encodeURIComponent(tx.reference)}`} aria-label={`${typeLabels[tx.type] ?? tx.type} ${tx.reference}`} className="rounded-[20px] bg-white border border-[#E4EAF0] p-3.5 flex items-center gap-3 hover:border-[#0A2F5C]/30 transition-colors" style={{ boxShadow: "0 1px 2px rgba(10,42,74,0.06)" }}>
                         <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: isCredit ? "#EAF3EC" : "#EDEBF7", color: isCredit ? "#3E8E3F" : "#0A2F5C" }}>
                           <Icon size={18} strokeWidth={1.8} />
                         </div>
@@ -251,7 +251,7 @@ export default function Index() {
                         <div className="text-sm font-extrabold" style={{ color: isCredit ? "#3E8E3F" : "#0B2A4A" }}>
                           {isCredit ? "+" : "-"}{tx.currency} {tx.amount.toLocaleString(undefined, { maximumFractionDigits: 2 })}
                         </div>
-                      </div>
+                      </Link>
                     );
                   })
                 ) : currentUser ? (

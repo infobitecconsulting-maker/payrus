@@ -511,6 +511,8 @@ function ReviewForm({ onSubmit }: { onSubmit: () => void }) {
 export default function TravelPage() {
   const { t } = useTranslation("common");
   const [activeTab, setActiveTab] = useState<SearchTab>("flights");
+  const [flightFilter, setFlightFilter] = useState(0);
+  const [hotelFilter, setHotelFilter] = useState(0);
   const [selectedFlight, setSelectedFlight] = useState<Flight | null>(null);
   const [splitPaymentFor, setSplitPaymentFor] = useState<{ price: number; currency: string; item: string; flightId: string } | null>(null);
   const [showReviewForm, setShowReviewForm] = useState(false);
@@ -530,7 +532,29 @@ export default function TravelPage() {
   const hasRealFlights = !!currentUser && !!realFlights && realFlights.length > 0;
   const hasRealHotels = !!currentUser && !!realHotels && realHotels.length > 0;
   const displayFlights: Flight[] = hasRealFlights ? realFlights.map(toDisplayFlight) : FLIGHTS;
-  const displayHotels: Hotel[] = hasRealHotels ? realHotels.map(toDisplayHotel) : HOTELS;
+  const durationHours = (d: string) => { const m = /(\d+)h\s*(\d+)?/.exec(d); return m ? Number(m[1]) + Number(m[2] ?? 0) / 60 : Infinity; };
+  const shownFlights = ((): Flight[] => {
+    switch (flightFilter) {
+      case 1: return displayFlights.filter((f) => f.stops === 0);
+      case 2: return displayFlights.filter((f) => durationHours(f.duration) < 10);
+      case 3: return [...displayFlights].sort((a, b) => a.price - b.price);
+      case 4: return [...displayFlights].sort((a, b) => b.rating - a.rating);
+      case 5: return displayFlights.filter((f) => (f.payrusDiscount ?? 0) > 0);
+      default: return displayFlights;
+    }
+  })();
+  const allHotels: Hotel[] = hasRealHotels ? realHotels.map(toDisplayHotel) : HOTELS;
+  const displayHotels = ((): Hotel[] => {
+    switch (hotelFilter) {
+      case 1: return allHotels.filter((h) => h.payrusMember);
+      case 2: return allHotels.filter((h) => h.stars >= 5);
+      case 3: return allHotels.filter((h) => /affaires|business/i.test(h.category) || h.amenities.some((a) => /conference/i.test(a)));
+      case 4: return allHotels.filter((h) => h.pricePerNight < 150);
+      case 5: return allHotels.filter((h) => h.amenities.some((a) => /pool/i.test(a)));
+      case 6: return allHotels.filter((h) => h.amenities.some((a) => /spa/i.test(a)));
+      default: return allHotels;
+    }
+  })();
 
   async function handleBookFlight(flight: Flight) {
     const showToast = () => toast.success(t("travel.flightBookedToast", { airline: flight.airline, price: formatCurrency(flight.price, flight.currency) }));
@@ -649,17 +673,17 @@ export default function TravelPage() {
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   <div className="relative">
                     <MapPin size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                    <div className="pl-8 pr-3 py-2.5 rounded-xl bg-secondary border border-border text-sm font-medium text-foreground cursor-pointer">KIN · Kinshasa</div>
+                    <div className="pl-8 pr-3 py-2.5 rounded-xl bg-secondary border border-border text-sm font-medium text-foreground">KIN · Kinshasa</div>
                   </div>
                   <div className="relative">
                     <MapPin size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-primary" />
-                    <div className="pl-8 pr-3 py-2.5 rounded-xl bg-secondary border border-primary/30 text-sm font-medium text-foreground cursor-pointer">CDG · Paris</div>
+                    <div className="pl-8 pr-3 py-2.5 rounded-xl bg-secondary border border-primary/30 text-sm font-medium text-foreground">CDG · Paris</div>
                   </div>
                   <div className="relative">
                     <Calendar size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                    <div className="pl-8 pr-3 py-2.5 rounded-xl bg-secondary border border-border text-sm text-muted-foreground cursor-pointer">Dec 12, 2024</div>
+                    <div className="pl-8 pr-3 py-2.5 rounded-xl bg-secondary border border-border text-sm text-muted-foreground">Dec 12, 2024</div>
                   </div>
-                  <button className="flex items-center justify-center gap-2 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold cursor-pointer hover:bg-primary/90 transition-colors">
+                  <button type="button" onClick={() => { setFlightFilter(0); toast.success(t("travel.searchButton")); }} className="flex items-center justify-center gap-2 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold cursor-pointer hover:bg-primary/90 transition-colors">
                     <Search size={14} /> {t("travel.searchButton")}
                   </button>
                 </div>
@@ -670,7 +694,7 @@ export default function TravelPage() {
                   <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                     <Luggage size={11} /> {t("travel.baggageIncluded")}
                   </div>
-                  <button className="flex items-center gap-1.5 text-[11px] text-primary hover:underline cursor-pointer">
+                  <button type="button" onClick={() => setFlightFilter((f) => (f === 3 ? 0 : 3))} className="flex items-center gap-1.5 text-[11px] text-primary hover:underline cursor-pointer">
                     <SlidersHorizontal size={11} /> {t("travel.advancedFilters")}
                   </button>
                 </div>
@@ -679,9 +703,9 @@ export default function TravelPage() {
               {/* Filter pills */}
               <div className="flex items-center gap-2 overflow-x-auto pb-1">
                 {[t("travel.filters.all"), t("travel.filters.nonStop"), t("travel.filters.under10h"), t("travel.filters.cheapest"), t("travel.filters.topRated"), t("travel.filters.payrusDiscount")].map((f, i) => (
-                  <button key={f} className={cn(
+                  <button key={f} type="button" onClick={() => setFlightFilter(i)} aria-pressed={i === flightFilter} className={cn(
                     "px-3 py-1.5 rounded-full text-[11px] font-medium border whitespace-nowrap shrink-0 cursor-pointer transition-colors",
-                    i === 0 ? "bg-primary/15 text-primary border-primary/25" : "bg-card text-muted-foreground border-border hover:border-primary/30 hover:text-foreground"
+                    i === flightFilter ? "bg-primary/15 text-primary border-primary/25" : "bg-card text-muted-foreground border-border hover:border-primary/30 hover:text-foreground"
                   )}>
                     {f}
                   </button>
@@ -690,7 +714,7 @@ export default function TravelPage() {
 
               {/* Flight results */}
               <div className="space-y-3">
-                {displayFlights.map((flight, i) => (
+                {shownFlights.map((flight, i) => (
                   <motion.div key={flight.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }}
                     className={cn(
                       "rounded-2xl bg-card border overflow-hidden transition-all cursor-pointer group",
@@ -859,17 +883,17 @@ export default function TravelPage() {
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   <div className="relative">
                     <MapPin size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                    <div className="pl-8 pr-3 py-2.5 rounded-xl bg-secondary border border-border text-sm text-muted-foreground cursor-pointer">{t("travel.destinationPlaceholder")}</div>
+                    <div className="pl-8 pr-3 py-2.5 rounded-xl bg-secondary border border-border text-sm text-muted-foreground">{t("travel.destinationPlaceholder")}</div>
                   </div>
                   <div className="relative">
                     <Calendar size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                    <div className="pl-8 pr-3 py-2.5 rounded-xl bg-secondary border border-border text-sm text-muted-foreground cursor-pointer">{t("travel.checkInPlaceholder")}</div>
+                    <div className="pl-8 pr-3 py-2.5 rounded-xl bg-secondary border border-border text-sm text-muted-foreground">{t("travel.checkInPlaceholder")}</div>
                   </div>
                   <div className="relative">
                     <Calendar size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                    <div className="pl-8 pr-3 py-2.5 rounded-xl bg-secondary border border-border text-sm text-muted-foreground cursor-pointer">{t("travel.checkOutPlaceholder")}</div>
+                    <div className="pl-8 pr-3 py-2.5 rounded-xl bg-secondary border border-border text-sm text-muted-foreground">{t("travel.checkOutPlaceholder")}</div>
                   </div>
-                  <button className="flex items-center justify-center gap-2 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold cursor-pointer hover:bg-primary/90 transition-colors">
+                  <button type="button" onClick={() => { setHotelFilter(0); toast.success(t("travel.searchButton")); }} className="flex items-center justify-center gap-2 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold cursor-pointer hover:bg-primary/90 transition-colors">
                     <Search size={14} /> {t("travel.searchButton")}
                   </button>
                 </div>
@@ -892,9 +916,9 @@ export default function TravelPage() {
               {/* Filter pills */}
               <div className="flex items-center gap-2 overflow-x-auto pb-1">
                 {[t("travel.filters.all"), t("travel.filters.payrusPartners"), t("travel.filters.luxury5star"), t("travel.filters.business"), t("travel.filters.under150"), t("travel.filters.pool"), t("travel.filters.spa")].map((f, i) => (
-                  <button key={f} className={cn(
+                  <button key={f} type="button" onClick={() => setHotelFilter(i)} aria-pressed={i === hotelFilter} className={cn(
                     "px-3 py-1.5 rounded-full text-[11px] font-medium border whitespace-nowrap shrink-0 cursor-pointer transition-colors",
-                    i === 0 ? "bg-primary/15 text-primary border-primary/25" : "bg-card text-muted-foreground border-border hover:border-primary/30 hover:text-foreground"
+                    i === hotelFilter ? "bg-primary/15 text-primary border-primary/25" : "bg-card text-muted-foreground border-border hover:border-primary/30 hover:text-foreground"
                   )}>
                     {f}
                   </button>
@@ -905,7 +929,7 @@ export default function TravelPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {displayHotels.map((hotel, i) => (
                   <motion.div key={hotel.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.07 }}
-                    className="rounded-2xl bg-card border border-border overflow-hidden hover:border-primary/25 transition-all group cursor-pointer">
+                    className="rounded-2xl bg-card border border-border overflow-hidden hover:border-primary/25 transition-all group">
 
                     {/* Image area */}
                     <div className="relative h-36 bg-gradient-to-br from-secondary to-secondary/50 flex items-center justify-center">

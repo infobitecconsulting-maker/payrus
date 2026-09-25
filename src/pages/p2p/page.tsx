@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { motion, AnimatePresence } from "motion/react";
 import PageHeader from "@/components/ui/page-header.tsx";
@@ -134,7 +135,10 @@ export default function P2PTransfer() {
   const currentUser = useCurrentAppUser();
   const { profile } = useProfile();
   const isAgentCounter = profile?.type === "agent" || profile?.type === "admin";
-  const [mode, setMode] = useState<"member" | "new">("member");
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const { lng } = useParams<{ lng: string }>();
+  const [mode, setMode] = useState<"member" | "new">(searchParams.get("mode") === "new" || searchParams.get("receiver") ? "new" : "member");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [showSuggest, setShowSuggest] = useState(false);
   useEffect(() => {
@@ -287,6 +291,7 @@ export default function P2PTransfer() {
         senderId={currentUser.id}
         wallets={(realWallets ?? []).map((w) => ({ currency: w.currency, balance: w.balance }))}
         defaultCurrency={currentUser.transactionCurrency}
+        initialReceiverId={searchParams.get("receiver") ?? undefined}
         onExit={() => setMode("member")}
         onSendToMember={selectMember}
       />
@@ -354,10 +359,10 @@ export default function P2PTransfer() {
 
             {/* Quick actions */}
             <div className="flex gap-2 mb-5">
-              <button onClick={() => toast.info(t("p2p.scanQrSoonToast"))} className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-secondary border border-border text-xs font-medium text-muted-foreground hover:text-primary hover:border-primary/40 transition-colors cursor-pointer">
+              <button onClick={() => navigate(`/${lng}/scan`)} className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-secondary border border-border text-xs font-medium text-muted-foreground hover:text-primary hover:border-primary/40 transition-colors cursor-pointer">
                 <QrCode size={14} /> {t("p2p.scanQr")}
               </button>
-              <button onClick={() => toast.info(t("p2p.inviteFriendSoonToast"))} className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-secondary border border-border text-xs font-medium text-muted-foreground hover:text-primary hover:border-primary/40 transition-colors cursor-pointer">
+              <button onClick={() => { const url = `${window.location.origin}/${lng}/register`; if (navigator.share) { void navigator.share({ title: "PayRus", url }).catch(() => undefined); } else { void navigator.clipboard?.writeText(url).then(() => toast.success(t("txd.copied")), () => toast.error(t("txd.copyFailed"))); } }} className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-secondary border border-border text-xs font-medium text-muted-foreground hover:text-primary hover:border-primary/40 transition-colors cursor-pointer">
                 <UserPlus size={14} /> {t("p2p.inviteFriend")}
               </button>
             </div>

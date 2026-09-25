@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { AlertCircle, CheckCircle2, PhoneCall, ShieldOff, Plus } from "lucide-react";
 import { cn } from "@/lib/utils.ts";
@@ -22,7 +23,12 @@ export default function Disputes() {
 
   const currentUser = useCurrentAppUser();
   const realDisputes = useDisputesForUser(currentUser?.id);
-  const recentTransfers = useRecentTransfersForUser(currentUser?.id, 10);
+  const recentTransfers = useRecentTransfersForUser(currentUser?.id, 200);
+  const { lng } = useParams<{ lng: string }>();
+  const [searchParams] = useSearchParams();
+  const aboutRef = searchParams.get("ref");
+  const aboutTransfer = aboutRef ? recentTransfers?.find((x) => x.reference === aboutRef) : undefined;
+  useEffect(() => { if (aboutRef) setShowForm(true); }, [aboutRef]);
   const createDispute = useCreateDisputeMutation();
 
   const hasReal = !!realDisputes;
@@ -44,7 +50,7 @@ export default function Disputes() {
     }
     setSubmitting(true);
     try {
-      await createDispute({ userId: currentUser.id, transferId: recentTransfers?.[0]?.id, reason: reason.trim() });
+      await createDispute({ userId: currentUser.id, transferId: aboutTransfer?.id, reason: reason.trim() });
       toast.success(t("disputes.submitted"));
       setReason("");
       setShowForm(false);
@@ -103,6 +109,12 @@ export default function Disputes() {
         </button>
       ) : (
         <div className="rounded-xl bg-card border border-border p-4 space-y-3 mb-3">
+          {aboutRef && (
+            <div className="text-xs rounded-lg bg-secondary px-3 py-2 flex items-center justify-between gap-2">
+              <span>{t("txd.disputeAbout", { ref: aboutRef })}</span>
+              <Link to={`/${lng}/transactions/${encodeURIComponent(aboutRef)}`} className="text-primary font-semibold hover:underline shrink-0">{t("txd.viewTransaction")}</Link>
+            </div>
+          )}
           <label className="text-sm text-muted-foreground font-medium">{t("disputes.reasonLabel")}</label>
           <Input value={reason} onChange={e => setReason(e.target.value)} placeholder={t("disputes.reasonPlaceholder")} className="bg-background border-border" />
           <div className="flex gap-2">

@@ -1959,3 +1959,44 @@ export async function getInvestorLeaderboard(limit = 20): Promise<AppLeaderboard
     avgReturnPct: Number(r.avg_return_pct), totalXaf: Number(r.total_xaf),
   }));
 }
+
+// ---------------------------------------------------------------------------
+// Transaction detail (migration 0050): everything about one of the caller's transactions by reference —
+// the transfer, its fee, the FX side of a remittance and the payout that follows it.
+// ---------------------------------------------------------------------------
+export interface TransactionDetail {
+  transfer: { id: string; reference: string; type: AppTransfer["type"]; state: string; amount: number; currency: string; note: string | null; createdAt: string; partnerTxId: string | null };
+  fee: number | null;
+  wallet: { id: string; provider: string; currency: string } | null;
+  remittance: { fromCurrency: string; toCurrency: string; amount: number; fee: number; fxCost: number; receiveAmount: number; marginRate: number } | null;
+  payout: {
+    id: string; receiverId: string | null; receiverName: string; country: string | null; deliveryMethod: PayoutMethod; provider: string | null; accountMasked: string | null;
+    status: PayoutRow["status"]; pickupCode: string | null; agentName: string | null; agentAddress: string | null; pickupCountry: string | null; pickupCurrency: string | null;
+    pickupAmount: number | null; receiveAmount: number; toCurrency: string; channelType: string | null; createdAt: string;
+  } | null;
+}
+
+// Returns null when the transaction is not the caller's, or when migration 0050 has not been applied yet.
+export async function getTransactionDetail(reference: string): Promise<TransactionDetail | null> {
+  const res = await supabase.rpc("transaction_detail", { p_reference: reference });
+  if (res.error) return null;
+  const d = res.data as Record<string, Record<string, unknown> | number | null> | null;
+  if (!d) return null;
+  const tr = d.transfer as Record<string, unknown>;
+  const rem = d.remittance as Record<string, unknown> | null;
+  const pay = d.payout as Record<string, unknown> | null;
+  const wal = d.wallet as Record<string, unknown> | null;
+  const num = (v: unknown) => (v == null ? null : Number(v));
+  return {
+    transfer: { id: tr.id as string, reference: tr.reference as string, type: tr.type as AppTransfer["type"], state: tr.state as string, amount: Number(tr.amount), currency: tr.currency as string, note: (tr.note as string) ?? null, createdAt: tr.created_at as string, partnerTxId: (tr.partner_tx_id as string) ?? null },
+    fee: num(d.fee),
+    wallet: wal ? { id: wal.id as string, provider: wal.provider as string, currency: wal.currency as string } : null,
+    remittance: rem ? { fromCurrency: rem.from_currency as string, toCurrency: rem.to_currency as string, amount: Number(rem.amount), fee: Number(rem.fee), fxCost: Number(rem.fx_cost), receiveAmount: Number(rem.receive_amount), marginRate: Number(rem.margin_rate) } : null,
+    payout: pay ? {
+      id: pay.id as string, receiverId: (pay.receiver_id as string) ?? null, receiverName: pay.receiver_name as string, country: (pay.country as string) ?? null, deliveryMethod: pay.delivery_method as PayoutMethod,
+      provider: (pay.provider as string) ?? null, accountMasked: (pay.account_masked as string) ?? null, status: pay.status as PayoutRow["status"], pickupCode: (pay.pickup_code as string) ?? null,
+      agentName: (pay.agent_name as string) ?? null, agentAddress: (pay.agent_address as string) ?? null, pickupCountry: (pay.pickup_country as string) ?? null, pickupCurrency: (pay.pickup_currency as string) ?? null,
+      pickupAmount: num(pay.pickup_amount), receiveAmount: Number(pay.receive_amount), toCurrency: pay.to_currency as string, channelType: (pay.channel_type as string) ?? null, createdAt: pay.created_at as string,
+    } : null,
+  };
+}
