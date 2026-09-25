@@ -334,7 +334,7 @@ export interface ReceiverInput {
 }
 export interface PayoutAgent {
   id: string; name: string; kind: "payrus_direct" | "correspondent"; partner: string | null; country: string; city: string; address: string; phone: string | null;
-  hours: string | null; distanceKm: number | null; matchLevel: "city" | "country" | "nearby";
+  hours: string | null; distanceKm: number | null; matchLevel: "city" | "country" | "nearby"; scope?: "country" | "zone";
 }
 export interface PayoutReceipt { reference: string; payoutStatus: PayoutRow["status"]; pickupCode: string | null; receiveAmount: number; toCurrency: string; receiverName: string; deliveryMethod: PayoutMethod; agentName: string | null; agentAddress: string | null }
 
@@ -371,10 +371,11 @@ export async function findPayoutAgents(a: { country: string; city: string; lat?:
   return ((mustNotError(res, "findPayoutAgents") ?? []) as Record<string, unknown>[]).map((r) => ({ ...camelRow<PayoutAgent>(r), distanceKm: r.distance_km == null ? null : Number(r.distance_km) }));
 }
 
-// Every cash-pickup point in the receiver's country (migration 0042) — the nearby list is only a suggestion.
-export async function listCountryAgents(a: { country: string; lat?: number | null; lng?: number | null }): Promise<PayoutAgent[]> {
-  const res = await supabase.rpc("list_country_agents", { p_country: a.country, p_lat: a.lat ?? null, p_lng: a.lng ?? null, p_limit: 30 });
-  return ((mustNotError(res, "listCountryAgents") ?? []) as Record<string, unknown>[]).map((r) => ({ ...camelRow<PayoutAgent>(r), distanceKm: r.distance_km == null ? null : Number(r.distance_km) }));
+// Every pickup point open to the receiver (migration 0043): any PayRus agent in their country, plus PayRus agents in other
+// countries of the same monetary zone (same currency). Both conditions must hold to cross a border.
+export async function listPickupPoints(a: { country: string; currency: string; lat?: number | null; lng?: number | null }): Promise<PayoutAgent[]> {
+  const res = await supabase.rpc("list_pickup_points", { p_country: a.country, p_currency: a.currency, p_lat: a.lat ?? null, p_lng: a.lng ?? null, p_limit: 60 });
+  return ((mustNotError(res, "listPickupPoints") ?? []) as Record<string, unknown>[]).map((r) => ({ ...camelRow<PayoutAgent>(r), distanceKm: r.distance_km == null ? null : Number(r.distance_km) }));
 }
 
 export async function listMyPayouts(): Promise<PayoutRow[]> {
