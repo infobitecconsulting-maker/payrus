@@ -317,6 +317,51 @@ export async function deleteSavedRecipient(id: string): Promise<void> {
   mustNotError(await supabase.rpc("delete_saved_recipient", { p_id: id }), "deleteSavedRecipient");
 }
 
+// ---- Send to a NEW receiver from identification data (migration 0038) ----
+export type PayoutMethod = "mobile_money" | "bank" | "cash_pickup";
+export interface Receiver {
+  id: string; fullName: string; country: string | null; currency: string | null; deliveryMethod: PayoutMethod; provider: string | null;
+  account: string; phone: string | null; idType: string | null; idNumber: string | null; city: string | null; timesSent: number; lastSentAt: string | null;
+}
+export interface PayoutRow {
+  id: string; reference: string | null; receiverName: string; country: string | null; deliveryMethod: PayoutMethod; provider: string | null;
+  accountMasked: string; amount: number; fromCurrency: string; toCurrency: string; receiveAmount: number;
+  status: "processing" | "ready_for_pickup" | "paid_out" | "blocked" | "cancelled"; pickupCode: string | null; createdAt: string; completedAt: string | null;
+}
+export interface ReceiverInput {
+  fullName: string; country: string; currency: string; deliveryMethod: PayoutMethod; provider?: string; account?: string; phone?: string;
+  idType?: string; idNumber?: string; city?: string;
+}
+export interface PayoutReceipt { reference: string; payoutStatus: PayoutRow["status"]; pickupCode: string | null; receiveAmount: number; toCurrency: string; receiverName: string; deliveryMethod: PayoutMethod }
+
+const camelRow = <T,>(r: Record<string, unknown>): T => Object.fromEntries(Object.entries(r).map(([k, v]) => [camelKey(k), v])) as T;
+
+export async function listMyReceivers(): Promise<Receiver[]> {
+  const res = await supabase.rpc("list_my_receivers");
+  return ((mustNotError(res, "listMyReceivers") ?? []) as Record<string, unknown>[]).map((r) => ({ ...camelRow<Receiver>(r), timesSent: Number(r.times_sent) }));
+}
+
+export async function saveReceiver(a: ReceiverInput): Promise<string> {
+  const res = await supabase.rpc("save_receiver", {
+    p_full_name: a.fullName, p_country: a.country, p_currency: a.currency, p_delivery_method: a.deliveryMethod, p_provider: a.provider ?? null,
+    p_account: a.account ?? null, p_phone: a.phone ?? null, p_id_type: a.idType ?? null, p_id_number: a.idNumber ?? null, p_city: a.city ?? null,
+  });
+  return mustHaveData(res, "saveReceiver") as string;
+}
+
+export async function sendToReceiver(a: { senderId: string; receiverId: string; amount: number; from: string; note?: string }): Promise<PayoutReceipt> {
+  const res = await supabase.rpc("send_to_receiver", { p_sender_id: a.senderId, p_receiver_id: a.receiverId, p_amount: a.amount, p_from: a.from, p_note: a.note ?? null });
+  const r = ((mustHaveData(res, "sendToReceiver") as Record<string, unknown>[]))[0];
+  return { reference: r.reference as string, payoutStatus: r.payout_status as PayoutRow["status"], pickupCode: (r.pickup_code as string) ?? null, receiveAmount: Number(r.receive_amount), toCurrency: r.to_currency as string, receiverName: r.receiver_name as string, deliveryMethod: r.delivery_method as PayoutMethod };
+}
+
+export async function listMyPayouts(): Promise<PayoutRow[]> {
+  const res = await supabase.rpc("list_my_payouts", { p_limit: 20 });
+  return ((mustNotError(res, "listMyPayouts") ?? []) as Record<string, unknown>[]).map((r) => ({
+    ...camelRow<PayoutRow>(r), amount: Number(r.amount), receiveAmount: Number(r.receive_amount),
+  }));
+}
+
 export type CorridorBlockReason = "invalid" | "no_rate" | "suspended" | "not_offered" | "below_min" | "above_max" | "below_floor";
 export interface RemittanceQuote {
   ok: boolean; blockedReason: CorridorBlockReason | null; appliedMargin: number; fee: number; fxCost: number;

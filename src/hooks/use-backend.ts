@@ -88,6 +88,32 @@ export const useSaveRecipientMutation = () => useRecipientMutation(backend.saveR
 export const useTouchSavedRecipientMutation = () => useRecipientMutation(backend.touchSavedRecipient);
 export const useDeleteSavedRecipientMutation = () => useRecipientMutation(backend.deleteSavedRecipient);
 
+export function useMyReceivers(enabled: boolean) {
+  return useReactQuery({ queryKey: ["receivers"], queryFn: backend.listMyReceivers, enabled, staleTime: 30_000, retry: false });
+}
+
+// Polled so a payout that settles (mobile money / bank) flips to "paid out" on screen.
+export function useMyPayouts(enabled: boolean) {
+  return useReactQuery({ queryKey: ["payouts"], queryFn: backend.listMyPayouts, enabled, refetchInterval: 20_000, retry: false });
+}
+
+export function useSendToReceiverMutation() {
+  const queryClient = useQueryClient();
+  const mutation = useReactMutation({
+    mutationFn: async (a: backend.ReceiverInput & { senderId: string; amount: number; from: string; note?: string }) => {
+      const receiverId = await backend.saveReceiver(a);
+      return backend.sendToReceiver({ senderId: a.senderId, receiverId, amount: a.amount, from: a.from, note: a.note });
+    },
+    onSuccess: (_d, v) => {
+      void queryClient.invalidateQueries({ queryKey: ["walletViews", v.senderId] });
+      void queryClient.invalidateQueries({ queryKey: ["transfers"] });
+      void queryClient.invalidateQueries({ queryKey: ["receivers"] });
+      void queryClient.invalidateQueries({ queryKey: ["payouts"] });
+    },
+  });
+  return mutation.mutateAsync;
+}
+
 export function useP2pTransferMutation() {
   const queryClient = useQueryClient();
   const mutation = useReactMutation({

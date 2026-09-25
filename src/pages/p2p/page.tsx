@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button.tsx";
 import { cn } from "@/lib/utils.ts";
 import { toast } from "sonner";
 import { requireStepUp } from "@/lib/mfa.ts";
+import NewReceiverFlow from "./_components/new-receiver-flow.tsx";
 import { useP2pTransferMutation, useWalletViewsForUser, useMyCounterparts } from "@/hooks/use-backend.ts";
 import { resolveUserByIdentifier, type Counterpart, type P2pReceipt } from "@/lib/backend.ts";
 import { PayRusLogo } from "@/pages/layout/AppLayout.tsx";
@@ -129,6 +130,7 @@ export default function P2PTransfer() {
   const [realSearching, setRealSearching] = useState(false);
 
   const currentUser = useCurrentAppUser();
+  const [mode, setMode] = useState<"member" | "new">("member");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [showSuggest, setShowSuggest] = useState(false);
   useEffect(() => {
@@ -171,6 +173,14 @@ export default function P2PTransfer() {
     : 0; // 10% FX margin only when the wallet being charged is in a different currency
   const total = numAmt + commission;
   const received = numAmt; // the recipient gets the full stated amount; margin/commission are the sender's cost
+
+  function selectMember(found: { id: string; name: string; username: string | null; defaultCurrency: string | null }) {
+    setMode("member");
+    handleSelectUser({
+      id: found.id, realId: found.id, name: found.name, username: found.username ? `@${found.username}` : "", country: "PayRus network", countryCode: "??",
+      flag: "🌐", avatar: found.name.slice(0, 2).toUpperCase(), currency: found.defaultCurrency ?? currency, verified: true, online: false, role: "Real PayRus user",
+    });
+  }
 
   function handleSelectContact(c: Counterpart) {
     setShowSuggest(false);
@@ -267,6 +277,18 @@ export default function P2PTransfer() {
     setWithdrawMethod(null);
   }
 
+  if (mode === "new" && currentUser) {
+    return (
+      <NewReceiverFlow
+        senderId={currentUser.id}
+        wallets={(realWallets ?? []).map((w) => ({ currency: w.currency, balance: w.balance }))}
+        defaultCurrency={currentUser.transactionCurrency}
+        onExit={() => setMode("member")}
+        onSendToMember={selectMember}
+      />
+    );
+  }
+
   return (
     <div className="p-4 md:p-6 max-w-2xl mx-auto">
       <PageHeader title={t("p2p.title")} className="mb-4 md:mb-6" />
@@ -311,6 +333,18 @@ export default function P2PTransfer() {
                 </button>
               )}
             </div>}
+
+            {!demoMode && (
+              <div className="mb-5 space-y-3">
+                <div className="rounded-xl border border-primary/20 bg-primary/5 px-3 py-2.5 text-[11px] text-muted-foreground flex items-start gap-2">
+                  <BadgeCheck size={13} className="text-accent shrink-0 mt-0.5" />{t("p2p.memberAdvantage")}
+                </div>
+                <button onClick={() => setMode("new")} className="w-full text-left rounded-xl border border-border bg-card p-3 hover:border-primary/40 cursor-pointer">
+                  <div className="flex items-center gap-2 text-sm font-semibold"><UserPlus size={14} className="text-primary" />{t("p2p.new.cta")}</div>
+                  <div className="text-[11px] text-muted-foreground mt-0.5">{t("p2p.new.ctaDesc")}</div>
+                </button>
+              </div>
+            )}
 
             {/* Quick actions */}
             <div className="flex gap-2 mb-5">
