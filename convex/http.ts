@@ -3,6 +3,7 @@ import { httpAction } from "./_generated/server";
 import { api } from "./_generated/api";
 import { assistEscalation } from "./aiSupportAssist.ts";
 import { assistOrgCase } from "./aiOrgCaseAssist.ts";
+import { draftPartnerOffer } from "./aiPartnerOffer.ts";
 import { reverseGeocodePosition } from "./geolocate.ts";
 
 // The only HTTP routes in this app so far. ops-console — a separate app with
@@ -163,5 +164,23 @@ http.route({
 });
 
 http.route({ path: "/aiOrgCaseAssist", method: "OPTIONS", handler: httpAction(async () => new Response(null, { status: 204, headers: AI_CORS })) });
+
+http.route({
+  path: "/aiPartnerOffer",
+  method: "POST",
+  handler: httpAction(async (_ctx, request) => {
+    const respond = (body: unknown, status: number) =>
+      new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json", ...AI_CORS } });
+    const token = /^Bearer (.+)$/.exec(request.headers.get("Authorization") ?? "")?.[1];
+    if (!token) return respond({ error: "unauthorized" }, 401);
+    const body: unknown = await request.json().catch(() => null);
+    const text = (body as Record<string, unknown> | null)?.text;
+    if (typeof text !== "string" || text.trim().length < 20) return respond({ error: "bad_request" }, 400);
+    const result = await draftPartnerOffer(text, token);
+    return respond(result.body, result.status);
+  }),
+});
+
+http.route({ path: "/aiPartnerOffer", method: "OPTIONS", handler: httpAction(async () => new Response(null, { status: 204, headers: AI_CORS })) });
 
 export default http;

@@ -4,11 +4,10 @@ import { toast } from "sonner";
 import { ArrowLeft, Smartphone, Landmark, Banknote, BadgeCheck, Wallet, Copy, MapPin, Store } from "lucide-react";
 import { cn } from "@/lib/utils.ts";
 import { COUNTRY_OPTIONS, callingCodeForCountry, currencyForCountry } from "@/convex/geo.ts";
-import { commissionFor } from "@/convex/fx.ts";
 import { requireStepUp } from "@/lib/mfa.ts";
 import { geocodeAddress } from "@/lib/geocode.ts";
-import { ensureDemoAgentsNear, findPayoutAgents, getPayoutOptions, listPickupPoints, resolveUserByIdentifier, type PayoutAgent, type PayoutMethod, type PayoutOption, type PayoutReceipt, type PayoutRow, type Receiver, type ResolvedRecipient } from "@/lib/backend.ts";
-import { useMyPayouts, useMyReceivers, useOpenCorridors, useRemittanceQuote, useSendToReceiverMutation } from "@/hooks/use-backend.ts";
+import { ensureDemoAgentsNear, findPayoutAgents, getChannelOptions, getChannelQuote, getPayoutOptions, listPickupPoints, resolveUserByIdentifier, type ChannelOption, type ChannelQuote, type PayoutAgent, type PayoutMethod, type PayoutOption, type PayoutReceipt, type PayoutRow, type Receiver, type ResolvedRecipient } from "@/lib/backend.ts";
+import { useMyPayouts, useMyReceivers, useOpenCorridors, useSendToReceiverMutation } from "@/hooks/use-backend.ts";
 
 const METHODS: { id: PayoutMethod; icon: typeof Smartphone; eta: string }[] = [
   { id: "mobile_money", icon: Smartphone, eta: "p2p.new.eta.mobile_money" },
@@ -74,13 +73,34 @@ export default function NewReceiverFlow({ senderId, wallets, defaultCurrency, on
   const payFromOptions = wallets.map((w) => w.currency).filter(canPayFrom);
   const numAmt = parseFloat(amount) || 0;
   const cross = !!toCurrency && toCurrency !== from;
-  const quote = useRemittanceQuote(from, toCurrency, numAmt, cross && step !== "who" && step !== "how").data;
-  const fee = cross ? (quote?.fee ?? 0) : commissionFor(numAmt);
-  const receives = cross ? (quote?.receiveAmount ?? 0) : numAmt;
+  // The price follows the selected channel: the rail partner's contract terms, its SLA and the PayRus pricing policy.
+  // Cash is priced by the network of the chosen agent: PayRus agent or partner distributor.
+  const agentKind = method === "cash_pickup" ? (agents?.find((a) => a.id === agentId) ?? allAgents?.find((a) => a.id === agentId))?.kind : undefined;
+  const channelType = agentKind === "payrus_direct" ? "payrus_agent" : agentKind === "correspondent" ? "partner_distributor" : undefined;
+  const [cq, setCq] = useState<ChannelQuote | null>(null);
+  const [chOptions, setChOptions] = useState<ChannelOption[] | null>(null);
+  useEffect(() => {
+    if ((step !== "amount" && step !== "confirm") || !method || !country || numAmt <= 0) { setCq(null); return; }
+    let live = true;
+    const id = setTimeout(() => {
+      void getChannelQuote({ from, amount: numAmt, country, method, provider: provider || undefined, to: toCurrency, channelType }).then((q) => { if (live) setCq(q); }).catch(() => { if (live) setCq(null); });
+    }, 250);
+    return () => { live = false; clearTimeout(id); };
+  }, [step, method, country, provider, from, numAmt, toCurrency, channelType]);
+  useEffect(() => {
+    if (!country || step === "who" || step === "success") { setChOptions(null); return; }
+    let live = true;
+    const id = setTimeout(() => {
+      void getChannelOptions(country, from, step === "amount" || step === "confirm" ? numAmt || undefined : undefined).then((o) => { if (live) setChOptions(o); }).catch(() => { if (live) setChOptions(null); });
+    }, 250);
+    return () => { live = false; clearTimeout(id); };
+  }, [country, from, step, numAmt]);
+  const fee = cq?.fee ?? 0;
+  const receives = cq?.receiveAmount ?? 0;
   const total = numAmt + fee;
   const wallet = wallets.find((w) => w.currency === from);
   const short = !!wallet && total > wallet.balance;
-  const blocked = cross && quote && !quote.ok ? quote.blockedReason : null;
+  const blocked = cq && !cq.ok ? cq.blockedReason : null;
   const noRouteAtAll = !!toCurrency && wallets.length > 0 && payFromOptions.length === 0;
   const chosenAgent = agents?.find((a) => a.id === agentId) ?? allAgents?.find((a) => a.id === agentId) ?? null;
 
@@ -115,6 +135,12 @@ export default function NewReceiverFlow({ senderId, wallets, defaultCurrency, on
     if (method && !methodAvailable(method)) { setMethod(null); setProvider(""); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [options]);
+  const fmtN = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 2 });
+  const channelHint = (id: PayoutMethod, fallbackKey: string) => {
+    const o = chOptions?.find((x) => x.method === id);
+    const del = o?.deliveryTime ? t(`p2p.new.delivery.${o.deliveryTime}`) : t(fallbackKey);
+    return o?.fee != null ? `≈ ${fmtN(o.fee)} ${from} · ${del}` : del;
+  };
   const mmProviders = optionFor("mobile_money")?.providers?.length ? optionFor("mobile_money")!.providers : MOBILE_PROVIDERS;
   const bankNames = optionFor("bank")?.providers ?? [];
 
@@ -291,7 +317,7 @@ export default function NewReceiverFlow({ senderId, wallets, defaultCurrency, on
                   className={cn("p-3 rounded-xl border text-left transition-colors", !methodAvailable(m.id) ? "opacity-50 cursor-not-allowed border-border bg-card" : method === m.id ? "border-primary bg-primary/5 cursor-pointer" : "border-border bg-card hover:border-primary/40 cursor-pointer")}>
                   <m.icon size={16} className={method === m.id ? "text-primary" : "text-muted-foreground"} />
                   <div className="text-sm font-semibold mt-1">{t(`p2p.new.method.${m.id}`)}</div>
-                  <div className="text-[10px] text-muted-foreground">{methodAvailable(m.id) ? t(m.eta) : t("p2p.new.notConnected", { country })}</div>
+                  <div className="text-[10px] text-muted-foreground">{methodAvailable(m.id) ? channelHint(m.id, m.eta) : t("p2p.new.notConnected", { country })}</div>
                 </button>
               ))}
             </div>
@@ -416,11 +442,26 @@ export default function NewReceiverFlow({ senderId, wallets, defaultCurrency, on
               <div className="flex justify-between font-semibold"><span>{t("p2p.new.total")}</span><span>{fmt(total)} {from}</span></div>
               {wallet && <div className="text-[11px] text-muted-foreground">{t("p2p.new.balance")}: {fmt(wallet.balance)} {from}</div>}
               {short && <div className="text-[11px] text-destructive">{t("p2p.new.insufficient")}</div>}
+              {cq?.deliveryTime && <div className="text-[11px] text-muted-foreground">{t("p2p.new.deliveryLabel")}: {t(`p2p.new.delivery.${cq.deliveryTime}`)}</div>}
+              <div className="text-[10px] text-muted-foreground">{t("p2p.new.priceNote")}</div>
               {noRouteAtAll && <div className="text-[11px] text-destructive">{t("p2p.new.noRouteAny", { to: toCurrency })}</div>}
               {blocked && <div className="text-[11px] text-destructive">{blocked === "not_offered" ? t("p2p.new.noRoute", { from, to: toCurrency }) : t(`remittance.blocked.${blocked}`)}</div>}
             </div>
           </div>
-          <button disabled={numAmt <= 0 || short || !!blocked || noRouteAtAll || (cross && !quote)} onClick={() => setStep("confirm")}
+          {numAmt > 0 && chOptions && chOptions.filter((o) => o.available).length > 1 && (
+            <div className="rounded-xl border border-border bg-card p-3 space-y-2">
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("p2p.new.compare")}</div>
+              {chOptions.filter((o) => o.available).map((o) => (
+                <div key={o.method} className={cn("flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-xs", o.method === method ? "bg-primary/5 border border-primary/40" : "border border-border")}>
+                  <span className="font-semibold">{t(`p2p.new.method.${o.method}`)}</span>
+                  <span className="text-muted-foreground">{o.fee != null ? `${fmtN(o.fee)} ${from}` : ""} · {o.deliveryTime ? t(`p2p.new.delivery.${o.deliveryTime}`) : ""}</span>
+                  {o.method === method ? <span className="text-[10px] font-semibold text-primary">{t("p2p.new.selected")}</span>
+                    : <button onClick={() => { setMethod(o.method); setProvider(""); setAccount(""); setStep("how"); }} className="text-[10px] font-semibold text-primary cursor-pointer">{t("p2p.new.choose")}</button>}
+                </div>
+              ))}
+            </div>
+          )}
+          <button disabled={numAmt <= 0 || short || !!blocked || noRouteAtAll || !cq} onClick={() => setStep("confirm")}
             className="w-full py-3 rounded-xl bg-primary text-primary-foreground text-sm font-semibold cursor-pointer disabled:opacity-50">{t("p2p.new.review")}</button>
         </div>
       )}
