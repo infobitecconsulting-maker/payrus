@@ -340,11 +340,11 @@ export default function NewReceiverFlow({ senderId, wallets, defaultCurrency, on
                     )}
                     {allAgents && (
                       <div className="space-y-1.5">
-                        <div className="text-[11px] font-semibold">{t("p2p.new.agents.allTitle", { currency: toCurrency })}</div>
+                        <div className="text-[11px] font-semibold">{t("p2p.new.agents.allTitle")}</div>
                         {allAgents.filter((a) => !(agents ?? []).some((x) => x.id === a.id)).map((a) => (
                           <button key={a.id} onClick={() => setAgentId(a.id)} aria-pressed={agentId === a.id}
                             className={cn("w-full text-left rounded-lg border px-3 py-2 cursor-pointer", agentId === a.id ? "border-primary bg-primary/5" : "border-border hover:border-primary/40")}>
-                            <div className="text-xs font-semibold">{a.name} <span className="font-normal text-muted-foreground">· {a.kind === "payrus_direct" ? t("p2p.new.agents.direct") : t("p2p.new.agents.correspondent")}{a.scope === "zone" ? ` · ${a.country} · ${t("p2p.new.agents.zoneTag")}` : ""}</span></div>
+                            <div className="text-xs font-semibold">{a.name} <span className="font-normal text-muted-foreground">· {a.kind === "payrus_direct" ? t("p2p.new.agents.direct") : t("p2p.new.agents.correspondent")}{a.scope === "zone" ? ` · ${a.country} · ${t("p2p.new.agents.zoneTag")}` : a.scope === "abroad" ? ` · ${a.country} · ${t("p2p.new.agents.abroadTag", { currency: a.pickupCurrency ?? "" })}` : ""}</span></div>
                             <div className="text-[11px] text-muted-foreground">{a.address}, {a.city}{a.distanceKm != null ? ` · ${t("p2p.new.agents.away", { km: a.distanceKm })}` : ""}</div>
                           </button>
                         ))}
