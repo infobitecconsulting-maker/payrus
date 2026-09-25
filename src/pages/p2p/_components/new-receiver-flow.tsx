@@ -8,7 +8,7 @@ import { commissionFor } from "@/convex/fx.ts";
 import { requireStepUp } from "@/lib/mfa.ts";
 import { geocodeAddress } from "@/lib/geocode.ts";
 import { ensureDemoAgentsNear, findPayoutAgents, listPickupPoints, resolveUserByIdentifier, type PayoutAgent, type PayoutMethod, type PayoutReceipt, type PayoutRow, type Receiver, type ResolvedRecipient } from "@/lib/backend.ts";
-import { useMyPayouts, useMyReceivers, useRemittanceQuote, useSendToReceiverMutation } from "@/hooks/use-backend.ts";
+import { useMyPayouts, useMyReceivers, useOpenCorridors, useRemittanceQuote, useSendToReceiverMutation } from "@/hooks/use-backend.ts";
 
 const METHODS: { id: PayoutMethod; icon: typeof Smartphone; eta: string }[] = [
   { id: "mobile_money", icon: Smartphone, eta: "p2p.new.eta.mobile_money" },
@@ -67,6 +67,10 @@ export default function NewReceiverFlow({ senderId, wallets, defaultCurrency, on
   const [receipt, setReceipt] = useState<PayoutReceipt | null>(null);
 
   const toCurrency = country ? currencyForCountry(country) : "";
+  // Only offer wallets that can actually pay this receiver: the receiver's own currency, or a currency with an open corridor to it.
+  const openCorridors = useOpenCorridors();
+  const canPayFrom = (c: string) => !toCurrency || c === toCurrency || !openCorridors || openCorridors.some((o) => o.from === c && o.to === toCurrency);
+  const payFromOptions = wallets.map((w) => w.currency).filter(canPayFrom);
   const numAmt = parseFloat(amount) || 0;
   const cross = !!toCurrency && toCurrency !== from;
   const quote = useRemittanceQuote(from, toCurrency, numAmt, cross && step !== "who" && step !== "how").data;
@@ -76,8 +80,13 @@ export default function NewReceiverFlow({ senderId, wallets, defaultCurrency, on
   const wallet = wallets.find((w) => w.currency === from);
   const short = !!wallet && total > wallet.balance;
   const blocked = cross && quote && !quote.ok ? quote.blockedReason : null;
-  const currencies = Array.from(new Set([...wallets.map((w) => w.currency), ...(defaultCurrency ? [defaultCurrency] : []), from]));
+  const noRouteAtAll = !!toCurrency && wallets.length > 0 && payFromOptions.length === 0;
   const chosenAgent = agents?.find((a) => a.id === agentId) ?? allAgents?.find((a) => a.id === agentId) ?? null;
+
+  useEffect(() => {
+    if (toCurrency && payFromOptions.length > 0 && !payFromOptions.includes(from)) setFrom(payFromOptions.includes(toCurrency) ? toCurrency : payFromOptions[0]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [toCurrency, payFromOptions.join(",")]);
 
   useEffect(() => {
     const ids = [phone.trim().length >= 7 ? phone.trim() : "", email.includes("@") ? email.trim() : ""].filter(Boolean);
@@ -140,7 +149,7 @@ export default function NewReceiverFlow({ senderId, wallets, defaultCurrency, on
       setReceipt(r); setStep("success");
     } catch (e) {
       const m = /corridor_blocked:(\w+)/.exec(e instanceof Error ? e.message : "");
-      toast.error(m ? t(`remittance.blocked.${m[1]}`) : errText(e) || t("p2p.new.failed"));
+      toast.error(m ? (m[1] === "not_offered" ? t("p2p.new.noRoute", { from, to: toCurrency }) : t(`remittance.blocked.${m[1]}`)) : errText(e) || t("p2p.new.failed"));
     } finally { setBusy(false); }
   };
 
@@ -376,7 +385,7 @@ export default function NewReceiverFlow({ senderId, wallets, defaultCurrency, on
               </div>
               <div>
                 <label className={label} htmlFor="nr-from">{t("p2p.new.payFrom")}</label>
-                <select id="nr-from" className={field} value={from} onChange={(e) => setFrom(e.target.value)}>{currencies.map((c) => <option key={c} value={c}>{c}</option>)}</select>
+                <select id="nr-from" className={field} value={from} onChange={(e) => setFrom(e.target.value)}>{(payFromOptions.length > 0 ? payFromOptions : [from]).map((c) => <option key={c} value={c}>{c}</option>)}</select>
               </div>
             </div>
             <div>
@@ -389,10 +398,11 @@ export default function NewReceiverFlow({ senderId, wallets, defaultCurrency, on
               <div className="flex justify-between font-semibold"><span>{t("p2p.new.total")}</span><span>{fmt(total)} {from}</span></div>
               {wallet && <div className="text-[11px] text-muted-foreground">{t("p2p.new.balance")}: {fmt(wallet.balance)} {from}</div>}
               {short && <div className="text-[11px] text-destructive">{t("p2p.new.insufficient")}</div>}
-              {blocked && <div className="text-[11px] text-destructive">{t(`remittance.blocked.${blocked}`)}</div>}
+              {noRouteAtAll && <div className="text-[11px] text-destructive">{t("p2p.new.noRouteAny", { to: toCurrency })}</div>}
+              {blocked && <div className="text-[11px] text-destructive">{blocked === "not_offered" ? t("p2p.new.noRoute", { from, to: toCurrency }) : t(`remittance.blocked.${blocked}`)}</div>}
             </div>
           </div>
-          <button disabled={numAmt <= 0 || short || !!blocked || (cross && !quote)} onClick={() => setStep("confirm")}
+          <button disabled={numAmt <= 0 || short || !!blocked || noRouteAtAll || (cross && !quote)} onClick={() => setStep("confirm")}
             className="w-full py-3 rounded-xl bg-primary text-primary-foreground text-sm font-semibold cursor-pointer disabled:opacity-50">{t("p2p.new.review")}</button>
         </div>
       )}

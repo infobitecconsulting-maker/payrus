@@ -1251,6 +1251,8 @@
   "p2p.new.agents.allTitle": "Todos os pontos de levantamento",
   "p2p.new.agents.zoneTag": "mesma zona monetária",
   "p2p.new.agents.abroadTag": "outro país — pago em {{currency}} à taxa do dia",
+  "p2p.new.noRoute": "O envio de {{from}} para {{to}} ainda não está aberto. Pague a partir de uma carteira {{to}}, ou de outra carteira com rota aberta.",
+  "p2p.new.noRouteAny": "Ainda não há rota aberta para {{to}} a partir das suas carteiras. Carregue uma carteira {{to}} para pagar este beneficiário.",
   "p2p.find": "Procurar",
   "p2p.allMembers": "Membros PayRus",
   "p2p.amountToSend": "Valor a enviar",

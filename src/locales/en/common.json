@@ -1267,6 +1267,8 @@
   "p2p.new.agents.allTitle": "All pickup points",
   "p2p.new.agents.zoneTag": "same monetary zone",
   "p2p.new.agents.abroadTag": "other country — paid in {{currency}} at today's rate",
+  "p2p.new.noRoute": "Sending from {{from}} to {{to}} is not open yet. Pay from a {{to}} wallet, or from another wallet that has an open route.",
+  "p2p.new.noRouteAny": "No route to {{to}} is open from your wallets yet. Top up a {{to}} wallet to pay this receiver.",
   "p2p.find": "Find",
   "p2p.allMembers": "PayRus Members",
   "p2p.amountToSend": "Amount to send",
