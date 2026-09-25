@@ -378,6 +378,14 @@ export async function listPickupPoints(a: { country: string; currency: string; l
   return ((mustNotError(res, "listPickupPoints") ?? []) as Record<string, unknown>[]).map((r) => ({ ...camelRow<PayoutAgent>(r), distanceKm: r.distance_km == null ? null : Number(r.distance_km) }));
 }
 
+export interface PayoutOption { method: PayoutMethod; providers: string[]; available: boolean }
+
+// Which payout methods (and providers) are connected in the receiver's country (migration 0044).
+export async function getPayoutOptions(country: string): Promise<PayoutOption[]> {
+  const res = await supabase.rpc("payout_options", { p_country: country });
+  return ((mustNotError(res, "getPayoutOptions") ?? []) as Record<string, unknown>[]).map((r) => ({ method: r.method as PayoutMethod, providers: (r.providers as string[]) ?? [], available: Boolean(r.available) }));
+}
+
 export async function listMyPayouts(): Promise<PayoutRow[]> {
   const res = await supabase.rpc("list_my_payouts", { p_limit: 20 });
   return ((mustNotError(res, "listMyPayouts") ?? []) as Record<string, unknown>[]).map((r) => ({

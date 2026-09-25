@@ -7,7 +7,7 @@ import { COUNTRY_OPTIONS, callingCodeForCountry, currencyForCountry } from "@/co
 import { commissionFor } from "@/convex/fx.ts";
 import { requireStepUp } from "@/lib/mfa.ts";
 import { geocodeAddress } from "@/lib/geocode.ts";
-import { ensureDemoAgentsNear, findPayoutAgents, listPickupPoints, resolveUserByIdentifier, type PayoutAgent, type PayoutMethod, type PayoutReceipt, type PayoutRow, type Receiver, type ResolvedRecipient } from "@/lib/backend.ts";
+import { ensureDemoAgentsNear, findPayoutAgents, getPayoutOptions, listPickupPoints, resolveUserByIdentifier, type PayoutAgent, type PayoutMethod, type PayoutOption, type PayoutReceipt, type PayoutRow, type Receiver, type ResolvedRecipient } from "@/lib/backend.ts";
 import { useMyPayouts, useMyReceivers, useOpenCorridors, useRemittanceQuote, useSendToReceiverMutation } from "@/hooks/use-backend.ts";
 
 const METHODS: { id: PayoutMethod; icon: typeof Smartphone; eta: string }[] = [
@@ -57,6 +57,7 @@ export default function NewReceiverFlow({ senderId, wallets, defaultCurrency, on
   const [agents, setAgents] = useState<PayoutAgent[] | null>(null);
   const [located, setLocated] = useState(false);
   const [agentId, setAgentId] = useState<string | null>(null);
+  const [options, setOptions] = useState<PayoutOption[] | null>(null);
   const [allAgents, setAllAgents] = useState<PayoutAgent[] | null>(null);
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
 
@@ -100,6 +101,22 @@ export default function NewReceiverFlow({ senderId, wallets, defaultCurrency, on
     }, 400);
     return () => { live = false; clearTimeout(id); };
   }, [phone, email, senderId]);
+
+  // Which payout methods / providers are actually connected in the receiver's country.
+  useEffect(() => {
+    if (!country) { setOptions(null); return; }
+    let live = true;
+    void getPayoutOptions(country).then((o) => { if (live) setOptions(o); }).catch(() => { if (live) setOptions(null); });
+    return () => { live = false; };
+  }, [country]);
+  const optionFor = (m: PayoutMethod) => options?.find((o) => o.method === m);
+  const methodAvailable = (m: PayoutMethod) => !options || (optionFor(m)?.available ?? true);
+  useEffect(() => {
+    if (method && !methodAvailable(method)) { setMethod(null); setProvider(""); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [options]);
+  const mmProviders = optionFor("mobile_money")?.providers?.length ? optionFor("mobile_money")!.providers : MOBILE_PROVIDERS;
+  const bankNames = optionFor("bank")?.providers ?? [];
 
   // Propose payout agents near the receiver's address once the cash pickup channel is chosen.
   useEffect(() => {
@@ -270,11 +287,11 @@ export default function NewReceiverFlow({ senderId, wallets, defaultCurrency, on
             <div className={label}>{t("p2p.new.step.how")}</div>
             <div className="grid sm:grid-cols-3 gap-2">
               {METHODS.map((m) => (
-                <button key={m.id} onClick={() => setMethod(m.id)} aria-pressed={method === m.id}
-                  className={cn("p-3 rounded-xl border text-left cursor-pointer transition-colors", method === m.id ? "border-primary bg-primary/5" : "border-border bg-card hover:border-primary/40")}>
+                <button key={m.id} onClick={() => setMethod(m.id)} aria-pressed={method === m.id} disabled={!methodAvailable(m.id)}
+                  className={cn("p-3 rounded-xl border text-left transition-colors", !methodAvailable(m.id) ? "opacity-50 cursor-not-allowed border-border bg-card" : method === m.id ? "border-primary bg-primary/5 cursor-pointer" : "border-border bg-card hover:border-primary/40 cursor-pointer")}>
                   <m.icon size={16} className={method === m.id ? "text-primary" : "text-muted-foreground"} />
                   <div className="text-sm font-semibold mt-1">{t(`p2p.new.method.${m.id}`)}</div>
-                  <div className="text-[10px] text-muted-foreground">{t(m.eta)}</div>
+                  <div className="text-[10px] text-muted-foreground">{methodAvailable(m.id) ? t(m.eta) : t("p2p.new.notConnected", { country })}</div>
                 </button>
               ))}
             </div>
@@ -289,7 +306,7 @@ export default function NewReceiverFlow({ senderId, wallets, defaultCurrency, on
                   <div>
                     <label className={label} htmlFor="nr-prov">{t("p2p.new.provider")}</label>
                     <select id="nr-prov" className={field} value={provider} onChange={(e) => setProvider(e.target.value)}>
-                      <option value="">—</option>{MOBILE_PROVIDERS.map((p) => <option key={p} value={p}>{p}</option>)}
+                      <option value="">—</option>{mmProviders.map((p) => <option key={p} value={p}>{p}</option>)}
                     </select>
                   </div>
                   <div>
@@ -303,7 +320,8 @@ export default function NewReceiverFlow({ senderId, wallets, defaultCurrency, on
                 <>
                   <div>
                     <label className={label} htmlFor="nr-bank">{t("p2p.new.bankName")}</label>
-                    <input id="nr-bank" className={field} value={provider} onChange={(e) => setProvider(e.target.value)} />
+                    <input id="nr-bank" className={field} list="nr-banks" value={provider} onChange={(e) => setProvider(e.target.value)} />
+                    <datalist id="nr-banks">{bankNames.map((b) => <option key={b} value={b} />)}</datalist>
                   </div>
                   <div>
                     <label className={label} htmlFor="nr-iban">{t("p2p.new.account")}</label>

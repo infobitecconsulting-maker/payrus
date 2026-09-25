@@ -1253,6 +1253,7 @@
   "p2p.new.agents.abroadTag": "otro país — pagado en {{currency}} al tipo del día",
   "p2p.new.noRoute": "El envío de {{from}} a {{to}} aún no está abierto. Pague desde una cartera {{to}}, o desde otra cartera con ruta abierta.",
   "p2p.new.noRouteAny": "Aún no hay ruta abierta hacia {{to}} desde sus carteras. Recargue una cartera {{to}} para pagar a este beneficiario.",
+  "p2p.new.notConnected": "Aún no conectado en {{country}}",
   "p2p.find": "Buscar",
   "p2p.allMembers": "Miembros de PayRus",
   "p2p.amountToSend": "Importe a enviar",
