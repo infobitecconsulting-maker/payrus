@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Outlet, NavLink, useLocation, useParams, Navigate, useNavigate } from "react-router-dom";
-import { LayoutDashboard, CreditCard, ArrowLeftRight, History, Wallet, Bell, Settings, Users, Send, Landmark, PresentationIcon, ShieldCheck, PlugZap, PiggyBank, Plane, Heart, HandHeart, TrendingUp, Gamepad2, Menu, LogOut, LogIn, User, CircleDollarSign, ScanLine, Receipt, LifeBuoy, Store, Link2, BarChart3, Banknote, ShoppingBag, UserPlus } from "lucide-react";
+import { LayoutDashboard, CreditCard, ArrowLeftRight, History, Wallet, Bell, Settings, Users, Send, Landmark, ShieldCheck, PlugZap, PiggyBank, Plane, Heart, HandHeart, TrendingUp, Gamepad2, Menu, LogOut, LogIn, User, CircleDollarSign, ScanLine, Receipt, LifeBuoy, Store, Link2, BarChart3, Banknote, ShoppingBag, UserPlus } from "lucide-react";
 import { cn } from "@/lib/utils.ts";
 import { motion } from "motion/react";
 import { useTranslation } from "react-i18next";
@@ -105,7 +105,7 @@ export default function AppLayout() {
   const hasFeature = (key: string) => isAdmin || features.includes(key) || (key === "admin_panel" && hasStaffAccess);
 
   // Guard: send anonymous/no-profile visitors to the welcome screen first
-  const publicPaths = ["/welcome", "/profile", "/investor", "/fundraise", "/savings", "/wallet", "/payments"];
+  const publicPaths = ["/welcome", "/profile", "/fundraise", "/savings", "/wallet", "/payments"];
   const isPublicPath = publicPaths.some(p => location.pathname.endsWith(p));
 
   // A live session without a saved profile (first load on this browser, or the
@@ -184,9 +184,6 @@ export default function AppLayout() {
     ...(hasOrgAccess ? [{ to: `${base}/organisation`, icon: Landmark, label: t("nav.organisation", "Organisation") }] : []),
     ...(hasFeature("admin_panel") ? [{ to: `${base}/admin`, icon: ShieldCheck, label: t("nav.admin"), highlight: true as const }] : []),
 
-    // PRS-UX-006: investor/demo content is kept apart from the production customer
-    // navigation — rendered under its own "Demo & investor content" heading.
-    { to: `${base}/investor`, icon: PresentationIcon, label: t("nav.investor"), demo: true as const },
   ];
 
   // Mobile bottom nav — context-aware based on profile. Kept as simple
@@ -235,9 +232,6 @@ export default function AppLayout() {
             const isFiHighlight = "highlight" in item && item.highlight === "fi";
             return (
               <div key={item.to}>
-              {"demo" in item && item.demo && !("demo" in (navItems[idx - 1] ?? {})) && (
-                <div className="pt-3 mt-2 border-t border-border px-3 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">{t("nav.demoSection")}</div>
-              )}
               <NavLink to={item.to} end={item.to === base}>
                 <div className={cn(
                   "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200",
@@ -443,9 +437,6 @@ export default function AppLayout() {
               const active = isActive(item.to);
               return (
                 <div key={item.to}>
-                {"demo" in item && item.demo && !("demo" in (navItems[idx - 1] ?? {})) && (
-                <div className="pt-3 mt-2 border-t border-border px-3 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">{t("nav.demoSection")}</div>
-              )}
                 <NavLink
                   to={item.to}
                   end={item.to === base}

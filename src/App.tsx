@@ -25,7 +25,6 @@ import P2PTransfer from "./pages/p2p/page.tsx";
 import GroupTransfers from "./pages/groups/page.tsx";
 import GovHub from "./pages/gov/page.tsx";
 import ApiHub from "./pages/api-hub/page.tsx";
-import InvestorDeck from "./pages/investor/page.tsx";
 import AdminDashboard from "./pages/admin/page.tsx";
 import OrganisationPage from "./pages/organisation/page.tsx";
 import RegisterCustomer from "./pages/register-customer/page.tsx";
@@ -94,7 +93,6 @@ export default function App() {
               <Route path="profile" element={<ProfileSelection />} />
               <Route path="gov" element={<GovHub />} />
               <Route path="api-hub" element={<ApiHub />} />
-              <Route path="investor" element={<InvestorDeck />} />
               <Route path="admin" element={<StaffMfaGate><AdminDashboard /></StaffMfaGate>} />
               <Route path="organisation" element={<OrganisationPage />} />
               <Route path="register-customer" element={<RegisterCustomer />} />

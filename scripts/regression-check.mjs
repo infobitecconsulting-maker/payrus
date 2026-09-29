@@ -45,7 +45,7 @@ const allText = sources.map((p) => readFileSync(p, "utf8")).join("\n");
 // --- 1. Route parity with the live prototype -------------------------------
 section("Routes (live prototype payrus.cards must remain a subset of App/)");
 const appTsx = readFileSync(join(appRoot, "src", "App.tsx"), "utf8");
-const PROTOTYPE_ROUTES = ["dashboard", "payments", "wallet", "remittance", "transactions", "cards", "investor", "admin", "profile"];
+const PROTOTYPE_ROUTES = ["dashboard", "payments", "wallet", "remittance", "transactions", "cards", "admin", "profile"];
 // Spec-driven routes added since the prototype; guarded so they are not silently dropped.
 const SPEC_ROUTES = ["p2p", "organisation", "register-customer", "notifications", "settings", "gov", "api-hub", "treasury", "payouts", "payment-links", "pos", "disputes", "bills", "signin", "register", "recover", "reset-password"];
 for (const r of [...PROTOTYPE_ROUTES, ...SPEC_ROUTES]) {
@@ -65,7 +65,6 @@ const read = (base, rel) => {
   return existsSync(f) ? readFileSync(f, "utf8") : "";
 };
 const layout = read(appRoot, "src/pages/layout/AppLayout.tsx");
-const investor = read(appRoot, "src/pages/investor/page.tsx");
 const rules = [
   ["PRS-IAM-003 App has TOTP MFA lib + sign-in gate", () => read(appRoot, "src/lib/mfa.ts").includes("mfa.enroll") && read(appRoot, "src/pages/signin/page.tsx").includes("needsMfaChallenge")],
   ["PRS-IAM-003 console has TOTP MFA lib + sign-in gate", () => read(consoleRoot, "src/lib/mfa.ts").includes("mfa.enroll") && read(consoleRoot, "src/App.tsx").includes("needsMfaChallenge")],
@@ -73,8 +72,6 @@ const rules = [
   ["PRS-IAM-007 admin/staff screens require MFA in App + console", () => read(appRoot, "src/App.tsx").includes("<StaffMfaGate>") && read(consoleRoot, "src/App.tsx").split("<StaffMfaGate").length >= 3],
   ["Settings 2FA is real (no local-state toggle)", () => !read(appRoot, "src/pages/settings/page.tsx").includes("setTwoFAEnabled")],
   ["PRS-OPS-010 status indicator is a live probe, not static text", () => layout.includes("SystemStatusPill") && !layout.includes("nav.systems")],
-  ["PRS-UX-006 investor deck sits under the demo heading, not the customer nav", () => /nav\.investor"\), demo: true/.test(layout) && layout.includes("nav.demoSection")],
-  ["PRS-BR-013 investor LIVE badge comes from the capability registry", () => investor.includes("useCapabilityLevel") && !/status === "active" \? "● LIVE"/.test(investor)],
   ["PRS-PAY-001/012 cards + payments carry registry badges", () => read(appRoot, "src/pages/cards/page.tsx").includes("CapabilityBadge") && read(appRoot, "src/pages/payments/page.tsx").includes("CapabilityBadge")],
 ];
 for (const [name, test] of rules) test() ? ok(name) : fail(name);

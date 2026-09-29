@@ -196,7 +196,6 @@ const DEMO_PAGES = [
   { path: "/gov", label: "Gov Hub", icon: Landmark },
   { path: "/travel", label: "Travel", icon: Plane },
   { path: "/api-hub", label: "API Hub", icon: PlugZap },
-  { path: "/investor", label: "Investor Deck", icon: MonitorPlay },
   { path: "/transactions", label: "Transactions", icon: History },
   { path: "/settings", label: "Settings", icon: Settings },
 ];

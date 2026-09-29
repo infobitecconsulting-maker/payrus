@@ -466,7 +466,6 @@ export function generateTechAnalysisPDF() {
     ["Travel", "/en/travel", "All", "Flight & hotel search, FX for travellers, eSIM, travel insurance"],
     ["Gov Hub", "/en/gov", "Gov/State", "Government treasury — budget tracking, public procurement, e-taxation"],
     ["API Hub", "/en/api-hub", "FI only", "Developer portal — API keys, webhooks, sandbox, SDK docs"],
-    ["Investor Deck", "/en/investor", "All", "Interactive pitch deck — market data, financials, traction KPIs"],
     ["Admin", "/en/admin", "Admin", "User management, KYC review, system health, audit logs"],
     ["Profile Selection", "/en/profile", "All", "Account type selection — 13 profile types — persisted to localStorage"],
     ["Auth Callback", "/en/auth/callback", "System", "OAuth/magic-link/SSO landing page — resolves session → upsertSupabaseUser"],
