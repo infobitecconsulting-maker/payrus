@@ -1947,5 +1947,22 @@
   "receipt.printFailed": "Impossible d'ouvrir l'impression. Téléchargez plutôt le PDF.",
   "receipt.generating": "Préparation…",
   "receipt.type_deposit": "Dépôt",
-  "receipt.type_convert": "Conversion"
+  "receipt.type_convert": "Conversion",
+  "wallet.available": "Disponible",
+  "wallet.confirmConvert": "Confirmer la conversion",
+  "wallet.convert": "Convertir",
+  "wallet.convertFailed": "La conversion a échoué",
+  "wallet.convertFrom": "Depuis (votre portefeuille)",
+  "wallet.convertSuccessMessage": "Conversion terminée",
+  "wallet.convertTitle": "Convertir entre vos portefeuilles",
+  "wallet.convertTo": "Vers",
+  "wallet.credited": "Vous recevrez",
+  "wallet.fxMarginLabel": "Marge de change (10 %)",
+  "wallet.newBalanceMessage": "Nouveau solde crédité : {{currency}} {{credited}}",
+  "wallet.newCurrency": "nouveau",
+  "wallet.noTopUpsYet": "Aucune recharge pour le moment.",
+  "wallet.noWalletsYet": "Rechargez d'abord un portefeuille avant de convertir entre devises.",
+  "wallet.reviewConvert": "Vérifier la conversion",
+  "wallet.topUpFailed": "La recharge a échoué",
+  "nav.organisation": "Organisation"
 }

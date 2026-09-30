@@ -1947,5 +1947,22 @@
   "receipt.printFailed": "Não foi possível abrir a impressão. Descarregue o PDF.",
   "receipt.generating": "A preparar…",
   "receipt.type_deposit": "Depósito",
-  "receipt.type_convert": "Conversão"
+  "receipt.type_convert": "Conversão",
+  "wallet.available": "Disponível",
+  "wallet.confirmConvert": "Confirmar conversão",
+  "wallet.convert": "Converter",
+  "wallet.convertFailed": "A conversão falhou",
+  "wallet.convertFrom": "De (a sua carteira)",
+  "wallet.convertSuccessMessage": "Conversão concluída",
+  "wallet.convertTitle": "Converter entre as suas carteiras",
+  "wallet.convertTo": "Para",
+  "wallet.credited": "Vai receber",
+  "wallet.fxMarginLabel": "Margem cambial (10%)",
+  "wallet.newBalanceMessage": "Novo saldo creditado: {{currency}} {{credited}}",
+  "wallet.newCurrency": "novo",
+  "wallet.noTopUpsYet": "Ainda não há carregamentos.",
+  "wallet.noWalletsYet": "Carregue uma carteira antes de converter entre moedas.",
+  "wallet.reviewConvert": "Rever conversão",
+  "wallet.topUpFailed": "O carregamento falhou",
+  "nav.organisation": "Organização"
 }

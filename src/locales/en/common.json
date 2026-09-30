@@ -1963,5 +1963,6 @@
   "receipt.printFailed": "Could not open the print dialog. Download the PDF instead.",
   "receipt.generating": "Preparing…",
   "receipt.type_deposit": "Deposit",
-  "receipt.type_convert": "Conversion"
+  "receipt.type_convert": "Conversion",
+  "nav.organisation": "Organisation"
 }
