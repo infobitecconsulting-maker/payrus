@@ -24,7 +24,7 @@ export function useServiceWorker() {
     };
 
     navigator.serviceWorker
-      .register("/sw.js")
+      .register(`${import.meta.env.BASE_URL}sw.js`)
       .then((registration) => {
         console.log("Service Worker registered:", registration);
 

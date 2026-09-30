@@ -23,7 +23,7 @@ import LocationConsentBanner from "@/components/ui/location-consent-banner.tsx";
 export function PayRusLogo({ className }: { className?: string }) {
   return (
     <img
-      src="/payrus-logo-lockup.png"
+      src={`${import.meta.env.BASE_URL}payrus-logo-lockup.png`}
       alt="PayRus — Payment Solutions & Services"
       className={cn("object-contain select-none", className)}
       draggable={false}
@@ -34,7 +34,7 @@ export function PayRusLogo({ className }: { className?: string }) {
 export function PayRusMark({ className }: { className?: string }) {
   return (
     <img
-      src="/payrus-icon.png"
+      src={`${import.meta.env.BASE_URL}payrus-icon.png`}
       alt=""
       className={cn("object-contain select-none", className)}
       draggable={false}

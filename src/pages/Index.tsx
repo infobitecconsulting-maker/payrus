@@ -115,7 +115,7 @@ export default function Index() {
       <div className="mx-auto max-w-5xl px-4 py-6 md:px-8">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <img src="/payrus-mark.png" alt="" className="h-7 w-auto" />
+            <img src={`${import.meta.env.BASE_URL}payrus-mark.png`} alt="" className="h-7 w-auto" />
             <div>
               <div className="text-xs font-semibold text-[#66798F]">Good afternoon</div>
               {displayName && (
@@ -298,7 +298,7 @@ export default function Index() {
                 }}
               >
                 <div className="flex items-center justify-between">
-                  <img src="/payrus-mark.png" alt="" className="h-5 w-auto" draggable={false} />
+                  <img src={`${import.meta.env.BASE_URL}payrus-mark.png`} alt="" className="h-5 w-auto" draggable={false} />
                   <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/75">{primaryCard?.brand ?? "Visa"}</span>
                 </div>
                 <div className="mt-8 text-[15px] font-semibold tracking-[0.12em]" style={{ fontFamily: "'Sora', sans-serif" }}>•••• •••• •••• {primaryCard ? primaryCard.last4 : "4471"}</div>

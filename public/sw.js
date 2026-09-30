@@ -1,13 +1,16 @@
 const CACHE_NAME = "app-assets-v1";
-const OFFLINE_URL = "/offline.html";
+// Relative to this file's own registered scope (e.g. "/payrus/"), not the site root —
+// the app may be deployed under a subpath (GitHub Pages), and a leading slash here would
+// resolve to the domain root instead.
+const OFFLINE_URL = "offline.html";
 // Never precache "/" (the app shell). Its HTML embeds Vite-hashed asset URLs
 // that change on every publish, so a cached shell points at dead chunks.
 const urlsToCache = [
   OFFLINE_URL,
-  "/icon/icon-192.png",
-  "/icon/icon-512.png",
-  "/icon/icon-maskable-192.png",
-  "/icon/icon-maskable-512.png",
+  "icon/icon-192.png",
+  "icon/icon-512.png",
+  "icon/icon-maskable-192.png",
+  "icon/icon-maskable-512.png",
 ];
 
 // Install event - cache the offline page and icons (never the app shell).
@@ -39,8 +42,9 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Never intercept auth paths.
-  if (url.pathname.startsWith("/auth")) {
+  // Never intercept auth paths (the app may be deployed under a subpath, so this
+  // matches the "/auth/callback" segment anywhere in the path, not just at its start).
+  if (url.pathname.includes("/auth")) {
     return;
   }
 
@@ -118,8 +122,9 @@ self.addEventListener("notificationclick", (event) => {
       for (const client of clientList) {
         if ("focus" in client) return client.focus();
       }
-      // Open new window if none exists
-      if (clients.openWindow) return clients.openWindow("/");
+      // Open new window if none exists — at this app's own scope, not the domain root
+      // (the app may be deployed under a subpath, e.g. GitHub Pages).
+      if (clients.openWindow) return clients.openWindow(self.registration.scope);
     }),
   );
 });
