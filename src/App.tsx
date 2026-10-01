@@ -45,6 +45,7 @@ import Payouts from "./pages/payouts/page.tsx";
 import Disputes from "./pages/disputes/page.tsx";
 import Shop from "./pages/shop/page.tsx";
 import ModulePage, { ModulesIndex } from "./pages/modules/page.tsx";
+import PlansPage from "./pages/plans/page.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
 function RootRedirect() {
@@ -113,6 +114,7 @@ export default function App() {
               <Route path="payouts" element={<Payouts />} />
               <Route path="disputes" element={<Disputes />} />
               <Route path="shop" element={<Shop />} />
+              <Route path="plans" element={<PlansPage />} />
               <Route path="modules" element={<ModulesIndex />} />
               <Route path="modules/:module" element={<ModulePage />} />
               <Route path="*" element={<NotFound />} />

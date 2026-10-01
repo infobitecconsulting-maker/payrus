@@ -171,9 +171,14 @@ export default function ProfileSelection() {
   // Role list, order and individual/organisation kind come from the
   // role_definitions table; only icons and feature keys are presentation.
   const roleDefs = useRoleDefinitions();
+  // Grouped like Revolut presents persons vs businesses: people first, then businesses, then institutions (family from migration 0059).
+  const FAMILY_RANK: Record<string, number> = { individual: 0, business: 1, institution: 2 };
+  const familyOf = (slug: string) => roleDefs?.find((d) => d.slug === slug)?.family ?? null;
   const orderedRoles = (roleDefs ?? [])
     .filter((d) => !d.isAdmin)
-    .map((d) => ROLES.find((r) => r.id === d.slug))
+    .map((d, i) => ({ d, i }))
+    .sort((a, b) => (FAMILY_RANK[a.d.family ?? ""] ?? 9) - (FAMILY_RANK[b.d.family ?? ""] ?? 9) || a.i - b.i)
+    .map(({ d }) => ROLES.find((r) => r.id === d.slug))
     .filter((r): r is ProfileTypeConfig => r != null);
 
   const [step, setStep] = useState<Step>(existingRoles && existingRoles.length > 1 ? "chooseExisting" : "select");
@@ -446,6 +451,7 @@ export default function ProfileSelection() {
                         >
                           {t(`profile.type.${pt.id}`)}
                         </div>
+                        {familyOf(pt.id) && <div className="text-[10.5px] uppercase tracking-wide text-primary/80 mt-0.5">{t(`profile.family.${familyOf(pt.id)}`, familyOf(pt.id) === "individual" ? "For people" : familyOf(pt.id) === "business" ? "For businesses" : "For institutions")}</div>}
                         <div className="text-[13px] text-muted-foreground mt-0.5 leading-snug">
                           {existing ? (existing.complete ? t("profile.chooseRole.verified") : t("profile.chooseRole.incomplete")) : t(`profile.desc.${pt.id}`)}
                         </div>
@@ -479,7 +485,8 @@ export default function ProfileSelection() {
                         </div>
                         <ChevronRight size={16} className="text-muted-foreground shrink-0 ml-auto group-hover:translate-x-0.5 transition-transform" />
                       </div>
-                      <div className="text-sm text-muted-foreground mt-3 leading-relaxed">
+                      {familyOf(pt.id) && <div className="text-[11px] uppercase tracking-wide text-primary/80 mt-2">{t(`profile.family.${familyOf(pt.id)}`, familyOf(pt.id) === "individual" ? "For people" : familyOf(pt.id) === "business" ? "For businesses" : "For institutions")}</div>}
+                      <div className="text-sm text-muted-foreground mt-1.5 leading-relaxed">
                         {existing ? (existing.complete ? t("profile.chooseRole.verified") : t("profile.chooseRole.incomplete")) : t(`profile.desc.${pt.id}`)}
                       </div>
                     </motion.button>

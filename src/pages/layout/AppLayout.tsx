@@ -20,6 +20,7 @@ import { supabase } from "@/lib/supabase-client.ts";
 import FxRatePill from "@/components/ui/fx-rate-pill.tsx";
 import LocationConsentBanner from "@/components/ui/location-consent-banner.tsx";
 import { useMyModules, useSubProfiles } from "@/hooks/use-institutional.ts";
+import { useWorkspaces } from "@/hooks/use-institutional-team.ts";
 
 export function PayRusLogo({ className }: { className?: string }) {
   return (
@@ -107,7 +108,8 @@ export default function AppLayout() {
   // specialisation and none on offer sees exactly the previous menu.
   const modulesQ = useMyModules(currentUser?.id, profile?.type);
   const subProfileChoices = (useSubProfiles().data ?? []).filter((s) => s.parentRole === profile?.type && s.slug !== "individual");
-  const showModules = (modulesQ.data ?? []).length > 0 || subProfileChoices.length > 0;
+  const joinedWorkspaces = (useWorkspaces(currentUser?.id).data ?? []).filter((w) => !w.isSelf).length > 0;
+  const showModules = (modulesQ.data ?? []).length > 0 || subProfileChoices.length > 0 || joinedWorkspaces;
   const hasFeature = (key: string) => isAdmin || features.includes(key) || (key === "admin_panel" && hasStaffAccess);
 
   // Guard: send anonymous/no-profile visitors to the welcome screen first
@@ -188,6 +190,7 @@ export default function AppLayout() {
     // status; now requires the admin_panel feature (admin-only by default,
     // seeded in 0014, adjustable from the Roles & Access tab).
     ...(showModules ? [{ to: `${base}/modules`, icon: BarChart3, label: t("nav.modules", "Business modules") }] : []),
+    ...(!isAdmin ? [{ to: `${base}/plans`, icon: CircleDollarSign, label: t("nav.plans", "Plans & limits") }] : []),
     ...(hasOrgAccess ? [{ to: `${base}/organisation`, icon: Landmark, label: t("nav.organisation", "Organisation") }] : []),
     ...(hasFeature("admin_panel") ? [{ to: `${base}/admin`, icon: ShieldCheck, label: t("nav.admin"), highlight: true as const }] : []),
 

@@ -473,6 +473,7 @@ export async function p2pTransfer(args: {
 
 export interface RoleDefinition {
   slug: string; kind: "individual" | "organisation"; isAdmin: boolean; sortOrder: number; consoleRole: string;
+  family: "individual" | "business" | "institution" | "system" | null;
   templateName: string; templateAccountNumber: string; templateTier: string; templateCurrency: string;
   templateBalance: number; templateBalanceUsd: number;
 }
@@ -480,7 +481,7 @@ export interface RoleDefinition {
 export async function listRoleDefinitions(): Promise<RoleDefinition[]> {
   const res = await supabase.from("role_definitions").select("*").order("sort_order");
   return mustHaveData(res, "listRoleDefinitions").map((r) => ({
-    slug: r.slug, kind: r.kind, isAdmin: r.is_admin, sortOrder: r.sort_order, consoleRole: r.console_role,
+    slug: r.slug, kind: r.kind, isAdmin: r.is_admin, sortOrder: r.sort_order, consoleRole: r.console_role, family: (r.family as RoleDefinition["family"]) ?? null,
     templateName: r.template_name, templateAccountNumber: r.template_account_number, templateTier: r.template_tier,
     templateCurrency: r.template_currency, templateBalance: Number(r.template_balance), templateBalanceUsd: Number(r.template_balance_usd),
   }));

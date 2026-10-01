@@ -20,7 +20,7 @@ Status: **Built** = shipped by migrations 0053/0054 + App/Console in this change
 | Pro-rata distributions (dividends, yield) | Manual | n/a | **Built** (exact to the cent, remainder to last holder) |
 | Governance: resolutions, quorum, tally | n/a | n/a | **Built** (outcome decided by tally + quorum, not by hand) |
 | Audit trail on every record change | Chatter / logs | Activity log | **Built** (audit trigger on `inst_records`) + **Existing** audit view in Console |
-| Role-based access | Groups | Roles | **Existing** (org tree, scoped roles) + sub-profile module entitlement |
+| Role-based access | Groups | Roles (Owner/Admin/Accountant/Viewer/Member + custom) | **Existing** (org tree, scoped roles) + sub-profile module entitlement; **Built (0059)** workspace team roles with custom roles |
 | Multi-currency accounts, FX | Multi-currency | 30+ currencies | **Existing** wallets, FX margin config |
 | Public API | JSON-RPC | Business API (Scale+) | **Existing** api-hub |
 | Webhooks (event notifications) | Automated actions / webhooks | Up to 10 webhooks, signed deliveries | **Built (0058)**: up to 10 per account, 5 record/bank/follow-up events, outbox written in the same transaction as the change, HMAC-SHA256 signed deliveries (`PayRus-Signature`), retry ladder (1 min, 5 min, 30 min, 2 h, 12 h) then dead-letter with manual retry, secret shown once + rotation, HTTPS/443 public-host URL rules, delivery log + test ping in the App, delivery health and failures in the Console |
@@ -51,6 +51,34 @@ Status: **Built** = shipped by migrations 0053/0054 + App/Console in this change
 Financial-institution sub-profiles carry `enhanced_kyc` and `relationship_mgr` flags (shown in the App; wiring them to an
 actual KYC/AML/FATF workflow and manager assignment is the next step, see gaps).
 
+## How Revolut presents persons and businesses, and where PayRus now stands (0059)
+
+Revolut separates three ideas that PayRus had blended into one "profile":
+
+1. **Who the account is for.** Personal accounts and Business accounts are two separate products with separate sign-up and
+   eligibility. Business is limited to companies and sole traders; charities, public-sector bodies, foundations and cooperatives
+   are excluded, and freelancers have a lighter offer (Revolut Pro).
+2. **The plan.** Personal: Standard, Plus, Premium, Metal, Ultra. Business: Basic, Grow, Scale, Enterprise. A plan carries
+   entitlements (free transfers, FX allowance, cards, bulk payments from Grow, API from Scale, team size, support level).
+3. **The team role** on a business account: Owner (one), Admin, Accountant, Viewer, Member, plus custom roles built from
+   permissions; the built-in roles cannot be edited and a manager cannot hand out permissions they do not hold.
+
+| Revolut | PayRus before | PayRus now |
+|---|---|---|
+| Person vs business as the first choice | One flat list of 9 roles | **Built**: every role has a `family` (people / businesses / institutions / system); the onboarding picker is ordered and labelled by family |
+| Institutions Revolut does not serve (NGO, public sector, cooperatives) | Profiles existed, nothing specific | **Advantage**: sub-profile modules (0053+), enhanced KYC flag, grant, tax, SACCO, pension and insurance tooling |
+| Personal plans | None | **Built**: Free / Plus / Premium (indicative prices, limits shown) |
+| Business plans | None | **Built**: Basic / Grow / Scale / Enterprise; Enterprise assigned by staff only |
+| Plan limits that bite | n/a | **Built (enforced)**: team members, webhooks (up to 10), approval-chain length. **Shown, not metered yet**: free transfers, FX allowance, cards, bulk payments, API access (no billing connection) |
+| Team roles Owner / Admin / Accountant / Viewer / Member | Owner only; legacy org members could approve | **Built**: Owner (implicit), Admin, Accountant, Approver, Viewer, Member; ten permissions; enforced in every institutional RPC |
+| Custom roles | None | **Built**: up to 10 per workspace, cannot grant a permission you do not hold |
+| Each person acts under their own name | Owner id was recorded as the preparer, so four-eyes could not see the real preparer | **Built**: `created_by` is the real actor; a Member sees only their own records |
+| Switching between businesses | n/a | **Built**: workspace selector in the App for people who belong to several workspaces |
+| Staff oversight | Per-feature tiles | **Built**: plan distribution and team counters in the Console Institutions tab; staff can no longer approve or pay from a customer's wallet by being an admin (they use the admin RPCs) |
+
+Still behind Revolut here: Metal and Ultra tiers and physical metal cards, paid billing with proration, per-member card
+spend limits, a separate sole-trader product, and role-based access to individual accounts or pockets inside a workspace.
+
 ## Remaining gaps (not built; ordered by competitive impact)
 
 1. Direct connectors to Xero / QuickBooks / Odoo (today: journal CSV).
@@ -68,4 +96,6 @@ actual KYC/AML/FATF workflow and manager assignment is the next step, see gaps).
 - Odoo 18 Accounting: https://www.odoo.com/documentation/18.0/applications/finance/accounting.html and https://www.odoo.com/app/accounting-features
 - Odoo vendor bills, digitization and expenses: https://www.odoo.com/documentation/19.0/applications/finance/accounting/vendor_bills.html and https://www.odoo.com/documentation/19.0/applications/finance/expenses/log_expenses.html
 - Revolut Business expense management: https://www.revolut.com/en-US/business/expense-management/
+- Revolut plans and business account eligibility: https://www.revolut.com/business/ and https://www.revolut.com/plans/ (checked Oct 2026)
+- Revolut Business team roles and permissions (help centre, "Roles and permissions")
 - Revolut Business API and webhooks: https://developer.revolut.com/docs/business/business-api and https://developer.revolut.com/docs/guides/manage-accounts/webhooks/manage-webhooks

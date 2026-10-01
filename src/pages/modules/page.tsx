@@ -20,6 +20,8 @@ import { journal, type InstRecord, type RecordKind } from "@/lib/institutional.t
 import { useApprovalProgress } from "@/hooks/use-institutional-ops.ts";
 import { AgeingPanel, BudgetsPanel, PolicyPanel, ReconcilePanel } from "./panels.tsx";
 import { WebhooksPanel } from "./webhooks-panel.tsx";
+import { TeamPanel, WorkspaceSwitcher } from "./team-panel.tsx";
+import { useWorkspace } from "@/hooks/use-workspace.ts";
 
 const money = (v: number, cur?: string) => `${v.toLocaleString(undefined, { maximumFractionDigits: 2 })}${cur ? " " + cur : ""}`;
 const label = (s: string) => s.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
@@ -160,14 +162,16 @@ export function ModulesIndex() {
   const { lng } = useParams<{ lng: string }>();
   const { profile } = useProfile();
   const user = useCurrentAppUser();
-  const mods = useMyModules(user?.id, profile?.type);
+  const ws = useWorkspace();
+  const ownerId = ws.ownerId;
+  const mods = useMyModules(ownerId, ws.isSelf ? profile?.type : ws.current?.modulesRole ?? undefined);
   const subs = useSubProfiles().data ?? [];
   const setSub = useSetMySubProfile();
   const approvals = usePendingApprovals(user?.id).data ?? [];
   const allKindsIndexData = useRecordKinds().data;
   const allKindsIndex = useMemo(() => allKindsIndexData ?? [], [allKindsIndexData]);
   const transition = useTransitionInstRecord();
-  const choices = subs.filter((s) => s.parentRole === profile?.type);
+  const choices = ws.isSelf ? subs.filter((s) => s.parentRole === profile?.type) : [];
   const current = mods.data?.[0]?.subProfile ?? null;
 
   async function pick(slug: string) {
@@ -184,6 +188,8 @@ export function ModulesIndex() {
   return (
     <div className="p-4 md:p-6 max-w-4xl mx-auto space-y-6">
       <PageHeader title={t("modules.title", "Business modules")} subtitle={t("modules.subtitle", "Tools unlocked by your account specialisation")} showBack={false} />
+
+      <WorkspaceSwitcher workspaces={ws.workspaces} current={ws.current} onSelect={ws.select} />
 
       {choices.length > 1 || (choices.length === 1 && !current) ? (
         <section className="rounded-xl border border-border bg-card p-4 space-y-3">
@@ -217,8 +223,9 @@ export function ModulesIndex() {
         </section>
       )}
 
-      {user && (mods.data ?? []).length > 0 && <PolicyPanel userId={user.id} kinds={allKindsIndex} />}
-      {user && (mods.data ?? []).length > 0 && <WebhooksPanel userId={user.id} />}
+      {user && (mods.data ?? []).length > 0 && ws.can("manage_settings") && <PolicyPanel userId={ownerId} kinds={allKindsIndex} />}
+      {user && (mods.data ?? []).length > 0 && ws.can("manage_webhooks") && <WebhooksPanel userId={ownerId} />}
+      {user && (mods.data ?? []).length > 0 && ws.can("manage_team") && <TeamPanel ownerId={ownerId} />}
 
       <div className="grid sm:grid-cols-2 gap-3">
         {(mods.data ?? []).map((m) => (
@@ -241,11 +248,13 @@ export default function ModulePage() {
   const { module = "" } = useParams<{ module: string }>();
   const { profile } = useProfile();
   const user = useCurrentAppUser();
-  const mods = useMyModules(user?.id, profile?.type);
+  const ws = useWorkspace();
+  const ownerId = ws.ownerId;
+  const mods = useMyModules(ownerId, ws.isSelf ? profile?.type : ws.current?.modulesRole ?? undefined);
   const kindsData = useRecordKinds().data;
   const allKinds = useMemo(() => kindsData ?? [], [kindsData]);
   const kinds = useMemo(() => allKinds.filter((k) => k.moduleKey === module).sort((a, b) => a.sortOrder - b.sortOrder), [allKinds, module]);
-  const records = useInstRecords(user?.id, module);
+  const records = useInstRecords(ownerId, module);
   const rs = useMemo(() => records.data ?? [], [records.data]);
   const create = useCreateInstRecord(); const transition = useTransitionInstRecord(); const payroll = useRunPayroll(); const recur = useRunRecurring();
   const [kindSlug, setKindSlug] = useState<string>("");
@@ -259,11 +268,11 @@ export default function ModulePage() {
 
   // Opportunistic: materialise any recurring documents that came due.
   useEffect(() => {
-    if (!user || ranRecurring.current) return;
+    if (!user || !ownerId || !ws.can("edit") || ranRecurring.current) return;
     ranRecurring.current = true;
-    recur.mutateAsync(user.id).then((n) => { if (n > 0) toast.info(t("modules.recurringGenerated", "{{count}} recurring document(s) generated", { count: n })); }).catch(() => undefined);
+    recur.mutateAsync(ownerId).then((n) => { if (n > 0) toast.info(t("modules.recurringGenerated", "{{count}} recurring document(s) generated", { count: n })); }).catch(() => undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]);
+  }, [user?.id, ownerId]);
 
   const meta = (mods.data ?? []).find((m) => m.moduleKey === module);
   const kpis = useMemo(() => computeKpis(module, rs), [module, rs]);
@@ -281,7 +290,7 @@ export default function ModulePage() {
     if (!user) return;
     const period = window.prompt(t("modules.payrollPeriod", "Pay period (e.g. 2026-10)"), new Date().toISOString().slice(0, 7));
     if (!period) return;
-    try { await payroll.mutateAsync({ userId: user.id, period, currency }); toast.success(t("modules.payrollCreated", "Payroll run created — submit it for approval")); }
+    try { await payroll.mutateAsync({ userId: ownerId, period, currency }); toast.success(t("modules.payrollCreated", "Payroll run created — submit it for approval")); }
     catch (e) { toast.error((e as Error).message); }
   }
   async function exportJournal() {
@@ -320,10 +329,10 @@ export default function ModulePage() {
           <button key={v} onClick={() => setView(v)} className={cn("px-3 py-2 text-sm cursor-pointer border-b-2 -mb-px", view === v ? "border-primary text-foreground font-medium" : "border-transparent text-muted-foreground hover:text-foreground")}>{text}</button>
         ))}
       </div>
-      {view === "reconcile" && user && <ReconcilePanel userId={user.id} currency={currency} />}
-      {view === "budgets" && user && <BudgetsPanel userId={user.id} currency={currency} moduleKey={module} modules={mods.data ?? []} kinds={allKinds} />}
+      {view === "reconcile" && user && <ReconcilePanel userId={ownerId} currency={currency} />}
+      {view === "budgets" && user && <BudgetsPanel userId={ownerId} currency={currency} moduleKey={module} modules={mods.data ?? []} kinds={allKinds} />}
       {view === "records" && (<>
-      {module === "invoicing" && user && <AgeingPanel userId={user.id} />}
+      {module === "invoicing" && user && <AgeingPanel userId={ownerId} />}
 
       <div className="flex flex-wrap items-center gap-2">
         {kinds.map((k) => (
@@ -364,7 +373,7 @@ export default function ModulePage() {
       </>)}
 
       {kind && creating && <CreateDialog kind={kind} kinds={allKinds} records={rs} currency={currency} onClose={() => setCreating(false)}
-        onCreate={async (a) => { if (!user) return; try { await create.mutateAsync({ userId: user.id, kind: kind.slug, ...a }); toast.success(t("modules.created", "Created")); setCreating(false); } catch (e) { toast.error((e as Error).message); } }} />}
+        onCreate={async (a) => { if (!user) return; try { await create.mutateAsync({ userId: ownerId, kind: kind.slug, ...a }); toast.success(t("modules.created", "Created")); setCreating(false); } catch (e) { toast.error((e as Error).message); } }} />}
       <DetailSheet record={detail ? rs.find((r) => r.id === detail.id) ?? detail : null} kinds={allKinds} records={rs} onClose={() => setDetail(null)} onMove={move} />
     </div>
   );
@@ -542,8 +551,8 @@ function DetailSheet({ record, kinds, records, onClose, onMove }: {
                     <select className="h-9 rounded-md border border-input bg-background px-2 text-sm" value={every} onChange={(e) => setEvery(e.target.value)}>
                       {["week", "month", "quarter", "year"].map((e) => <option key={e} value={e}>{label(e)}</option>)}
                     </select>
-                    <Button size="sm" onClick={async () => { if (!user) return; try { await setRecurrence.mutateAsync({ userId: user.id, recordId: record.id, every, next: new Date(Date.now() + 864e5).toISOString().slice(0, 10) }); toast.success(t("modules.recurringSet", "Recurrence set — starts tomorrow")); } catch (e) { toast.error((e as Error).message); } }}>{t("modules.repeat", "Repeat")}</Button>
-                    {record.data.recurrence ? <Button size="sm" variant="outline" onClick={async () => { if (!user) return; await setRecurrence.mutateAsync({ userId: user.id, recordId: record.id, every: null }); }}>{t("modules.stop", "Stop")}</Button> : null}
+                    <Button size="sm" onClick={async () => { if (!user) return; try { await setRecurrence.mutateAsync({ userId: record.ownerUserId, recordId: record.id, every, next: new Date(Date.now() + 864e5).toISOString().slice(0, 10) }); toast.success(t("modules.recurringSet", "Recurrence set — starts tomorrow")); } catch (e) { toast.error((e as Error).message); } }}>{t("modules.repeat", "Repeat")}</Button>
+                    {record.data.recurrence ? <Button size="sm" variant="outline" onClick={async () => { if (!user) return; await setRecurrence.mutateAsync({ userId: record.ownerUserId, recordId: record.id, every: null }); }}>{t("modules.stop", "Stop")}</Button> : null}
                   </div>
                 </div>
               )}
