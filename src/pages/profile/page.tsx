@@ -18,6 +18,7 @@ import { Progress } from "@/components/ui/progress.tsx";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp.tsx";
 import { useProfile, type ProfileType, getDefaultProfile } from "@/contexts/profile-context.tsx";
 import { applyRealName } from "@/lib/post-auth-routing.ts";
+import { useSetMySubProfile, useSubProfiles } from "@/hooks/use-institutional.ts";
 import { useAddressesForUser, useRoleDefinitions, useUpsertUserRoleMutation, useUserRolesForUser } from "@/hooks/use-backend.ts";
 
 /* ─── Role icons (traced from the PayRus mobile artefact's icon sprite) ──── */
@@ -135,6 +136,8 @@ export default function ProfileSelection() {
   const currentUser = useCurrentAppUser();
   const existingAddresses = useAddressesForUser(currentUser?.id);
   const upsertRole = useUpsertUserRoleMutation();
+  const setSubProfileMutation = useSetMySubProfile();
+  const allSubProfiles = useSubProfiles().data;
   // Convex file storage for the org registration document is kept
   // unchanged for now — it has no Supabase Storage equivalent in this pass
   // (see src/lib/backend.ts's note on this); the returned storage id is
@@ -175,7 +178,12 @@ export default function ProfileSelection() {
 
   const [step, setStep] = useState<Step>(existingRoles && existingRoles.length > 1 ? "chooseExisting" : "select");
   const [selected, setSelected] = useState<ProfileType | null>(null);
+  const [subProfile, setSubProfile] = useState<string | null>(null);
   const [orgName, setOrgName] = useState("");
+  // Specialisations on offer for the chosen role (migration 0053). Only shown when
+  // there is a real choice, so roles without sub-profiles see the wizard unchanged.
+  const subProfileChoices = (allSubProfiles ?? []).filter((s) => s.parentRole === selected);
+  const chosenSub = subProfileChoices.find((s) => s.slug === subProfile) ?? null;
   const isOrgRole = selected != null && roleDefs?.find((d) => d.slug === selected)?.kind === "organisation";
 
   // KYC/verification sub-wizard state (kept local to this page — mirrors the
@@ -303,6 +311,7 @@ export default function ProfileSelection() {
       return;
     }
     setSelected(id);
+    setSubProfile(null);
     setStep("detail");
   };
 
@@ -338,6 +347,11 @@ export default function ProfileSelection() {
             legalRepName, legalRepIdType, legalRepIdNumber, legalRepPhone,
           } : {}),
         });
+        if (subProfile) {
+          // Best effort: the role is already saved, and the specialisation can be changed later under Business modules.
+          try { await setSubProfileMutation.mutateAsync({ userId: effectiveUserId, role: selected, subProfile }); }
+          catch { toast.error(t("profile.subProfile.saveFailed", "Role saved, but the specialisation could not be saved. Choose it under Business modules.")); }
+        }
       } catch {
         toast.error(t("profile.org.saveFailed"));
       }
@@ -505,6 +519,46 @@ export default function ProfileSelection() {
                     </div>
                   ))}
                 </div>
+
+                {/* Specialisation (optional): which kind of organisation this role is */}
+                {subProfileChoices.length > 1 && (
+                  <div className="space-y-2">
+                    <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t("profile.subProfile.title", "What type of organisation?")}</div>
+                    <div className="grid gap-2">
+                      {subProfileChoices.map((s) => (
+                        <button
+                          key={s.slug}
+                          type="button"
+                          onClick={() => setSubProfile(subProfile === s.slug ? null : s.slug)}
+                          className={cn(
+                            "text-left rounded-xl border p-3 transition-colors cursor-pointer",
+                            subProfile === s.slug ? "border-primary bg-primary/5" : "border-border bg-card hover:bg-secondary/50",
+                          )}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-sm font-medium text-foreground">{s.label}</span>
+                            {subProfile === s.slug && <CheckCircle2 size={15} className="text-primary shrink-0" />}
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-0.5">{s.description}</p>
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-xs text-muted-foreground">{t("profile.subProfile.optional", "Optional — you can choose or change this later under Business modules.")}</p>
+                    {chosenSub && (
+                      <div className="rounded-xl bg-card border border-border p-3 space-y-1.5">
+                        {chosenSub.features.map((f) => (
+                          <div key={f} className="flex items-center gap-2.5">
+                            <CheckCircle2 size={14} className="text-primary shrink-0" />
+                            <span className="text-sm text-foreground">{f}</span>
+                          </div>
+                        ))}
+                        {chosenSub.enhancedKyc && (
+                          <p className="text-xs text-amber-700 pt-1">{t("modules.enhancedKyc", "Enhanced KYC/AML/FATF verification · dedicated relationship manager")}</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Special notice for treasury/institutional roles */}
                 {(["treasury","public_institution","group"] as ProfileType[]).includes(selected!) && (
