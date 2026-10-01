@@ -35,6 +35,7 @@ import type * as userRoles from "../userRoles.js";
 import type * as users from "../users.js";
 import type * as walletMeta from "../walletMeta.js";
 import type * as wallets from "../wallets.js";
+import type * as webhookDispatcher from "../webhookDispatcher.js";
 
 import type {
   ApiFromModules,
@@ -70,6 +71,7 @@ declare const fullApi: ApiFromModules<{
   users: typeof users;
   walletMeta: typeof walletMeta;
   wallets: typeof wallets;
+  webhookDispatcher: typeof webhookDispatcher;
 }>;
 
 /**

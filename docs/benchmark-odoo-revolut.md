@@ -23,6 +23,7 @@ Status: **Built** = shipped by migrations 0053/0054 + App/Console in this change
 | Role-based access | Groups | Roles | **Existing** (org tree, scoped roles) + sub-profile module entitlement |
 | Multi-currency accounts, FX | Multi-currency | 30+ currencies | **Existing** wallets, FX margin config |
 | Public API | JSON-RPC | Business API (Scale+) | **Existing** api-hub |
+| Webhooks (event notifications) | Automated actions / webhooks | Up to 10 webhooks, signed deliveries | **Built (0058)**: up to 10 per account, 5 record/bank/follow-up events, outbox written in the same transaction as the change, HMAC-SHA256 signed deliveries (`PayRus-Signature`), retry ladder (1 min, 5 min, 30 min, 2 h, 12 h) then dead-letter with manual retry, secret shown once + rotation, HTTPS/443 public-host URL rules, delivery log + test ping in the App, delivery health and failures in the Console |
 | Bank reconciliation (match statement lines to invoices) | ML matching, OFX/CAMT import, batch-payment lines, OCR of PDF statements | Auto-match via integrations | **Built (0057)**: CSV statement import with de-duplication, ranked suggestions (exact amount/currency/direction + reference + counterparty), one-click and bulk match, settles the record without moving wallet money, Console counter for unreconciled lines. CAMT/OFX/PDF-OCR import = Gap |
 | Budgets with alerts | Budgets with real-time tracking and alerts | Spend limits per team | **Built (0057)**: budgets per module / record type / period / currency, alert threshold, ok-warning-over, Console counters. Analytic accounts = Gap |
 | Fixed assets / depreciation | Yes | n/a | **Gap** (out of payments scope) |
@@ -52,8 +53,7 @@ actual KYC/AML/FATF workflow and manager assignment is the next step, see gaps).
 
 ## Remaining gaps (not built; ordered by competitive impact)
 
-1. Webhooks for record events (Revolut allows up to 10 per business) and an event outbox in the API hub.
-2. Direct connectors to Xero / QuickBooks / Odoo (today: journal CSV).
+1. Direct connectors to Xero / QuickBooks / Odoo (today: journal CSV).
 3. CAMT.053 / OFX / PDF-OCR statement import (today: CSV).
 4. SEPA direct-debit mandates for recurring collection.
 5. Receipt capture/OCR for expenses; supplier-bill OCR.

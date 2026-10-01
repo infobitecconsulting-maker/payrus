@@ -19,6 +19,7 @@ import {
 import { journal, type InstRecord, type RecordKind } from "@/lib/institutional.ts";
 import { useApprovalProgress } from "@/hooks/use-institutional-ops.ts";
 import { AgeingPanel, BudgetsPanel, PolicyPanel, ReconcilePanel } from "./panels.tsx";
+import { WebhooksPanel } from "./webhooks-panel.tsx";
 
 const money = (v: number, cur?: string) => `${v.toLocaleString(undefined, { maximumFractionDigits: 2 })}${cur ? " " + cur : ""}`;
 const label = (s: string) => s.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
@@ -217,6 +218,7 @@ export function ModulesIndex() {
       )}
 
       {user && (mods.data ?? []).length > 0 && <PolicyPanel userId={user.id} kinds={allKindsIndex} />}
+      {user && (mods.data ?? []).length > 0 && <WebhooksPanel userId={user.id} />}
 
       <div className="grid sm:grid-cols-2 gap-3">
         {(mods.data ?? []).map((m) => (
