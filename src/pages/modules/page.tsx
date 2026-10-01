@@ -17,6 +17,8 @@ import {
   useRunRecurring, useSetMySubProfile, useSetRecurrence, useSetTally, useSubProfiles, useTransitionInstRecord,
 } from "@/hooks/use-institutional.ts";
 import { journal, type InstRecord, type RecordKind } from "@/lib/institutional.ts";
+import { useApprovalProgress } from "@/hooks/use-institutional-ops.ts";
+import { AgeingPanel, BudgetsPanel, PolicyPanel, ReconcilePanel } from "./panels.tsx";
 
 const money = (v: number, cur?: string) => `${v.toLocaleString(undefined, { maximumFractionDigits: 2 })}${cur ? " " + cur : ""}`;
 const label = (s: string) => s.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
@@ -161,6 +163,8 @@ export function ModulesIndex() {
   const subs = useSubProfiles().data ?? [];
   const setSub = useSetMySubProfile();
   const approvals = usePendingApprovals(user?.id).data ?? [];
+  const allKindsIndexData = useRecordKinds().data;
+  const allKindsIndex = useMemo(() => allKindsIndexData ?? [], [allKindsIndexData]);
   const transition = useTransitionInstRecord();
   const choices = subs.filter((s) => s.parentRole === profile?.type);
   const current = mods.data?.[0]?.subProfile ?? null;
@@ -212,6 +216,8 @@ export function ModulesIndex() {
         </section>
       )}
 
+      {user && (mods.data ?? []).length > 0 && <PolicyPanel userId={user.id} kinds={allKindsIndex} />}
+
       <div className="grid sm:grid-cols-2 gap-3">
         {(mods.data ?? []).map((m) => (
           <Link key={m.moduleKey} to={`/${lng}/modules/${m.moduleKey}`} className="rounded-xl border border-border bg-card p-4 hover:bg-secondary/40 transition-colors">
@@ -243,6 +249,7 @@ export default function ModulePage() {
   const [kindSlug, setKindSlug] = useState<string>("");
   const [creating, setCreating] = useState(false);
   const [detail, setDetail] = useState<InstRecord | null>(null);
+  const [view, setView] = useState<"records" | "reconcile" | "budgets">("records");
   const currency = profile?.currency ?? "XAF";
   const entitled = !mods.isFetched || (mods.data ?? []).some((m) => m.moduleKey === module);
   const kind = kinds.find((k) => k.slug === kindSlug) ?? kinds[0];
@@ -261,7 +268,11 @@ export default function ModulePage() {
 
   async function move(r: InstRecord, to: string) {
     if (!user) return;
-    try { await transition.mutateAsync({ actorId: user.id, recordId: r.id, to }); toast.success(`${r.ref} → ${label(to)}`); }
+    try {
+      const res = await transition.mutateAsync({ actorId: user.id, recordId: r.id, to });
+      if (res.status !== to && res.data.approvals_need) toast.info(t("modules.approvalRecorded", "Approval recorded: {{have}} of {{need}}. More approvers are needed.", { have: String(res.data.approvals_have), need: String(res.data.approvals_need) }));
+      else toast.success(`${r.ref} → ${label(res.status)}`);
+    }
     catch (e) { toast.error((e as Error).message); }
   }
   async function runPayroll() {
@@ -302,6 +313,16 @@ export default function ModulePage() {
         ))}
       </div>
 
+      <div className="flex gap-1 border-b border-border">
+        {([["records", t("modules.tabRecords", "Records")], ["reconcile", t("modules.tabReconcile", "Reconciliation")], ["budgets", t("modules.tabBudgets", "Budgets")]] as const).map(([v, text]) => (
+          <button key={v} onClick={() => setView(v)} className={cn("px-3 py-2 text-sm cursor-pointer border-b-2 -mb-px", view === v ? "border-primary text-foreground font-medium" : "border-transparent text-muted-foreground hover:text-foreground")}>{text}</button>
+        ))}
+      </div>
+      {view === "reconcile" && user && <ReconcilePanel userId={user.id} currency={currency} />}
+      {view === "budgets" && user && <BudgetsPanel userId={user.id} currency={currency} moduleKey={module} modules={mods.data ?? []} kinds={allKinds} />}
+      {view === "records" && (<>
+      {module === "invoicing" && user && <AgeingPanel userId={user.id} />}
+
       <div className="flex flex-wrap items-center gap-2">
         {kinds.map((k) => (
           <button key={k.slug} onClick={() => setKindSlug(k.slug)}
@@ -338,6 +359,7 @@ export default function ModulePage() {
           </tbody>
         </table>
       </div>
+      </>)}
 
       {kind && creating && <CreateDialog kind={kind} kinds={allKinds} records={rs} currency={currency} onClose={() => setCreating(false)}
         onCreate={async (a) => { if (!user) return; try { await create.mutateAsync({ userId: user.id, kind: kind.slug, ...a }); toast.success(t("modules.created", "Created")); setCreating(false); } catch (e) { toast.error((e as Error).message); } }} />}
@@ -448,6 +470,7 @@ function DetailSheet({ record, kinds, records, onClose, onMove }: {
   const [every, setEvery] = useState("month");
   const children = record ? records.filter((r) => r.parentId === record.id) : [];
   const next = record && kind ? kind.transitions[record.status] ?? [] : [];
+  const progress = useApprovalProgress(user?.id, record?.id, !!record && !!kind?.approvalStatus && next.includes(kind.approvalStatus) && record.amount >= (kind.approvalThreshold ?? 0)).data;
   const gated = (to: string) => kind?.approvalStatus === to && (record?.amount ?? 0) >= (kind.approvalThreshold ?? 0);
   const skip = new Set(["lines", "allocations", "recurrence", "holders", "for", "against", "abstain"]);
   const canRecur = !!record && ["invoice", "vendor_bill", "premium", "pension_contribution", "annuity_payment", "member_savings", "group_deposit", "loan_repayment", "supplier_payment", "grant_expense"].includes(record.kind);
@@ -473,6 +496,7 @@ function DetailSheet({ record, kinds, records, onClose, onMove }: {
                   ))}
                 </div>
               )}
+              {progress && progress.required > 1 && next.some(gated) && <p className="text-xs font-medium">{t("modules.approvalProgress", "Approvals: {{have}} of {{need}}", { have: progress.approved, need: progress.required })}</p>}
               {next.some(gated) && <p className="text-xs text-amber-600">{t("modules.gateNote", "🔒 needs a second authorised approver — they will see it under “Waiting for your approval”.")}</p>}
 
               <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5">
