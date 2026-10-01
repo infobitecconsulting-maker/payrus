@@ -413,7 +413,7 @@ export default function ProfileSelection() {
 
   return (
     <div className="min-h-full bg-background flex flex-col">
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 overflow-auto pb-20 md:pb-0">
         <div className={cn("mx-auto px-4 py-8", step === "select" ? "max-w-3xl lg:max-w-6xl" : "max-w-3xl")}>
           <AnimatePresence mode="wait">
 
