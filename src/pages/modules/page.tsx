@@ -318,7 +318,7 @@ export default function ModulePage() {
         <Button variant="outline" onClick={() => void exportJournal()}><FileSpreadsheet size={15} /> {t("modules.journal", "Accounting journal (CSV)")}</Button>
       </div>
 
-      <div className="rounded-xl border border-border bg-card overflow-x-auto">
+      <div className="rounded-xl border border-border bg-card overflow-x-auto w-0 min-w-full">
         <table className="w-full text-sm">
           <thead className="text-xs text-muted-foreground border-b border-border">
             <tr><th className="text-left p-3">{t("modules.col.ref", "Reference")}</th><th className="text-left p-3">{t("modules.col.title", "Title")}</th>
@@ -398,10 +398,10 @@ function CreateDialog({ kind, kinds, records, currency, onClose, onCreate }: {
               <div className="text-xs font-medium text-muted-foreground">{t("modules.lines", "Invoice lines")}</div>
               {lines.map((l, i) => (
                 <div key={i} className="grid grid-cols-12 gap-1.5">
-                  <Input className="col-span-5" placeholder="Description" value={l.desc} onChange={(e) => setLines(lines.map((x, j) => j === i ? { ...x, desc: e.target.value } : x))} />
-                  <Input className="col-span-2" type="number" placeholder="Qty" value={l.qty} onChange={(e) => setLines(lines.map((x, j) => j === i ? { ...x, qty: e.target.value } : x))} />
-                  <Input className="col-span-3" type="number" placeholder="Unit price" value={l.unit_price} onChange={(e) => setLines(lines.map((x, j) => j === i ? { ...x, unit_price: e.target.value } : x))} />
-                  <Input className="col-span-2" type="number" placeholder="VAT %" value={l.tax_rate} onChange={(e) => setLines(lines.map((x, j) => j === i ? { ...x, tax_rate: e.target.value } : x))} />
+                  <Input className="col-span-12 sm:col-span-5" placeholder="Description" value={l.desc} onChange={(e) => setLines(lines.map((x, j) => j === i ? { ...x, desc: e.target.value } : x))} />
+                  <Input className="col-span-4 sm:col-span-2" type="number" placeholder="Qty" value={l.qty} onChange={(e) => setLines(lines.map((x, j) => j === i ? { ...x, qty: e.target.value } : x))} />
+                  <Input className="col-span-4 sm:col-span-3" type="number" placeholder="Unit price" value={l.unit_price} onChange={(e) => setLines(lines.map((x, j) => j === i ? { ...x, unit_price: e.target.value } : x))} />
+                  <Input className="col-span-4 sm:col-span-2" type="number" placeholder="VAT %" value={l.tax_rate} onChange={(e) => setLines(lines.map((x, j) => j === i ? { ...x, tax_rate: e.target.value } : x))} />
                 </div>
               ))}
               <Button type="button" variant="ghost" size="sm" onClick={() => setLines([...lines, { desc: "", qty: "1", unit_price: "", tax_rate: "0" }])}><Plus size={13} /> {t("modules.addLine", "Add line")}</Button>

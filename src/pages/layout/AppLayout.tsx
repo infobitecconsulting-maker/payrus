@@ -317,7 +317,7 @@ export default function AppLayout() {
       </aside>
 
       {/* Main content */}
-      <div className="flex-1 flex flex-col min-h-0">
+      <div className="flex-1 flex flex-col min-h-0 min-w-0">
         {/* Mobile top bar */}
         <header className="flex md:hidden items-center justify-between px-4 py-3 border-b border-border bg-background shrink-0 safe-area-top">
           <button
