@@ -652,23 +652,15 @@ export async function listLinkedPaymentMethods(ownerKey: string): Promise<Linked
 export async function addLinkedPaymentMethod(args: {
   ownerKey: string; provider: LinkedPaymentMethod["provider"]; label: string;
 }): Promise<string> {
-  const res = await supabase.from("linked_payment_methods")
-    .insert({ owner_key: args.ownerKey, provider: args.provider, label: args.label, status: "active" })
-    .select("id").single();
-  return mustHaveData(res, "addLinkedPaymentMethod").id;
+  // RPC, not a plain insert: the audit trigger on this table fails under the caller's RLS (migration 0061).
+  const res = await supabase.rpc("add_linked_payment_method", {
+    p_owner_key: args.ownerKey, p_provider: args.provider, p_label: args.label,
+  });
+  return mustHaveData(res, "addLinkedPaymentMethod") as string;
 }
 
-const DEFAULT_LINKED_METHODS: { provider: LinkedPaymentMethod["provider"]; label: string; status: LinkedPaymentMethod["status"] }[] = [
-  { provider: "card", label: "Rawbank Visa •• 4821", status: "primary" },
-  { provider: "card", label: "Ecobank MC •• 9302", status: "active" },
-  { provider: "mobile_money", label: "Orange Money +243", status: "active" },
-];
-
 export async function seedDefaultLinkedPaymentMethods(ownerKey: string): Promise<void> {
-  const existing = await listLinkedPaymentMethods(ownerKey);
-  if (existing.length > 0) return;
-  const res = await supabase.from("linked_payment_methods")
-    .insert(DEFAULT_LINKED_METHODS.map((m) => ({ owner_key: ownerKey, ...m })));
+  const res = await supabase.rpc("seed_default_linked_payment_methods", { p_owner_key: ownerKey });
   mustHaveData(res, "seedDefaultLinkedPaymentMethods");
 }
 
