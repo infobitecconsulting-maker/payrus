@@ -1513,22 +1513,32 @@ export async function donateToCampaign(args: { userId: string; campaignId: strin
 // server-side, never trusts the client's displayed price.
 // ============================================================================
 
-export interface AppFlight { id: string; airline: string; origin: string; destination: string; departure: string; arrival: string; duration: string; price: number; currency: string; class: string }
-export interface AppHotel { id: string; name: string; location: string; stars: number; pricePerNight: number; currency: string }
+export interface AppFlight {
+  id: string; airline: string; airlineCode: string; origin: string; destination: string; departure: string; arrival: string; duration: string;
+  stops: number; price: number; currency: string; class: string; seatsLeft: number; rating: number; memberDiscountPercent: number; amenities: string[];
+}
+export interface AppHotel {
+  id: string; name: string; location: string; stars: number; pricePerNight: number; currency: string; rating: number; reviewCount: number;
+  amenities: string[]; distance: string; memberDiscountPercent: number; category: string; emoji: string;
+}
 export interface AppTravelBooking { id: string; userId: string; kind: "flight" | "hotel"; itemId: string; amount: number; currency: string; bookedAt: string }
 
+// Migration 0062 columns fall back to neutral values, so a catalogue row from before 0062 still renders.
 export async function listFlights(): Promise<AppFlight[]> {
-  const res = await supabase.from("travel_flights").select("*");
+  const res = await supabase.from("travel_flights").select("*").order("origin").order("departure");
   return mustHaveData(res, "listFlights").map((r) => ({
-    id: r.id, airline: r.airline, origin: r.origin, destination: r.destination, departure: r.departure,
-    arrival: r.arrival, duration: r.duration, price: Number(r.price), currency: r.currency, class: r.class,
+    id: r.id, airline: r.airline, airlineCode: r.airline_code ?? String(r.airline).slice(0, 2).toUpperCase(), origin: r.origin, destination: r.destination,
+    departure: r.departure, arrival: r.arrival, duration: r.duration, stops: Number(r.stops ?? 0), price: Number(r.price), currency: r.currency, class: r.class,
+    seatsLeft: Number(r.seats_left ?? 20), rating: Number(r.rating ?? 4.5), memberDiscountPercent: Number(r.member_discount_percent ?? 0), amenities: (r.amenities as string[] | null) ?? [],
   }));
 }
 
 export async function listHotels(): Promise<AppHotel[]> {
-  const res = await supabase.from("travel_hotels").select("*");
+  const res = await supabase.from("travel_hotels").select("*").order("name");
   return mustHaveData(res, "listHotels").map((r) => ({
     id: r.id, name: r.name, location: r.location, stars: r.stars, pricePerNight: Number(r.price_per_night), currency: r.currency,
+    rating: Number(r.rating ?? 4.5), reviewCount: Number(r.review_count ?? 0), amenities: (r.amenities as string[] | null) ?? [], distance: r.distance ?? "",
+    memberDiscountPercent: Number(r.member_discount_percent ?? 0), category: r.category ?? "Standard", emoji: r.emoji ?? "🏨",
   }));
 }
 
@@ -1539,6 +1549,142 @@ export async function bookTravelItem(args: { userId: string; kind: "flight" | "h
     id: row.id as string, userId: row.user_id as string, kind: row.kind as AppTravelBooking["kind"], itemId: row.item_id as string,
     amount: Number(row.amount), currency: row.currency as string, bookedAt: row.booked_at as string,
   };
+}
+
+// ---- Migration 0062: dated bookings, pay-in-three, cancel/refund, favourites, reviews ----
+
+export interface BookTravelArgs {
+  userId: string; kind: "flight" | "hotel"; itemId: string;
+  /** Departure date (flights) or check-in date (hotels), YYYY-MM-DD. */
+  travelDate: string; nights?: number; passengers?: number; installments?: boolean; note?: string;
+}
+export interface BookTravelResult {
+  bookingId: string; planId: string | null; reference: string; title: string; kind: "flight" | "hotel";
+  amount: number; discount: number; currency: string; chargedNow: number; installments: boolean;
+}
+
+export async function bookTravel(args: BookTravelArgs): Promise<BookTravelResult> {
+  const res = await supabase.rpc("book_travel", {
+    p_user_id: args.userId, p_kind: args.kind, p_item_id: args.itemId, p_travel_date: args.travelDate,
+    p_nights: args.nights ?? 1, p_passengers: args.passengers ?? 1, p_installments: args.installments ?? false, p_note: args.note ?? null,
+  });
+  const r = mustHaveData(res, "bookTravel") as Record<string, unknown>;
+  return {
+    bookingId: r.booking_id as string, planId: (r.plan_id as string | null) ?? null, reference: r.reference as string, title: r.title as string,
+    kind: r.kind as "flight" | "hotel", amount: Number(r.amount), discount: Number(r.discount), currency: r.currency as string,
+    chargedNow: Number(r.charged_now), installments: Boolean(r.installments),
+  };
+}
+
+export async function cancelTravelBooking(args: { userId: string; bookingId: string }): Promise<{ refunded: number; currency: string; reference: string }> {
+  const res = await supabase.rpc("cancel_travel_booking", { p_user_id: args.userId, p_booking_id: args.bookingId });
+  const r = mustHaveData(res, "cancelTravelBooking") as Record<string, unknown>;
+  return { refunded: Number(r.refunded), currency: r.currency as string, reference: r.reference as string };
+}
+
+// ---- Migration 0063 + the travel-search Edge Function: live partner offers (Amadeus) ----
+
+export interface PartnerFlightOffer {
+  quoteId: string; offerId: string; provider: "amadeus"; airline: string; airlineCode: string; origin: string; destination: string;
+  departure: string; arrival: string; departureDate: string; duration: string; stops: number; cabin: "economy" | "business";
+  seatsLeft: number | null; price: number; currency: string; passengers: number;
+}
+export interface PartnerHotelOffer {
+  quoteId: string; offerId: string; provider: "amadeus"; hotelId: string; name: string; cityCode: string; country: string;
+  checkIn: string; checkOut: string; nights: number; guests: number; room: string; price: number; perNight: number; currency: string;
+}
+
+export type PartnerSearchErrorCode = "not_configured" | "rate_limited" | "bad_input" | "unauthorized" | "upstream";
+
+export class PartnerSearchError extends Error {
+  constructor(public code: PartnerSearchErrorCode, message: string) {
+    super(message);
+  }
+}
+
+async function invokeTravelSearch<T>(body: Record<string, unknown>): Promise<T> {
+  const { data, error } = await supabase.functions.invoke("travel-search", { body });
+  if (error) {
+    let code: PartnerSearchErrorCode = "upstream";
+    let message = error.message;
+    const ctx = (error as { context?: Response }).context;
+    if (ctx && typeof ctx.json === "function") {
+      try {
+        const payload = (await ctx.json()) as { error?: PartnerSearchErrorCode; message?: string };
+        if (payload.error) code = payload.error;
+        if (payload.message) message = payload.message;
+      } catch {
+        // keep the generic upstream error
+      }
+    }
+    throw new PartnerSearchError(code, message);
+  }
+  return data as T;
+}
+
+export async function searchPartnerFlights(args: { origin: string; destination: string; date: string; passengers: number; currency?: string }): Promise<PartnerFlightOffer[]> {
+  const res = await invokeTravelSearch<{ offers: PartnerFlightOffer[] }>({ action: "flights", ...args });
+  return res.offers ?? [];
+}
+
+export async function searchPartnerHotels(args: { place: string; checkIn: string; checkOut: string; guests: number; currency?: string }): Promise<PartnerHotelOffer[]> {
+  const res = await invokeTravelSearch<{ offers: PartnerHotelOffer[] }>({ action: "hotels", ...args });
+  return res.offers ?? [];
+}
+
+export async function bookPartnerQuote(args: { userId: string; quoteId: string; installments?: boolean; note?: string }): Promise<BookTravelResult> {
+  const res = await supabase.rpc("book_partner_quote", { p_user_id: args.userId, p_quote_id: args.quoteId, p_installments: args.installments ?? false, p_note: args.note ?? null });
+  const r = mustHaveData(res, "bookPartnerQuote") as Record<string, unknown>;
+  return {
+    bookingId: r.booking_id as string, planId: (r.plan_id as string | null) ?? null, reference: r.reference as string, title: r.title as string,
+    kind: r.kind as "flight" | "hotel", amount: Number(r.amount), discount: Number(r.discount), currency: r.currency as string,
+    chargedNow: Number(r.charged_now), installments: Boolean(r.installments),
+  };
+}
+
+export interface AppTravelBookingRecord {
+  id: string; reference: string; kind: "flight" | "hotel"; itemId: string; title: string; amount: number; currency: string; status: "confirmed" | "cancelled";
+  travelDate: string | null; nights: number; passengers: number; bookedAt: string; refundedAmount: number; discountAmount: number;
+  /** Where the offer came from: the PayRus catalogue or a partner platform. */
+  source: "payrus" | "amadeus";
+}
+
+export async function listTravelBookings(userId: string): Promise<AppTravelBookingRecord[]> {
+  const res = await supabase.from("travel_bookings").select("*").eq("user_id", userId).order("booked_at", { ascending: false });
+  return mustHaveData(res, "listTravelBookings").map((r) => ({
+    id: r.id, reference: r.reference, kind: r.kind, itemId: r.item_id, title: r.title ?? "", amount: Number(r.amount), currency: r.currency, status: r.status,
+    travelDate: r.travel_date ?? null, nights: Number(r.nights ?? 1), passengers: Number(r.passengers ?? 1), bookedAt: r.booked_at,
+    refundedAmount: Number(r.refunded_amount ?? 0), discountAmount: Number(r.discount_amount ?? 0), source: (r.source ?? "payrus") as "payrus" | "amadeus",
+  }));
+}
+
+export async function listTravelFavorites(userId: string): Promise<string[]> {
+  const res = await supabase.from("travel_favorites").select("kind, item_id").eq("user_id", userId);
+  return mustHaveData(res, "listTravelFavorites").map((r) => `${r.kind}:${r.item_id}`);
+}
+
+/** Returns true when the item is now a favourite, false when it was removed. */
+export async function toggleTravelFavorite(args: { userId: string; kind: "flight" | "hotel"; itemId: string }): Promise<boolean> {
+  const res = await supabase.rpc("toggle_travel_favorite", { p_user_id: args.userId, p_kind: args.kind, p_item_id: args.itemId });
+  return Boolean(mustHaveData(res, "toggleTravelFavorite"));
+}
+
+export interface AppTravelReview {
+  id: string; userName: string; country: string | null; kind: "flight" | "hotel"; itemId: string; entity: string; rating: number; comment: string;
+  verified: boolean; createdAt: string; mine: boolean;
+}
+
+export async function listTravelReviews(userId?: string): Promise<AppTravelReview[]> {
+  const res = await supabase.from("travel_reviews").select("*").order("created_at", { ascending: false }).limit(60);
+  return mustHaveData(res, "listTravelReviews").map((r) => ({
+    id: r.id, userName: r.user_name, country: r.country ?? null, kind: r.kind, itemId: r.item_id, entity: r.entity, rating: Number(r.rating),
+    comment: r.comment, verified: Boolean(r.verified), createdAt: r.created_at, mine: !!userId && r.user_id === userId,
+  }));
+}
+
+export async function addTravelReview(args: { userId: string; kind: "flight" | "hotel"; itemId: string; rating: number; comment: string }): Promise<string> {
+  const res = await supabase.rpc("add_travel_review", { p_user_id: args.userId, p_kind: args.kind, p_item_id: args.itemId, p_rating: args.rating, p_comment: args.comment });
+  return mustHaveData(res, "addTravelReview") as string;
 }
 
 // ============================================================================
@@ -1722,7 +1868,7 @@ export async function listPitchInvestmentsForUser(userId: string): Promise<AppPi
   }));
 }
 
-export interface AppPitchRepayment { investmentId: string; month: number; amount: number; currency: string; dueDate: string; status: "pending" | "paid" }
+export interface AppPitchRepayment { investmentId: string; month: number; amount: number; currency: string; dueDate: string; status: "pending" | "paid" | "cancelled" }
 
 export async function listPitchRepayments(investmentId: string): Promise<AppPitchRepayment[]> {
   const res = await supabase.from("pitch_repayments").select("*").eq("investment_id", investmentId).order("month");
@@ -1899,7 +2045,7 @@ export async function createCorporateCard(args: {
   return toAppCorporateCard(mustHaveData(res, "createCorporateCard") as Record<string, unknown>);
 }
 
-export interface AppTravelInstallment { id: string; planId: string; seq: number; amount: number; currency: string; dueDate: string; status: "pending" | "paid" }
+export interface AppTravelInstallment { id: string; planId: string; seq: number; amount: number; currency: string; dueDate: string; status: "pending" | "paid" | "cancelled" }
 export interface AppTravelInstallmentPlan { id: string; bookingId: string; userId: string; totalAmount: number; currency: string; feeAmount: number }
 
 function toAppTravelInstallmentPlan(r: Record<string, unknown>): AppTravelInstallmentPlan {
@@ -1937,7 +2083,7 @@ export async function listTravelInstallmentPlansForUser(userId: string): Promise
     installments: ((r.travel_installments as Record<string, unknown>[]) ?? [])
       .map((i) => ({
         id: i.id as string, planId: i.plan_id as string, seq: i.seq as number, amount: Number(i.amount),
-        currency: i.currency as string, dueDate: i.due_date as string, status: i.status as "pending" | "paid",
+        currency: i.currency as string, dueDate: i.due_date as string, status: i.status as "pending" | "paid" | "cancelled",
       }))
       .sort((a, b) => a.seq - b.seq),
   }));

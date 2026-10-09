@@ -35,6 +35,9 @@ const APP_FEATURES: { key: string; label: string }[] = [
   { key: "api_hub", label: "API Hub" },
   { key: "register_customer", label: "Register customer" },
   { key: "admin_panel", label: "Admin panel" },
+  { key: "modules", label: "Business modules" },
+  { key: "plans", label: "Plans & limits" },
+  { key: "organisation", label: "Organisation" },
 ];
 
 // ops-console's own Role vocabulary (its console_roles/console_role_tabs

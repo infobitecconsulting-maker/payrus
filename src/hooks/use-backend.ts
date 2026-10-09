@@ -730,6 +730,86 @@ export function useBookTravelItemMutation() {
   return mutation.mutateAsync;
 }
 
+// Migration 0062: dated bookings, cancel/refund, favourites, reviews.
+export function useBookTravelMutation() {
+  const queryClient = useQueryClient();
+  const mutation = useReactMutation({
+    mutationFn: backend.bookTravel,
+    onSuccess: (_data, variables) => {
+      void queryClient.invalidateQueries({ queryKey: ["walletViews", variables.userId] });
+      void queryClient.invalidateQueries({ queryKey: ["travelBookings", variables.userId] });
+      void queryClient.invalidateQueries({ queryKey: ["travelInstallmentPlans", variables.userId] });
+      void queryClient.invalidateQueries({ queryKey: ["flights"] });
+    },
+  });
+  return mutation.mutateAsync;
+}
+
+export function useBookPartnerQuoteMutation() {
+  const queryClient = useQueryClient();
+  const mutation = useReactMutation({
+    mutationFn: backend.bookPartnerQuote,
+    onSuccess: (_data, variables) => {
+      void queryClient.invalidateQueries({ queryKey: ["walletViews", variables.userId] });
+      void queryClient.invalidateQueries({ queryKey: ["travelBookings", variables.userId] });
+      void queryClient.invalidateQueries({ queryKey: ["travelInstallmentPlans", variables.userId] });
+    },
+  });
+  return mutation.mutateAsync;
+}
+
+export function useCancelTravelBookingMutation() {
+  const queryClient = useQueryClient();
+  const mutation = useReactMutation({
+    mutationFn: backend.cancelTravelBooking,
+    onSuccess: (_data, variables) => {
+      void queryClient.invalidateQueries({ queryKey: ["walletViews", variables.userId] });
+      void queryClient.invalidateQueries({ queryKey: ["travelBookings", variables.userId] });
+      void queryClient.invalidateQueries({ queryKey: ["travelInstallmentPlans", variables.userId] });
+      void queryClient.invalidateQueries({ queryKey: ["flights"] });
+    },
+  });
+  return mutation.mutateAsync;
+}
+
+export function useTravelBookings(userId: string | undefined) {
+  return useReactQuery({
+    queryKey: ["travelBookings", userId],
+    queryFn: () => backend.listTravelBookings(userId!),
+    enabled: !!userId,
+  }).data;
+}
+
+export function useTravelFavorites(userId: string | undefined) {
+  return useReactQuery({
+    queryKey: ["travelFavorites", userId],
+    queryFn: () => backend.listTravelFavorites(userId!),
+    enabled: !!userId,
+  }).data;
+}
+
+export function useToggleTravelFavoriteMutation() {
+  const queryClient = useQueryClient();
+  const mutation = useReactMutation({
+    mutationFn: backend.toggleTravelFavorite,
+    onSuccess: (_data, variables) => void queryClient.invalidateQueries({ queryKey: ["travelFavorites", variables.userId] }),
+  });
+  return mutation.mutateAsync;
+}
+
+export function useTravelReviews(userId: string | undefined) {
+  return useReactQuery({ queryKey: ["travelReviews", userId ?? null], queryFn: () => backend.listTravelReviews(userId) }).data;
+}
+
+export function useAddTravelReviewMutation() {
+  const queryClient = useQueryClient();
+  const mutation = useReactMutation({
+    mutationFn: backend.addTravelReview,
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["travelReviews"] }),
+  });
+  return mutation.mutateAsync;
+}
+
 // ---------------------------------------------------------------------------
 // Savings
 // ---------------------------------------------------------------------------

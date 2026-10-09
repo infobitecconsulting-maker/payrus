@@ -1,603 +1,159 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { motion, AnimatePresence } from "motion/react";
 import PageHeader from "@/components/ui/page-header.tsx";
 import {
-  Plane, Hotel, Star, MapPin, Clock, Wifi, Utensils, Car,
-  ChevronRight, ChevronDown, Search, Calendar, Users, ArrowRight,
-  ArrowUpRight, Shield, Zap, Heart, Filter, SlidersHorizontal,
-  CheckCircle2, CreditCard, Sparkles, TrendingDown, Globe,
-  Luggage, Coffee, BedDouble, Wind
+  Plane, Hotel, Star, MapPin, Search, Calendar, Users, ArrowRight, ArrowUpRight, Shield, Zap, Heart,
+  SlidersHorizontal, CheckCircle2, CreditCard, Sparkles, TrendingDown, Globe, Luggage, Bookmark,
 } from "lucide-react";
 import { cn } from "@/lib/utils.ts";
 import { PayRusLogo } from "@/pages/layout/AppLayout.tsx";
 import { toast } from "sonner";
 import { useCurrentAppUser } from "@/hooks/use-current-app-user.ts";
-import { useBookTravelItemMutation, useBookTravelItemInstallmentsMutation, useTravelInstallmentPlansForUser, useFlights, useHotels } from "@/hooks/use-backend.ts";
+import {
+  useCurrenciesByCode, useFlights, useHotels, useToggleTravelFavoriteMutation, useTravelBookings, useTravelFavorites,
+  useTravelInstallmentPlansForUser, useTravelReviews,
+} from "@/hooks/use-backend.ts";
 import type { AppFlight, AppHotel } from "@/lib/backend.ts";
+import AmenityChip from "./amenity-chip.tsx";
+import BookingDialog, { type TravelItem } from "./booking-dialog.tsx";
+import HotelDetailsDialog from "./hotel-details-dialog.tsx";
+import ReviewsSection, { StarsDisplay } from "./reviews-section.tsx";
+import { BookingsTab, SavedTab } from "./bookings-tab.tsx";
+import { PartnerBookingDialog, PartnerFlightSearch, PartnerHotelSearch, type PartnerOffer } from "./partner-offers.tsx";
+import { addDaysISO, airportLabel, AIRPORTS, durationHours, formatMoney, nightsBetween, round2, todayISO } from "./travel-utils.ts";
 
-// ── Types ─────────────────────────────────────────────────────────────────────
+type SearchTab = "flights" | "hotels" | "saved" | "bookings";
+type SortKey = "default" | "price" | "duration" | "rating";
 
-type SearchTab = "flights" | "hotels" | "bookings";
-type FlightClass = "economy" | "business" | "first";
+const inputClass = "w-full pl-8 pr-3 py-2.5 rounded-xl bg-secondary border border-border text-sm font-medium text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50";
 
-interface Flight {
-  id: string;
-  airline: string;
-  airlineCode: string;
-  logo: string;
-  origin: string;
-  destination: string;
-  departure: string;
-  arrival: string;
-  duration: string;
-  stops: number;
-  price: number;
-  currency: string;
-  priceXAF: number;
-  class: FlightClass;
-  amenities: string[];
-  seatsLeft: number;
-  rating: number;
-  payrusDiscount: number;
-}
-
-interface Hotel {
-  id: string;
-  name: string;
-  location: string;
-  stars: number;
-  rating: number;
-  reviewCount: number;
-  pricePerNight: number;
-  currency: string;
-  priceXAF: number;
-  image: string;
-  amenities: string[];
-  distance: string;
-  payrusMember: boolean;
-  discount: number;
-  category: string;
-}
-
-interface UserReview {
-  id: string;
-  user: string;
-  flag: string;
-  rating: number;
-  comment: string;
-  date: string;
-  type: "flight" | "hotel";
-  entity: string;
-}
-
-// ── Mock Data ──────────────────────────────────────────────────────────────────
-
-const FLIGHTS: Flight[] = [
-  {
-    id: "f1",
-    airline: "Air France",
-    airlineCode: "AF",
-    logo: "✈️",
-    origin: "KIN",
-    destination: "CDG",
-    departure: "23:15",
-    arrival: "09:30+1",
-    duration: "10h 15m",
-    stops: 0,
-    price: 847,
-    currency: "USD",
-    priceXAF: 508_200,
-    class: "economy",
-    amenities: ["travel.amenity.wifi", "travel.amenity.meal", "travel.amenity.entertainment"],
-    seatsLeft: 4,
-    rating: 4.3,
-    payrusDiscount: 7,
-  },
-  {
-    id: "f2",
-    airline: "Ethiopian Airlines",
-    airlineCode: "ET",
-    logo: "🛫",
-    origin: "KIN",
-    destination: "CDG",
-    departure: "08:40",
-    arrival: "21:05",
-    duration: "12h 25m",
-    stops: 1,
-    price: 612,
-    currency: "USD",
-    priceXAF: 367_200,
-    class: "economy",
-    amenities: ["travel.amenity.meal", "travel.amenity.entertainment"],
-    seatsLeft: 12,
-    rating: 4.5,
-    payrusDiscount: 5,
-  },
-  {
-    id: "f3",
-    airline: "Kenya Airways",
-    airlineCode: "KQ",
-    logo: "🦁",
-    origin: "KIN",
-    destination: "NBO",
-    departure: "11:30",
-    arrival: "14:55",
-    duration: "3h 25m",
-    stops: 0,
-    price: 290,
-    currency: "USD",
-    priceXAF: 174_000,
-    class: "economy",
-    amenities: ["travel.amenity.meal", "USB"],
-    seatsLeft: 8,
-    rating: 4.2,
-    payrusDiscount: 6,
-  },
-  {
-    id: "f4",
-    airline: "Brussels Airlines",
-    airlineCode: "SN",
-    logo: "🇧🇪",
-    origin: "KIN",
-    destination: "BRU",
-    departure: "15:00",
-    arrival: "22:45",
-    duration: "9h 45m",
-    stops: 0,
-    price: 920,
-    currency: "USD",
-    priceXAF: 552_000,
-    class: "economy",
-    amenities: ["travel.amenity.wifi", "travel.amenity.meal", "travel.amenity.entertainment", "USB"],
-    seatsLeft: 2,
-    rating: 4.0,
-    payrusDiscount: 8,
-  },
-  {
-    id: "f5",
-    airline: "Turkish Airlines",
-    airlineCode: "TK",
-    logo: "🌙",
-    origin: "KIN",
-    destination: "IST",
-    departure: "02:20",
-    arrival: "12:40",
-    duration: "10h 20m",
-    stops: 0,
-    price: 710,
-    currency: "USD",
-    priceXAF: 426_000,
-    class: "economy",
-    amenities: ["travel.amenity.wifi", "travel.amenity.meal", "travel.amenity.entertainment", "USB"],
-    seatsLeft: 18,
-    rating: 4.6,
-    payrusDiscount: 5,
-  },
-];
-
-const HOTELS: Hotel[] = [
-  {
-    id: "h1",
-    name: "Kempinski Hotel Fleuve Congo",
-    location: "Kinshasa, RDC",
-    stars: 5,
-    rating: 4.8,
-    reviewCount: 1240,
-    pricePerNight: 185,
-    currency: "USD",
-    priceXAF: 111_000,
-    image: "🏨",
-    amenities: ["travel.amenity.wifi", "travel.amenity.pool", "Spa", "Restaurant", "Bar"],
-    distance: "travel.distance.cityCenter",
-    payrusMember: true,
-    discount: 15,
-    category: "Luxe",
-  },
-  {
-    id: "h2",
-    name: "Radisson Blu M'Bamou Palace",
-    location: "Brazzaville, Congo",
-    stars: 5,
-    rating: 4.7,
-    reviewCount: 876,
-    pricePerNight: 155,
-    currency: "USD",
-    priceXAF: 93_000,
-    image: "🌴",
-    amenities: ["travel.amenity.wifi", "travel.amenity.pool", "Restaurant", "travel.amenity.conferenceRoom"],
-    distance: "travel.distance.2kmFromCenter",
-    payrusMember: true,
-    discount: 12,
-    category: "Luxe",
-  },
-  {
-    id: "h3",
-    name: "Hôtel Sultani",
-    location: "Kinshasa, RDC",
-    stars: 4,
-    rating: 4.4,
-    reviewCount: 592,
-    pricePerNight: 95,
-    currency: "USD",
-    priceXAF: 57_000,
-    image: "🏩",
-    amenities: ["travel.amenity.wifi", "Restaurant", "Parking", "travel.amenity.ac"],
-    distance: "Gombe, 500m",
-    payrusMember: false,
-    discount: 0,
-    category: "Affaires",
-  },
-  {
-    id: "h4",
-    name: "Serena Hotel Nairobi",
-    location: "Nairobi, Kenya",
-    stars: 5,
-    rating: 4.9,
-    reviewCount: 2100,
-    pricePerNight: 210,
-    currency: "USD",
-    priceXAF: 126_000,
-    image: "🦒",
-    amenities: ["travel.amenity.wifi", "travel.amenity.pool", "Spa", "Restaurant", "Gym", "Bar"],
-    distance: "Parc Uhuru",
-    payrusMember: true,
-    discount: 10,
-    category: "Luxe",
-  },
-  {
-    id: "h5",
-    name: "Sofitel Abidjan Hôtel Ivoire",
-    location: "Abidjan, Côte d'Ivoire",
-    stars: 5,
-    rating: 4.6,
-    reviewCount: 1580,
-    pricePerNight: 172,
-    currency: "USD",
-    priceXAF: 103_200,
-    image: "🌺",
-    amenities: ["travel.amenity.wifi", "travel.amenity.pool", "Spa", "Restaurant", "Casino"],
-    distance: "Cocody, 1 km",
-    payrusMember: true,
-    discount: 18,
-    category: "Luxe",
-  },
-];
-
-// Real flights/hotels (supabase/migrations/0018) are a plainer catalog
-// (no amenities/seatsLeft/rating/discount) — mapped into the same rich
-// Flight/Hotel shape the existing browse UI already renders, with
-// reasonable decorative placeholders for the fields the real schema
-// doesn't track, so no JSX below needs to branch on real-vs-mock.
-function toDisplayFlight(f: AppFlight): Flight {
-  return {
-    id: f.id, airline: f.airline, airlineCode: f.airline.slice(0, 2).toUpperCase(), logo: "✈️",
-    origin: f.origin, destination: f.destination, departure: f.departure, arrival: f.arrival, duration: f.duration,
-    stops: 0, price: f.price, currency: f.currency, priceXAF: f.price, class: f.class as FlightClass,
-    amenities: [], seatsLeft: 9, rating: 4.5, payrusDiscount: 0,
-  };
-}
-
-function toDisplayHotel(h: AppHotel): Hotel {
-  return {
-    id: h.id, name: h.name, location: h.location, stars: h.stars, rating: 4.5, reviewCount: 0,
-    pricePerNight: h.pricePerNight, currency: h.currency, priceXAF: h.pricePerNight, image: "🏨",
-    amenities: [], distance: "", payrusMember: false, discount: 0, category: "Standard",
-  };
-}
-
-const REVIEWS: UserReview[] = [
-  { id: "r1", user: "Mvutu E.", flag: "🇨🇩", rating: 5, comment: "travel.review.r1", date: "travel.review.r1Date", type: "flight", entity: "Ethiopian Airlines" },
-  { id: "r2", user: "Laeticia B.", flag: "🇨🇬", rating: 5, comment: "travel.review.r2", date: "travel.review.r2Date", type: "hotel", entity: "Kempinski Hotel Fleuve Congo" },
-  { id: "r3", user: "Diallo M.", flag: "🇸🇳", rating: 4, comment: "travel.review.r3", date: "travel.review.r3Date", type: "flight", entity: "Turkish Airlines" },
-  { id: "r4", user: "Amara K.", flag: "🇨🇮", rating: 5, comment: "travel.review.r4", date: "travel.review.r4Date", type: "hotel", entity: "Sofitel Abidjan Hôtel Ivoire" },
-  { id: "r5", user: "Père T.", flag: "🇰🇪", rating: 4, comment: "travel.review.r5", date: "travel.review.r5Date", type: "flight", entity: "Kenya Airways" },
-];
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-function formatCurrency(amount: number, currency: string) {
-  if (currency === "USD") return `$${amount.toLocaleString()}`;
-  if (currency === "XAF") return `${amount.toLocaleString()} XAF`;
-  return `${amount.toLocaleString()} ${currency}`;
-}
-
-function StarsDisplay({ count, size = 12 }: { count: number; size?: number }) {
-  return (
-    <div className="flex items-center gap-0.5">
-      {Array.from({ length: 5 }).map((_, i) => (
-        <Star key={i} size={size} className={i < count ? "text-amber-400 fill-amber-400" : "text-muted-foreground"} />
-      ))}
-    </div>
-  );
-}
-
-// ── Split Payment Modal ────────────────────────────────────────────────────────
-
-interface SplitPaymentModalProps {
-  price: number;
-  currency: string;
-  item: string;
-  flightId: string;
-  isReal: boolean;
-  currentUserId: string | undefined;
-  onBookInstallments: (args: { userId: string; kind: "flight"; itemId: string; note?: string }) => Promise<{ id: string }>;
-  onClose: () => void;
-}
-
-function SplitPaymentModal({ price, currency, item, flightId, isReal, currentUserId, onBookInstallments, onClose }: SplitPaymentModalProps) {
-  const { t } = useTranslation("common");
-  const [step, setStep] = useState<"choose" | "confirm" | "success">("choose");
-  const [booking, setBooking] = useState(false);
-  const [reference, setReference] = useState(() => "PYR-" + Math.random().toString(36).slice(2, 8).toUpperCase());
-  const term1 = Math.round(price * 0.34);
-  const term2 = Math.round(price * 0.33);
-  const term3 = price - term1 - term2;
-  const fee = Math.round(price * 0.025);
-
-  async function handleConfirm() {
-    if (!isReal || !currentUserId) { setStep("success"); return; }
-    setBooking(true);
-    try {
-      const plan = await onBookInstallments({ userId: currentUserId, kind: "flight", itemId: flightId, note: item });
-      setReference("PYR-" + plan.id.slice(0, 8).toUpperCase());
-      setStep("success");
-    } catch {
-      toast.error(t("travel.splitPayment.bookingFailed"));
-    } finally {
-      setBooking(false);
-    }
-  }
-
-  return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-      <motion.div initial={{ scale: 0.92, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.92, opacity: 0 }} transition={{ duration: 0.2 }}
-        className="w-full max-w-md rounded-3xl bg-card border border-border shadow-2xl overflow-hidden">
-
-        {/* Header */}
-        <div className="px-6 pt-6 pb-4 border-b border-border">
-          <div className="flex items-center gap-3 mb-1">
-            <div className="w-8 h-8 rounded-xl bg-primary/15 flex items-center justify-center">
-              <CreditCard size={15} className="text-primary" />
-            </div>
-            <div>
-              <h3 className="text-sm font-bold text-foreground">{t("travel.splitPayment.title")}</h3>
-              <p className="text-[11px] text-muted-foreground">{t("travel.splitPayment.subtitle")}</p>
-            </div>
-          </div>
-        </div>
-
-        <AnimatePresence mode="wait">
-          {step === "choose" && (
-            <motion.div key="choose" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-              className="p-6 space-y-5">
-              {/* Flight summary */}
-              <div className="rounded-2xl bg-secondary/50 p-4">
-                <div className="text-[11px] text-muted-foreground mb-1">{t("travel.splitPayment.selectedTicket")}</div>
-                <div className="text-sm font-semibold text-foreground">{item}</div>
-                <div className="text-xl font-black text-primary font-mono mt-1">{formatCurrency(price, currency)}</div>
-              </div>
-
-              {/* 3 Terms */}
-              <div>
-                <div className="text-xs font-semibold text-foreground mb-3">{t("travel.splitPayment.yourPlan")}</div>
-                <div className="space-y-2">
-                  {[
-                    { label: t("travel.splitPayment.termNow"), amount: term1, date: t("common.today"), badge: "bg-primary/15 text-primary border-primary/25" },
-                    { label: t("travel.splitPayment.termIn30Days"), amount: term2, date: "Dec 12, 2024", badge: "bg-secondary border-border text-muted-foreground" },
-                    { label: t("travel.splitPayment.termIn60Days"), amount: term3, date: "Jan 11, 2025", badge: "bg-secondary border-border text-muted-foreground" },
-                  ].map((term, i) => (
-                    <div key={i} className={cn("flex items-center justify-between px-4 py-3 rounded-xl border", term.badge)}>
-                      <div>
-                        <div className="text-xs font-semibold">{term.label}</div>
-                        <div className="text-[10px] opacity-70">{term.date}</div>
-                      </div>
-                      <div className="text-sm font-black font-mono">{formatCurrency(term.amount, currency)}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Fee notice */}
-              <div className="flex items-start gap-2.5 p-3 rounded-xl bg-amber-50 border border-amber-200">
-                <Shield size={13} className="text-amber-700 shrink-0 mt-0.5" />
-                <p className="text-[11px] text-muted-foreground">
-                  {t("travel.splitPayment.feeNoticePrefix")} <span className="text-amber-700 font-semibold">{formatCurrency(fee, currency)}</span> {t("travel.splitPayment.feeNoticeSuffix")}
-                </p>
-              </div>
-
-              <button onClick={() => setStep("confirm")}
-                className="w-full py-3 rounded-2xl bg-primary text-primary-foreground text-sm font-bold cursor-pointer hover:bg-primary/90 transition-colors">
-                {t("travel.splitPayment.confirmButton")}
-              </button>
-              <button onClick={onClose} className="w-full text-[12px] text-muted-foreground hover:text-foreground cursor-pointer transition-colors">{t("common.cancel")}</button>
-            </motion.div>
-          )}
-
-          {step === "confirm" && (
-            <motion.div key="confirm" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-              className="p-6 space-y-5">
-              <div className="text-sm text-muted-foreground">{t("travel.splitPayment.confirmInitialLabel")}</div>
-              <div className="text-3xl font-black text-primary font-mono text-center py-4">{formatCurrency(term1 + fee, currency)}</div>
-              <div className="text-[11px] text-muted-foreground text-center">{t("travel.splitPayment.debitedNow")}</div>
-              <button onClick={handleConfirm} disabled={booking}
-                className="w-full py-3 rounded-2xl bg-primary text-primary-foreground text-sm font-bold cursor-pointer hover:bg-primary/90 transition-colors disabled:opacity-60">
-                {booking ? t("signin.checking") : t("travel.splitPayment.payNowButton", { amount: formatCurrency(term1 + fee, currency) })}
-              </button>
-              <button onClick={() => setStep("choose")} className="w-full text-[12px] text-muted-foreground hover:text-foreground cursor-pointer transition-colors">{t("common.back")}</button>
-            </motion.div>
-          )}
-
-          {step === "success" && (
-            <motion.div key="success" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}
-              className="p-8 text-center space-y-5">
-              <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.1, type: "spring", stiffness: 200 }}
-                className="w-16 h-16 rounded-full bg-primary/15 flex items-center justify-center mx-auto">
-                <CheckCircle2 size={32} className="text-primary" />
-              </motion.div>
-              <div>
-                <div className="text-lg font-black text-foreground">{t("travel.splitPayment.successTitle")}</div>
-                <div className="text-sm text-muted-foreground mt-1">{t("travel.splitPayment.successSubtitle")}</div>
-              </div>
-              <div className="rounded-2xl bg-secondary/50 p-4 text-left space-y-2">
-                <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground">{t("travel.splitPayment.reference")}</span>
-                  <span className="font-mono font-semibold text-foreground">{reference}</span>
-                </div>
-                <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground">{t("travel.splitPayment.firstInstallment")}</span>
-                  <span className="font-semibold text-primary font-mono">{formatCurrency(term1 + fee, currency)}</span>
-                </div>
-                <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground">{t("travel.splitPayment.remainingBalance")}</span>
-                  <span className="font-semibold text-foreground font-mono">{formatCurrency(term2 + term3, currency)}</span>
-                </div>
-              </div>
-              <button onClick={onClose} className="w-full py-3 rounded-2xl bg-primary text-primary-foreground text-sm font-bold cursor-pointer hover:bg-primary/90 transition-colors">
-                {t("travel.splitPayment.viewBookingsButton")}
-              </button>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </motion.div>
-    </motion.div>
-  );
-}
-
-// ── Review Form ────────────────────────────────────────────────────────────────
-
-function ReviewForm({ onSubmit }: { onSubmit: () => void }) {
-  const { t } = useTranslation("common");
-  const [rating, setRating] = useState(0);
-  const [hoveredStar, setHoveredStar] = useState(0);
-  const [comment, setComment] = useState("");
-  const ratingLabels = t("travel.reviewForm.ratingLabels", { returnObjects: true }) as string[];
-
-  return (
-    <div className="rounded-2xl bg-card border border-border p-5 space-y-4">
-      <h3 className="text-sm font-bold text-foreground">{t("travel.leaveReview")}</h3>
-      <div className="flex items-center gap-2">
-        {Array.from({ length: 5 }).map((_, i) => (
-          <button key={i}
-            onMouseEnter={() => setHoveredStar(i + 1)}
-            onMouseLeave={() => setHoveredStar(0)}
-            onClick={() => setRating(i + 1)}
-            className="cursor-pointer transition-transform hover:scale-125">
-            <Star size={24} className={i < (hoveredStar || rating) ? "text-amber-400 fill-amber-400" : "text-muted-foreground"} />
-          </button>
-        ))}
-        {rating > 0 && <span className="text-sm text-muted-foreground ml-2">{ratingLabels[rating]}</span>}
-      </div>
-      <textarea
-        value={comment}
-        onChange={e => setComment(e.target.value)}
-        placeholder={t("travel.reviewForm.placeholder")}
-        rows={3}
-        className="w-full px-3 py-2.5 rounded-xl bg-secondary border border-border text-sm text-foreground placeholder:text-muted-foreground resize-none focus:outline-none focus:border-primary/50"
-      />
-      <button
-        onClick={() => { if (rating > 0 && comment.trim()) { onSubmit(); } else { toast.error(t("travel.reviewForm.toastError")); } }}
-        className="px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold cursor-pointer hover:bg-primary/90 transition-colors"
-      >
-        {t("travel.reviewForm.submitButton")}
-      </button>
-    </div>
-  );
-}
-
-// ── Main Page ──────────────────────────────────────────────────────────────────
+const matches = (text: string, query: string) => !query.trim() || text.toLowerCase().includes(query.trim().toLowerCase());
 
 export default function TravelPage() {
-  const { t } = useTranslation("common");
-  const [activeTab, setActiveTab] = useState<SearchTab>("flights");
-  const [flightFilter, setFlightFilter] = useState(0);
-  const [hotelFilter, setHotelFilter] = useState(0);
-  const [selectedFlight, setSelectedFlight] = useState<Flight | null>(null);
-  const [splitPaymentFor, setSplitPaymentFor] = useState<{ price: number; currency: string; item: string; flightId: string } | null>(null);
-  const [showReviewForm, setShowReviewForm] = useState(false);
-  const [likedItems, setLikedItems] = useState<Set<string>>(new Set());
-  const [booking, setBooking] = useState<string | null>(null);
-
+  const { t, i18n } = useTranslation("common");
   const currentUser = useCurrentAppUser();
-  const realFlights = useFlights();
-  const realHotels = useHotels();
-  const bookTravelItem = useBookTravelItemMutation();
-  const bookTravelItemInstallments = useBookTravelItemInstallmentsMutation();
-  const installmentPlans = useTravelInstallmentPlansForUser(currentUser?.id);
+  const userId = currentUser?.id;
+  const today = todayISO();
 
-  // Real catalog once signed in with data to show; anonymous/no-data
-  // visitors keep the existing rich mock catalog — same fallback
-  // convention used throughout this migration.
-  const hasRealFlights = !!currentUser && !!realFlights && realFlights.length > 0;
-  const hasRealHotels = !!currentUser && !!realHotels && realHotels.length > 0;
-  const displayFlights: Flight[] = hasRealFlights ? realFlights.map(toDisplayFlight) : FLIGHTS;
-  const durationHours = (d: string) => { const m = /(\d+)h\s*(\d+)?/.exec(d); return m ? Number(m[1]) + Number(m[2] ?? 0) / 60 : Infinity; };
-  const shownFlights = ((): Flight[] => {
-    switch (flightFilter) {
-      case 1: return displayFlights.filter((f) => f.stops === 0);
-      case 2: return displayFlights.filter((f) => durationHours(f.duration) < 10);
-      case 3: return [...displayFlights].sort((a, b) => a.price - b.price);
-      case 4: return [...displayFlights].sort((a, b) => b.rating - a.rating);
-      case 5: return displayFlights.filter((f) => (f.payrusDiscount ?? 0) > 0);
-      default: return displayFlights;
-    }
-  })();
-  const allHotels: Hotel[] = hasRealHotels ? realHotels.map(toDisplayHotel) : HOTELS;
-  const displayHotels = ((): Hotel[] => {
-    switch (hotelFilter) {
-      case 1: return allHotels.filter((h) => h.payrusMember);
-      case 2: return allHotels.filter((h) => h.stars >= 5);
-      case 3: return allHotels.filter((h) => /affaires|business/i.test(h.category) || h.amenities.some((a) => /conference/i.test(a)));
-      case 4: return allHotels.filter((h) => h.pricePerNight < 150);
-      case 5: return allHotels.filter((h) => h.amenities.some((a) => /pool/i.test(a)));
-      case 6: return allHotels.filter((h) => h.amenities.some((a) => /spa/i.test(a)));
-      default: return allHotels;
-    }
-  })();
+  const flights = useFlights();
+  const hotels = useHotels();
+  const bookings = useTravelBookings(userId);
+  const plans = useTravelInstallmentPlansForUser(userId);
+  const favorites = useTravelFavorites(userId);
+  const reviews = useTravelReviews(userId);
+  const toggleFavorite = useToggleTravelFavoriteMutation();
 
-  async function handleBookFlight(flight: Flight) {
-    const showToast = () => toast.success(t("travel.flightBookedToast", { airline: flight.airline, price: formatCurrency(flight.price, flight.currency) }));
-    if (!currentUser || !hasRealFlights) { showToast(); return; }
-    setBooking(flight.id);
-    try {
-      await bookTravelItem({ userId: currentUser.id, kind: "flight", itemId: flight.id, note: `${flight.airline} ${flight.origin}→${flight.destination}` });
-      showToast();
-    } catch {
-      toast.error(t("travel.bookingFailed"));
-    } finally {
-      setBooking(null);
-    }
-  }
+  const [activeTab, setActiveTab] = useState<SearchTab>("flights");
 
-  async function handleBookHotel(hotel: Hotel) {
-    const showToast = () => toast.success(t("travel.hotelBookedToast", { name: hotel.name }));
-    if (!currentUser || !hasRealHotels) { showToast(); return; }
-    setBooking(hotel.id);
-    try {
-      await bookTravelItem({ userId: currentUser.id, kind: "hotel", itemId: hotel.id, note: hotel.name });
-      showToast();
-    } catch {
-      toast.error(t("travel.bookingFailed"));
-    } finally {
-      setBooking(null);
-    }
-  }
+  // Flight search
+  const [origin, setOrigin] = useState("");
+  const [destination, setDestination] = useState("");
+  const [flightDate, setFlightDate] = useState(addDaysISO(today, 14));
+  const [passengers, setPassengers] = useState(1);
+  const [flightFilter, setFlightFilter] = useState(0);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [maxPrice, setMaxPrice] = useState("");
+  const [cabin, setCabin] = useState<"all" | "economy" | "business">("all");
+  const [sort, setSort] = useState<SortKey>("default");
+  const [selectedFlightId, setSelectedFlightId] = useState<string | null>(null);
 
-  const toggleLike = (id: string) => {
-    setLikedItems(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
+  // Hotel search
+  const [place, setPlace] = useState("");
+  const [checkIn, setCheckIn] = useState(addDaysISO(today, 14));
+  const [checkOut, setCheckOut] = useState(addDaysISO(today, 17));
+  const [hotelFilter, setHotelFilter] = useState(0);
+
+  const [bookingFor, setBookingFor] = useState<{ item: TravelItem; installments: boolean } | null>(null);
+  const [detailsHotel, setDetailsHotel] = useState<AppHotel | null>(null);
+  const [partnerBooking, setPartnerBooking] = useState<PartnerOffer | null>(null);
+
+  const nights = Math.max(nightsBetween(checkIn, checkOut), 1);
+  const favoriteSet = useMemo(() => new Set(favorites ?? []), [favorites]);
+
+  // Secondary price in XAF, the main currency of the customers this app is built for.
+  const currencyCodes = useMemo(() => Array.from(new Set(["USD", "XAF", ...(flights ?? []).map((f) => f.currency), ...(hotels ?? []).map((h) => h.currency)])), [flights, hotels]);
+  const rates = useCurrenciesByCode(currencyCodes);
+  const toXaf = (amount: number, currency: string): number | null => {
+    const from = rates?.find((r) => r.code === currency)?.ratePerUsd;
+    const xaf = rates?.find((r) => r.code === "XAF")?.ratePerUsd;
+    return from && xaf ? Math.round((amount / from) * xaf) : null;
   };
+
+  const requireSignIn = () => { toast.error(t("travel.signInRequired")); };
+
+  async function handleToggleFavorite(kind: "flight" | "hotel", id: string) {
+    if (!userId) { requireSignIn(); return; }
+    try {
+      const nowFavorite = await toggleFavorite({ userId, kind, itemId: id });
+      toast.success(nowFavorite ? t("travel.favorites.added") : t("travel.favorites.removed"));
+    } catch {
+      toast.error(t("travel.favorites.failed"));
+    }
+  }
+
+  // ── Flights: search + filters ───────────────────────────────────────────────
+  const shownFlights = useMemo((): AppFlight[] => {
+    let list = (flights ?? []).filter((f) =>
+      matches(`${f.origin} ${AIRPORTS[f.origin] ?? ""}`, origin) && matches(`${f.destination} ${AIRPORTS[f.destination] ?? ""}`, destination)
+      && f.seatsLeft >= passengers);
+    switch (flightFilter) {
+      case 1: list = list.filter((f) => f.stops === 0); break;
+      case 2: list = list.filter((f) => durationHours(f.duration) < 10); break;
+      case 3: list = [...list].sort((a, b) => a.price - b.price); break;
+      case 4: list = [...list].sort((a, b) => b.rating - a.rating); break;
+      case 5: list = list.filter((f) => f.memberDiscountPercent >= 5); break;
+      default: break;
+    }
+    if (cabin !== "all") list = list.filter((f) => f.class === cabin);
+    if (maxPrice && Number(maxPrice) > 0) list = list.filter((f) => f.price <= Number(maxPrice));
+    if (sort === "price") list = [...list].sort((a, b) => a.price - b.price);
+    if (sort === "duration") list = [...list].sort((a, b) => durationHours(a.duration) - durationHours(b.duration));
+    if (sort === "rating") list = [...list].sort((a, b) => b.rating - a.rating);
+    return list;
+  }, [flights, origin, destination, passengers, flightFilter, cabin, maxPrice, sort]);
+
+  const shownHotels = useMemo((): AppHotel[] => {
+    let list = (hotels ?? []).filter((h) => matches(`${h.name} ${h.location}`, place));
+    switch (hotelFilter) {
+      case 1: list = list.filter((h) => h.memberDiscountPercent > 0); break;
+      case 2: list = list.filter((h) => h.stars >= 5); break;
+      case 3: list = list.filter((h) => /business|affaires/i.test(h.category) || h.amenities.includes("conference")); break;
+      case 4: list = list.filter((h) => h.pricePerNight < 150); break;
+      case 5: list = list.filter((h) => h.amenities.includes("pool")); break;
+      case 6: list = list.filter((h) => h.amenities.includes("spa")); break;
+      default: break;
+    }
+    return list;
+  }, [hotels, place, hotelFilter]);
+
+  const flightItems = (flights ?? []).map((f) => ({ id: f.id, label: `${f.airline} · ${f.origin}→${f.destination}` }));
+  const hotelItems = (hotels ?? []).map((h) => ({ id: h.id, label: h.name }));
+
+  const openFlightBooking = (flight: AppFlight, installments: boolean) =>
+    setBookingFor({ item: { kind: "flight", flight }, installments });
+  const openHotelBooking = (hotel: AppHotel, installments = false) => {
+    setDetailsHotel(null);
+    setBookingFor({ item: { kind: "hotel", hotel }, installments });
+  };
+
+  const tabs: { id: SearchTab; label: string; icon: typeof Plane }[] = [
+    { id: "flights", label: t("travel.tabFlights"), icon: Plane },
+    { id: "hotels", label: t("travel.tabHotels"), icon: Hotel },
+    ...(currentUser ? [
+      { id: "saved" as const, label: t("travel.tabSaved"), icon: Bookmark },
+      { id: "bookings" as const, label: t("travel.tabBookings"), icon: CreditCard },
+    ] : []),
+  ];
+
+  const loading = flights === undefined || hotels === undefined;
 
   return (
     <div className="flex flex-col h-full">
-      {/* Back navigation */}
       <div className="px-5 pt-5 pb-0 shrink-0">
         <PageHeader title={t("travel.title")} className="mb-4 md:mb-6" />
       </div>
+
       {/* ── Header ── */}
       <div className="px-5 pt-0 pb-4 border-b border-border bg-sidebar/40 shrink-0">
         <div className="flex items-center justify-between gap-4 mb-4">
@@ -613,11 +169,8 @@ export default function TravelPage() {
               <p className="text-xs text-muted-foreground mt-0.5">{t("travel.subheading")}</p>
             </div>
           </div>
-          {/* PayRus member badge */}
           <div className="hidden md:flex items-center gap-2 px-3 py-2 rounded-xl border border-primary/20 bg-primary/5">
-            <div className="rounded-lg bg-white px-2 py-1">
-              <PayRusLogo className="h-5 w-auto" />
-            </div>
+            <div className="rounded-lg bg-white px-2 py-1"><PayRusLogo className="h-5 w-auto" /></div>
             <div>
               <div className="text-[10px] font-bold text-primary">{t("travel.memberBadge")}</div>
               <div className="text-[9px] text-muted-foreground">{t("travel.upTo18Discount")}</div>
@@ -625,7 +178,6 @@ export default function TravelPage() {
           </div>
         </div>
 
-        {/* PayRus benefits strip */}
         <div className="flex items-center gap-3 overflow-x-auto pb-1">
           {[
             { icon: TrendingDown, text: t("travel.benefits.bestRates"), color: "text-primary" },
@@ -640,27 +192,21 @@ export default function TravelPage() {
           ))}
         </div>
 
-        {/* Main Tabs */}
-        <div className="flex gap-1 mt-3">
-          {([
-            { id: "flights" as const, label: t("travel.tabFlights"), icon: Plane },
-            { id: "hotels" as const, label: t("travel.tabHotels"), icon: Hotel },
-            ...(currentUser ? [{ id: "bookings" as const, label: t("travel.tabBookings"), icon: CreditCard }] : []),
-          ]).map(tab => (
-            <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-              className={cn(
-                "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all cursor-pointer",
-                activeTab === tab.id ? "bg-primary/15 text-primary" : "text-muted-foreground hover:text-foreground hover:bg-secondary"
-              )}>
+        <div className="flex gap-1 mt-3 overflow-x-auto" role="tablist">
+          {tabs.map((tab) => (
+            <button key={tab.id} type="button" role="tab" aria-selected={activeTab === tab.id} onClick={() => setActiveTab(tab.id)}
+              className={cn("flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all cursor-pointer whitespace-nowrap",
+                activeTab === tab.id ? "bg-primary/15 text-primary" : "text-muted-foreground hover:text-foreground hover:bg-secondary")}>
               <tab.icon size={15} />
               {tab.label}
+              {tab.id === "saved" && favorites && favorites.length > 0 && <span className="text-[10px] font-bold bg-primary/15 text-primary rounded-full px-1.5">{favorites.length}</span>}
             </button>
           ))}
         </div>
       </div>
 
       {/* ── Content ── */}
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 overflow-auto pb-20 md:pb-0">
         <AnimatePresence mode="wait">
 
           {/* ── Flights ── */}
@@ -668,208 +214,161 @@ export default function TravelPage() {
             <motion.div key="flights" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }}
               className="p-4 md:p-5 space-y-5 max-w-4xl mx-auto">
 
-              {/* Search bar */}
               <div className="rounded-2xl bg-card border border-border p-4">
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   <div className="relative">
                     <MapPin size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                    <div className="pl-8 pr-3 py-2.5 rounded-xl bg-secondary border border-border text-sm font-medium text-foreground">KIN · Kinshasa</div>
+                    <input id="flight-origin" list="airports" value={origin} onChange={(e) => setOrigin(e.target.value)} placeholder={t("travel.search.from")} aria-label={t("travel.search.from")} className={inputClass} />
                   </div>
                   <div className="relative">
                     <MapPin size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-primary" />
-                    <div className="pl-8 pr-3 py-2.5 rounded-xl bg-secondary border border-primary/30 text-sm font-medium text-foreground">CDG · Paris</div>
+                    <input id="flight-destination" list="airports" value={destination} onChange={(e) => setDestination(e.target.value)} placeholder={t("travel.search.to")} aria-label={t("travel.search.to")} className={inputClass} />
                   </div>
                   <div className="relative">
                     <Calendar size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                    <div className="pl-8 pr-3 py-2.5 rounded-xl bg-secondary border border-border text-sm text-muted-foreground">Dec 12, 2024</div>
+                    <input id="flight-date" type="date" min={today} value={flightDate} onChange={(e) => setFlightDate(e.target.value)} aria-label={t("travel.booking.departureDate")} className={inputClass} />
                   </div>
-                  <button type="button" onClick={() => { setFlightFilter(0); toast.success(t("travel.searchButton")); }} className="flex items-center justify-center gap-2 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold cursor-pointer hover:bg-primary/90 transition-colors">
+                  <button type="button" onClick={() => toast.success(t("travel.search.found", { count: shownFlights.length }))}
+                    className="flex items-center justify-center gap-2 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold cursor-pointer hover:bg-primary/90 transition-colors">
                     <Search size={14} /> {t("travel.searchButton")}
                   </button>
                 </div>
+                <datalist id="airports">{Object.keys(AIRPORTS).map((code) => <option key={code} value={code}>{airportLabel(code)}</option>)}</datalist>
                 <div className="flex items-center gap-3 mt-3 flex-wrap">
                   <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                    <Users size={11} /> {t("travel.onePassenger")}
+                    <Users size={11} />
+                    <select id="flight-passengers" value={passengers} onChange={(e) => setPassengers(Number(e.target.value))} aria-label={t("travel.booking.passengers")} className="bg-transparent text-[11px] cursor-pointer">
+                      {Array.from({ length: 9 }, (_, i) => i + 1).map((n) => <option key={n} value={n}>{t("travel.search.passengerCount", { count: n })}</option>)}
+                    </select>
                   </div>
-                  <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                    <Luggage size={11} /> {t("travel.baggageIncluded")}
-                  </div>
-                  <button type="button" onClick={() => setFlightFilter((f) => (f === 3 ? 0 : 3))} className="flex items-center gap-1.5 text-[11px] text-primary hover:underline cursor-pointer">
+                  <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground"><Luggage size={11} /> {t("travel.baggageIncluded")}</div>
+                  <button type="button" onClick={() => setShowAdvanced((v) => !v)} aria-expanded={showAdvanced} className="flex items-center gap-1.5 text-[11px] text-primary hover:underline cursor-pointer">
                     <SlidersHorizontal size={11} /> {t("travel.advancedFilters")}
                   </button>
+                  {(origin || destination) && (
+                    <button type="button" onClick={() => { setOrigin(""); setDestination(""); }} className="text-[11px] text-muted-foreground hover:text-foreground cursor-pointer">{t("travel.search.clear")}</button>
+                  )}
                 </div>
+                {showAdvanced && (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3 pt-3 border-t border-border" data-testid="advanced-filters">
+                    <label className="space-y-1"><span className="text-[11px] text-muted-foreground">{t("travel.advanced.maxPrice")}</span>
+                      <input id="flight-max-price" type="number" min={0} value={maxPrice} onChange={(e) => setMaxPrice(e.target.value)} placeholder="USD" className="w-full px-3 py-2 rounded-xl bg-secondary border border-border text-sm" /></label>
+                    <label className="space-y-1"><span className="text-[11px] text-muted-foreground">{t("travel.advanced.cabin")}</span>
+                      <select id="flight-cabin" value={cabin} onChange={(e) => setCabin(e.target.value as typeof cabin)} className="w-full px-3 py-2 rounded-xl bg-secondary border border-border text-sm">
+                        <option value="all">{t("travel.filters.all")}</option><option value="economy">{t("travel.classEconomy")}</option><option value="business">{t("travel.classBusiness")}</option>
+                      </select></label>
+                    <label className="space-y-1"><span className="text-[11px] text-muted-foreground">{t("travel.advanced.sortBy")}</span>
+                      <select id="flight-sort" value={sort} onChange={(e) => setSort(e.target.value as SortKey)} className="w-full px-3 py-2 rounded-xl bg-secondary border border-border text-sm">
+                        <option value="default">{t("travel.advanced.sortDefault")}</option><option value="price">{t("travel.filters.cheapest")}</option>
+                        <option value="duration">{t("travel.advanced.sortDuration")}</option><option value="rating">{t("travel.filters.topRated")}</option>
+                      </select></label>
+                  </div>
+                )}
               </div>
 
-              {/* Filter pills */}
+              <PartnerFlightSearch origin={origin} destination={destination} date={flightDate} passengers={passengers} userId={userId} onBook={setPartnerBooking} />
+
               <div className="flex items-center gap-2 overflow-x-auto pb-1">
                 {[t("travel.filters.all"), t("travel.filters.nonStop"), t("travel.filters.under10h"), t("travel.filters.cheapest"), t("travel.filters.topRated"), t("travel.filters.payrusDiscount")].map((f, i) => (
-                  <button key={f} type="button" onClick={() => setFlightFilter(i)} aria-pressed={i === flightFilter} className={cn(
-                    "px-3 py-1.5 rounded-full text-[11px] font-medium border whitespace-nowrap shrink-0 cursor-pointer transition-colors",
-                    i === flightFilter ? "bg-primary/15 text-primary border-primary/25" : "bg-card text-muted-foreground border-border hover:border-primary/30 hover:text-foreground"
-                  )}>
+                  <button key={f} type="button" onClick={() => setFlightFilter(i)} aria-pressed={i === flightFilter}
+                    className={cn("px-3 py-1.5 rounded-full text-[11px] font-medium border whitespace-nowrap shrink-0 cursor-pointer transition-colors",
+                      i === flightFilter ? "bg-primary/15 text-primary border-primary/25" : "bg-card text-muted-foreground border-border hover:border-primary/30 hover:text-foreground")}>
                     {f}
                   </button>
                 ))}
               </div>
 
-              {/* Flight results */}
+              <div className="text-[11px] text-muted-foreground" aria-live="polite" data-testid="flight-count">{t("travel.search.resultCount", { count: shownFlights.length })}</div>
+
               <div className="space-y-3">
-                {shownFlights.map((flight, i) => (
-                  <motion.div key={flight.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }}
-                    className={cn(
-                      "rounded-2xl bg-card border overflow-hidden transition-all cursor-pointer group",
-                      selectedFlight?.id === flight.id ? "border-primary/50 shadow-lg shadow-primary/5" : "border-border hover:border-primary/25"
-                    )}
-                    onClick={() => setSelectedFlight(selectedFlight?.id === flight.id ? null : flight)}>
-
-                    <div className="p-4">
-                      <div className="flex items-start gap-3">
-                        {/* Airline */}
-                        <div className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center text-xl shrink-0">{flight.logo}</div>
-
-                        {/* Route info */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-2">
-                            <span className="text-xs font-bold text-foreground">{flight.airline}</span>
-                            {flight.stops === 0 && (
-                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">{t("travel.direct")}</span>
-                            )}
-                            <span className="text-[9px] text-muted-foreground bg-secondary px-1.5 py-0.5 rounded border border-border">{flight.class === "economy" ? t("travel.classEconomy") : t("travel.classBusiness")}</span>
-                            {flight.seatsLeft <= 5 && (
-                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-destructive/10 text-destructive border border-destructive/20">
-                                {t("travel.seatsRemaining", { count: flight.seatsLeft })}
-                              </span>
-                            )}
-                          </div>
-
-                          <div className="flex items-center gap-3">
-                            {/* Departure */}
-                            <div className="text-center">
-                              <div className="text-xl font-black text-foreground font-mono">{flight.departure}</div>
-                              <div className="text-[10px] text-muted-foreground font-medium">{flight.origin}</div>
+                {loading && <div className="text-center py-10 text-muted-foreground text-sm">{t("signin.checking")}</div>}
+                {!loading && shownFlights.length === 0 && <div className="text-center py-10 text-muted-foreground text-sm" data-testid="no-flights">{t("travel.search.noResults")}</div>}
+                {shownFlights.map((flight, i) => {
+                  const expanded = selectedFlightId === flight.id;
+                  const memberPrice = round2(flight.price * (1 - flight.memberDiscountPercent / 100));
+                  const xaf = flight.currency === "XAF" ? null : toXaf(flight.price, flight.currency);
+                  return (
+                    <motion.div key={flight.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }} data-testid="flight-card"
+                      className={cn("rounded-2xl bg-card border overflow-hidden transition-all group", expanded ? "border-primary/50 shadow-lg shadow-primary/5" : "border-border hover:border-primary/25")}>
+                      <div className="p-4 cursor-pointer" onClick={() => setSelectedFlightId(expanded ? null : flight.id)} role="button" tabIndex={0} aria-expanded={expanded}
+                        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelectedFlightId(expanded ? null : flight.id); } }}>
+                        <div className="flex items-start gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center text-xs font-black text-primary shrink-0">{flight.airlineCode}</div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-2 flex-wrap">
+                              <span className="text-xs font-bold text-foreground">{flight.airline}</span>
+                              {flight.stops === 0 && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">{t("travel.direct")}</span>}
+                              <span className="text-[9px] text-muted-foreground bg-secondary px-1.5 py-0.5 rounded border border-border">{flight.class === "economy" ? t("travel.classEconomy") : t("travel.classBusiness")}</span>
+                              {flight.seatsLeft <= 5 && (
+                                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-destructive/10 text-destructive border border-destructive/20">{t("travel.seatsRemaining", { count: flight.seatsLeft })}</span>
+                              )}
                             </div>
-
-                            {/* Duration */}
-                            <div className="flex-1 flex flex-col items-center gap-1">
-                              <div className="text-[10px] text-muted-foreground">{flight.duration}</div>
-                              <div className="relative w-full flex items-center">
-                                <div className="w-full h-px bg-border" />
-                                <Plane size={12} className="absolute left-1/2 -translate-x-1/2 -translate-y-px text-primary" />
+                            <div className="flex items-center gap-3">
+                              <div className="text-center">
+                                <div className="text-xl font-black text-foreground font-mono">{flight.departure}</div>
+                                <div className="text-[10px] text-muted-foreground font-medium">{flight.origin}</div>
                               </div>
-                              <div className="text-[10px] text-muted-foreground">{flight.stops === 0 ? t("travel.nonStopLabel") : t("travel.stopsCount", { count: flight.stops })}</div>
+                              <div className="flex-1 flex flex-col items-center gap-1">
+                                <div className="text-[10px] text-muted-foreground">{flight.duration}</div>
+                                <div className="relative w-full flex items-center">
+                                  <div className="w-full h-px bg-border" />
+                                  <Plane size={12} className="absolute left-1/2 -translate-x-1/2 -translate-y-px text-primary" />
+                                </div>
+                                <div className="text-[10px] text-muted-foreground">{flight.stops === 0 ? t("travel.nonStopLabel") : t("travel.stopsCount", { count: flight.stops })}</div>
+                              </div>
+                              <div className="text-center">
+                                <div className="text-xl font-black text-foreground font-mono">{flight.arrival}</div>
+                                <div className="text-[10px] text-muted-foreground font-medium">{flight.destination}</div>
+                              </div>
                             </div>
-
-                            {/* Arrival */}
-                            <div className="text-center">
-                              <div className="text-xl font-black text-foreground font-mono">{flight.arrival}</div>
-                              <div className="text-[10px] text-muted-foreground font-medium">{flight.destination}</div>
+                          </div>
+                          <div className="text-right shrink-0 flex flex-col items-end gap-2">
+                            <button type="button" aria-pressed={favoriteSet.has(`flight:${flight.id}`)} aria-label={t("travel.favorites.toggle")}
+                              onClick={(e) => { e.stopPropagation(); void handleToggleFavorite("flight", flight.id); }} className="cursor-pointer transition-colors">
+                              <Heart size={15} className={favoriteSet.has(`flight:${flight.id}`) ? "text-red-400 fill-red-400" : "text-muted-foreground"} />
+                            </button>
+                            <div>
+                              {flight.memberDiscountPercent > 0 && <div className="text-[10px] font-bold text-primary">{t("travel.membersDiscount", { pct: flight.memberDiscountPercent })}</div>}
+                              <div className="text-xl font-black text-foreground font-mono">{formatMoney(flight.price, flight.currency, i18n.language)}</div>
+                              {xaf !== null && <div className="text-[10px] text-muted-foreground">≈ {formatMoney(xaf, "XAF", i18n.language)}</div>}
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Star size={11} className="text-amber-400 fill-amber-400" />
+                              <span className="text-[11px] font-semibold text-foreground">{flight.rating}</span>
                             </div>
                           </div>
                         </div>
-
-                        {/* Price + CTA */}
-                        <div className="text-right shrink-0 flex flex-col items-end gap-2">
-                          <button onClick={e => { e.stopPropagation(); toggleLike(flight.id); }}
-                            className="cursor-pointer transition-colors">
-                            <Heart size={15} className={likedItems.has(flight.id) ? "text-red-400 fill-red-400" : "text-muted-foreground"} />
-                          </button>
-                          <div>
-                            {flight.payrusDiscount > 0 && (
-                              <div className="text-[10px] font-bold text-primary">{t("travel.membersDiscount", { pct: flight.payrusDiscount })}</div>
-                            )}
-                            <div className="text-xl font-black text-foreground font-mono">{formatCurrency(flight.price, flight.currency)}</div>
-                            <div className="text-[10px] text-muted-foreground">{formatCurrency(flight.priceXAF, "XAF")}</div>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Star size={11} className="text-amber-400 fill-amber-400" />
-                            <span className="text-[11px] font-semibold text-foreground">{flight.rating}</span>
-                          </div>
-                        </div>
+                        <div className="flex items-center gap-2 mt-3 flex-wrap">{flight.amenities.map((a) => <AmenityChip key={a} amenity={a} />)}</div>
                       </div>
 
-                      {/* Amenities */}
-                      <div className="flex items-center gap-2 mt-3 flex-wrap">
-                        {flight.amenities.map(a => (
-                          <div key={a} className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-secondary border border-border text-[10px] text-muted-foreground">
-                            {a === "travel.amenity.wifi" ? <Wifi size={9} /> : a === "travel.amenity.meal" ? <Utensils size={9} /> : <Zap size={9} />}
-                            {t(a)}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Expanded CTA */}
-                    <AnimatePresence>
-                      {selectedFlight?.id === flight.id && (
-                        <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }}>
-                          <div className="border-t border-border px-4 pb-4 pt-3 space-y-3">
-                            <div className="grid grid-cols-2 gap-3">
-                              <button
-                                onClick={e => { e.stopPropagation(); setSplitPaymentFor({ price: flight.price, currency: flight.currency, item: `${flight.airline} · ${flight.origin}→${flight.destination}`, flightId: flight.id }); }}
-                                className="flex items-center justify-center gap-2 py-3 rounded-2xl border-2 border-primary/30 bg-primary/5 text-primary text-sm font-bold cursor-pointer hover:bg-primary/15 transition-colors"
-                              >
-                                <CreditCard size={15} /> {t("travel.payInThreeButton")}
-                              </button>
-                              <button
-                                disabled={booking === flight.id}
-                                onClick={e => { e.stopPropagation(); void handleBookFlight(flight); }}
-                                className="flex items-center justify-center gap-2 py-3 rounded-2xl bg-primary text-primary-foreground text-sm font-bold cursor-pointer hover:bg-primary/90 transition-colors disabled:opacity-60"
-                              >
-                                {booking === flight.id ? t("signin.checking") : t("travel.bookNowButton")} <ArrowRight size={14} />
-                              </button>
+                      <AnimatePresence>
+                        {expanded && (
+                          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }}>
+                            <div className="border-t border-border px-4 pb-4 pt-3 space-y-3">
+                              {flight.memberDiscountPercent > 0 && (
+                                <div className="text-[11px] text-primary flex items-center gap-1.5"><CheckCircle2 size={11} /> {t("travel.memberPrice")} <span className="font-bold font-mono">{formatMoney(memberPrice, flight.currency, i18n.language)}</span> / {t("travel.booking.passenger")}</div>
+                              )}
+                              <div className="grid grid-cols-2 gap-3">
+                                <button type="button" onClick={() => openFlightBooking(flight, true)}
+                                  className="flex items-center justify-center gap-2 py-3 rounded-2xl border-2 border-primary/30 bg-primary/5 text-primary text-sm font-bold cursor-pointer hover:bg-primary/15 transition-colors">
+                                  <CreditCard size={15} /> {t("travel.payInThreeButton")}
+                                </button>
+                                <button type="button" onClick={() => openFlightBooking(flight, false)}
+                                  className="flex items-center justify-center gap-2 py-3 rounded-2xl bg-primary text-primary-foreground text-sm font-bold cursor-pointer hover:bg-primary/90 transition-colors">
+                                  {t("travel.bookNowButton")} <ArrowRight size={14} />
+                                </button>
+                              </div>
+                              <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground"><Shield size={11} className="text-emerald-700" />{t("travel.freeRefundNotice")}</div>
                             </div>
-                            <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                              <Shield size={11} className="text-emerald-700" />
-                              {t("travel.freeRefundNotice")}
-                            </div>
-                          </div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </motion.div>
-                ))}
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </motion.div>
+                  );
+                })}
               </div>
 
-              {/* Reviews section */}
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-sm font-bold text-foreground">{t("travel.reviewsHeadingFlights")}</h2>
-                  <button onClick={() => setShowReviewForm(!showReviewForm)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 border border-primary/25 text-[11px] text-primary font-medium cursor-pointer hover:bg-primary/20 transition-colors">
-                    <Star size={11} /> {t("travel.leaveReview")}
-                  </button>
-                </div>
-
-                <AnimatePresence>
-                  {showReviewForm && (
-                    <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
-                      <ReviewForm onSubmit={() => { setShowReviewForm(false); toast.success(t("travel.reviewPublishedToast")); }} />
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-
-                <div className="space-y-3">
-                  {REVIEWS.filter(r => r.type === "flight").map((review, i) => (
-                    <motion.div key={review.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
-                      className="rounded-2xl bg-card border border-border p-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-base">{review.flag}</div>
-                          <div>
-                            <div className="text-xs font-semibold text-foreground">{review.user}</div>
-                            <div className="text-[10px] text-muted-foreground">{review.entity}</div>
-                          </div>
-                        </div>
-                        <div className="flex flex-col items-end gap-1">
-                          <StarsDisplay count={review.rating} />
-                          <div className="text-[10px] text-muted-foreground">{t(review.date)}</div>
-                        </div>
-                      </div>
-                      <p className="text-[12px] text-muted-foreground mt-3 leading-relaxed">{t(review.comment)}</p>
-                    </motion.div>
-                  ))}
-                </div>
-              </div>
+              <ReviewsSection kind="flight" reviews={reviews ?? []} items={flightItems} userId={userId} />
             </motion.div>
           )}
 
@@ -878,33 +377,35 @@ export default function TravelPage() {
             <motion.div key="hotels" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }}
               className="p-4 md:p-5 space-y-5 max-w-4xl mx-auto">
 
-              {/* Search bar */}
               <div className="rounded-2xl bg-card border border-border p-4">
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   <div className="relative">
                     <MapPin size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                    <div className="pl-8 pr-3 py-2.5 rounded-xl bg-secondary border border-border text-sm text-muted-foreground">{t("travel.destinationPlaceholder")}</div>
+                    <input id="hotel-place" value={place} onChange={(e) => setPlace(e.target.value)} placeholder={t("travel.destinationPlaceholder")} aria-label={t("travel.destinationPlaceholder")} className={inputClass} />
                   </div>
                   <div className="relative">
                     <Calendar size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                    <div className="pl-8 pr-3 py-2.5 rounded-xl bg-secondary border border-border text-sm text-muted-foreground">{t("travel.checkInPlaceholder")}</div>
+                    <input id="hotel-check-in" type="date" min={today} value={checkIn}
+                      onChange={(e) => { setCheckIn(e.target.value); if (checkOut <= e.target.value) setCheckOut(addDaysISO(e.target.value, 1)); }}
+                      aria-label={t("travel.checkInPlaceholder")} className={inputClass} />
                   </div>
                   <div className="relative">
                     <Calendar size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                    <div className="pl-8 pr-3 py-2.5 rounded-xl bg-secondary border border-border text-sm text-muted-foreground">{t("travel.checkOutPlaceholder")}</div>
+                    <input id="hotel-check-out" type="date" min={addDaysISO(checkIn, 1)} value={checkOut} onChange={(e) => setCheckOut(e.target.value)} aria-label={t("travel.checkOutPlaceholder")} className={inputClass} />
                   </div>
-                  <button type="button" onClick={() => { setHotelFilter(0); toast.success(t("travel.searchButton")); }} className="flex items-center justify-center gap-2 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold cursor-pointer hover:bg-primary/90 transition-colors">
+                  <button type="button" onClick={() => toast.success(t("travel.search.foundHotels", { count: shownHotels.length }))}
+                    className="flex items-center justify-center gap-2 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold cursor-pointer hover:bg-primary/90 transition-colors">
                     <Search size={14} /> {t("travel.searchButton")}
                   </button>
                 </div>
+                <div className="text-[11px] text-muted-foreground mt-3" data-testid="nights-label">{t("travel.search.nightsLabel", { count: nights })}</div>
               </div>
 
-              {/* PayRus member benefit banner */}
+              <PartnerHotelSearch place={place} checkIn={checkIn} checkOut={checkOut} userId={userId} onBook={setPartnerBooking} />
+
               <div className="rounded-2xl overflow-hidden border border-primary/25 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent p-4">
                 <div className="flex items-center gap-3">
-                  <div className="rounded-xl bg-white p-2 shrink-0">
-                    <PayRusLogo className="h-6 w-auto" />
-                  </div>
+                  <div className="rounded-xl bg-white p-2 shrink-0"><PayRusLogo className="h-6 w-auto" /></div>
                   <div>
                     <div className="text-sm font-bold text-foreground">{t("travel.partnerHotelsTitle")}</div>
                     <div className="text-[11px] text-muted-foreground mt-0.5">{t("travel.partnerHotelsPrefix")} <span className="text-primary font-semibold">{t("travel.partnerHotelsHighlight")}</span> {t("travel.partnerHotelsSuffix")}</div>
@@ -913,221 +414,125 @@ export default function TravelPage() {
                 </div>
               </div>
 
-              {/* Filter pills */}
               <div className="flex items-center gap-2 overflow-x-auto pb-1">
                 {[t("travel.filters.all"), t("travel.filters.payrusPartners"), t("travel.filters.luxury5star"), t("travel.filters.business"), t("travel.filters.under150"), t("travel.filters.pool"), t("travel.filters.spa")].map((f, i) => (
-                  <button key={f} type="button" onClick={() => setHotelFilter(i)} aria-pressed={i === hotelFilter} className={cn(
-                    "px-3 py-1.5 rounded-full text-[11px] font-medium border whitespace-nowrap shrink-0 cursor-pointer transition-colors",
-                    i === hotelFilter ? "bg-primary/15 text-primary border-primary/25" : "bg-card text-muted-foreground border-border hover:border-primary/30 hover:text-foreground"
-                  )}>
+                  <button key={f} type="button" onClick={() => setHotelFilter(i)} aria-pressed={i === hotelFilter}
+                    className={cn("px-3 py-1.5 rounded-full text-[11px] font-medium border whitespace-nowrap shrink-0 cursor-pointer transition-colors",
+                      i === hotelFilter ? "bg-primary/15 text-primary border-primary/25" : "bg-card text-muted-foreground border-border hover:border-primary/30 hover:text-foreground")}>
                     {f}
                   </button>
                 ))}
               </div>
 
-              {/* Hotel grid */}
+              <div className="text-[11px] text-muted-foreground" aria-live="polite" data-testid="hotel-count">{t("travel.search.resultCountHotels", { count: shownHotels.length })}</div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {displayHotels.map((hotel, i) => (
-                  <motion.div key={hotel.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.07 }}
-                    className="rounded-2xl bg-card border border-border overflow-hidden hover:border-primary/25 transition-all group">
-
-                    {/* Image area */}
-                    <div className="relative h-36 bg-gradient-to-br from-secondary to-secondary/50 flex items-center justify-center">
-                      <span className="text-5xl">{hotel.image}</span>
-                      {/* Like */}
-                      <button onClick={() => toggleLike(hotel.id)}
-                        className="absolute top-3 right-3 w-8 h-8 rounded-full bg-card/80 backdrop-blur-sm flex items-center justify-center cursor-pointer hover:bg-card transition-colors">
-                        <Heart size={14} className={likedItems.has(hotel.id) ? "text-red-400 fill-red-400" : "text-muted-foreground"} />
-                      </button>
-                      {/* PayRus badge */}
-                      {hotel.payrusMember && (
-                        <div className="absolute top-3 left-3 flex items-center gap-1.5 px-2 py-1 rounded-lg bg-primary/90 backdrop-blur-sm">
-                          <div className="rounded px-1 bg-white">
-                            <PayRusLogo className="h-3 w-auto" />
+                {loading && <div className="col-span-full text-center py-10 text-muted-foreground text-sm">{t("signin.checking")}</div>}
+                {!loading && shownHotels.length === 0 && <div className="col-span-full text-center py-10 text-muted-foreground text-sm" data-testid="no-hotels">{t("travel.search.noResults")}</div>}
+                {shownHotels.map((hotel, i) => {
+                  const liked = favoriteSet.has(`hotel:${hotel.id}`);
+                  const memberPrice = round2(hotel.pricePerNight * (1 - hotel.memberDiscountPercent / 100));
+                  return (
+                    <motion.div key={hotel.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }} data-testid="hotel-card"
+                      className="rounded-2xl bg-card border border-border overflow-hidden hover:border-primary/25 transition-all group">
+                      <div className="relative h-36 bg-gradient-to-br from-secondary to-secondary/50 flex items-center justify-center">
+                        <span className="text-5xl" aria-hidden>{hotel.emoji}</span>
+                        <button type="button" aria-pressed={liked} aria-label={t("travel.favorites.toggle")} onClick={() => void handleToggleFavorite("hotel", hotel.id)}
+                          className="absolute top-3 right-3 w-8 h-8 rounded-full bg-card/80 backdrop-blur-sm flex items-center justify-center cursor-pointer hover:bg-card transition-colors">
+                          <Heart size={14} className={liked ? "text-red-400 fill-red-400" : "text-muted-foreground"} />
+                        </button>
+                        {hotel.memberDiscountPercent > 0 && (
+                          <div className="absolute top-3 left-3 flex items-center gap-1.5 px-2 py-1 rounded-lg bg-primary/90 backdrop-blur-sm">
+                            <div className="rounded px-1 bg-white"><PayRusLogo className="h-3 w-auto" /></div>
+                            <span className="text-[10px] font-bold text-primary-foreground">-{hotel.memberDiscountPercent}%</span>
                           </div>
-                          <span className="text-[10px] font-bold text-primary-foreground">-{hotel.discount}%</span>
-                        </div>
-                      )}
-                      {/* Stars */}
-                      <div className="absolute bottom-3 left-3">
-                        <StarsDisplay count={hotel.stars} />
+                        )}
+                        <div className="absolute bottom-3 left-3"><StarsDisplay count={hotel.stars} /></div>
                       </div>
-                    </div>
-
-                    {/* Content */}
-                    <div className="p-4">
-                      <div className="flex items-start justify-between gap-2 mb-2">
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-bold text-foreground truncate">{hotel.name}</div>
-                          <div className="flex items-center gap-1 mt-0.5">
-                            <MapPin size={10} className="text-muted-foreground shrink-0" />
-                            <span className="text-[11px] text-muted-foreground truncate">{hotel.location}</span>
+                      <div className="p-4">
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-bold text-foreground truncate">{hotel.name}</div>
+                            <div className="flex items-center gap-1 mt-0.5"><MapPin size={10} className="text-muted-foreground shrink-0" /><span className="text-[11px] text-muted-foreground truncate">{hotel.location}</span></div>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <div className="text-lg font-black text-foreground font-mono">{formatMoney(hotel.pricePerNight, hotel.currency, i18n.language)}</div>
+                            <div className="text-[10px] text-muted-foreground">{t("travel.perNight")}</div>
                           </div>
                         </div>
-                        <div className="text-right shrink-0">
-                          <div className="text-lg font-black text-foreground font-mono">${hotel.pricePerNight}</div>
-                          <div className="text-[10px] text-muted-foreground">{t("travel.perNight")}</div>
-                        </div>
-                      </div>
-
-                      {/* Rating */}
-                      <div className="flex items-center gap-2 mb-3">
-                        <div className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-50 border border-amber-200">
-                          <Star size={10} className="text-amber-400 fill-amber-400" />
-                          <span className="text-[11px] font-bold text-amber-700">{hotel.rating}</span>
-                        </div>
-                        <span className="text-[10px] text-muted-foreground">{t("travel.reviewsCountLabel", { count: hotel.reviewCount.toLocaleString() })}</span>
-                        <span className="text-[10px] text-muted-foreground">· {t(hotel.distance)}</span>
-                      </div>
-
-                      {/* Amenities */}
-                      <div className="flex items-center gap-1.5 flex-wrap mb-3">
-                        {hotel.amenities.slice(0, 4).map(a => (
-                          <div key={a} className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-secondary text-[9px] text-muted-foreground border border-border">
-                            {a === "travel.amenity.wifi" ? <Wifi size={8} /> : a === "travel.amenity.pool" ? <Wind size={8} /> : a === "Restaurant" ? <Coffee size={8} /> : a === "Spa" ? <Sparkles size={8} /> : <BedDouble size={8} />}
-                            {t(a)}
+                        <div className="flex items-center gap-2 mb-3 flex-wrap">
+                          <div className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-50 border border-amber-200">
+                            <Star size={10} className="text-amber-400 fill-amber-400" /><span className="text-[11px] font-bold text-amber-700">{hotel.rating}</span>
                           </div>
-                        ))}
-                        {hotel.amenities.length > 4 && (
-                          <span className="text-[9px] text-muted-foreground">+{hotel.amenities.length - 4}</span>
+                          <span className="text-[10px] text-muted-foreground">{t("travel.reviewsCountLabel", { count: hotel.reviewCount.toLocaleString(i18n.language) })}</span>
+                          {hotel.distance && <span className="text-[10px] text-muted-foreground">· {t(hotel.distance, { defaultValue: hotel.distance })}</span>}
+                        </div>
+                        <div className="flex items-center gap-1.5 flex-wrap mb-3">
+                          {hotel.amenities.slice(0, 4).map((a) => <AmenityChip key={a} amenity={a} size={8} className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-secondary text-[9px] text-muted-foreground border border-border" />)}
+                          {hotel.amenities.length > 4 && <span className="text-[9px] text-muted-foreground">+{hotel.amenities.length - 4}</span>}
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button type="button" onClick={() => setDetailsHotel(hotel)}
+                            className="py-2 rounded-xl border border-border text-[12px] font-semibold text-muted-foreground hover:text-foreground hover:bg-secondary cursor-pointer transition-colors flex items-center justify-center gap-1.5">
+                            <Globe size={12} /> {t("travel.viewButton")}
+                          </button>
+                          <button type="button" onClick={() => openHotelBooking(hotel)}
+                            className="py-2 rounded-xl bg-primary text-primary-foreground text-[12px] font-bold cursor-pointer hover:bg-primary/90 transition-colors flex items-center justify-center gap-1.5">
+                            {t("travel.reserveButton")} <ArrowUpRight size={12} />
+                          </button>
+                        </div>
+                        {hotel.memberDiscountPercent > 0 && (
+                          <div className="mt-2 flex items-center gap-1.5 text-[10px] text-primary">
+                            <CheckCircle2 size={10} /> {t("travel.memberPrice")} <span className="font-bold font-mono">{formatMoney(memberPrice, hotel.currency, i18n.language)}/{t("travel.nightAbbrev")}</span>
+                          </div>
                         )}
                       </div>
-
-                      {/* CTAs */}
-                      <div className="grid grid-cols-2 gap-2">
-                        <button
-                          onClick={() => toast.success(t("travel.addedToFavoritesToast", { name: hotel.name }))}
-                          className="py-2 rounded-xl border border-border text-[12px] font-semibold text-muted-foreground hover:text-foreground hover:bg-secondary cursor-pointer transition-colors flex items-center justify-center gap-1.5">
-                          <Globe size={12} /> {t("travel.viewButton")}
-                        </button>
-                        <button
-                          disabled={booking === hotel.id}
-                          onClick={() => void handleBookHotel(hotel)}
-                          className="py-2 rounded-xl bg-primary text-primary-foreground text-[12px] font-bold cursor-pointer hover:bg-primary/90 transition-colors flex items-center justify-center gap-1.5 disabled:opacity-60">
-                          {booking === hotel.id ? t("signin.checking") : t("travel.reserveButton")} <ArrowUpRight size={12} />
-                        </button>
-                      </div>
-
-                      {/* Member price */}
-                      {hotel.payrusMember && (
-                        <div className="mt-2 flex items-center gap-1.5 text-[10px] text-primary">
-                          <CheckCircle2 size={10} />
-                          {t("travel.memberPrice")} <span className="font-bold font-mono">${Math.round(hotel.pricePerNight * (1 - hotel.discount / 100))}/{t("travel.nightAbbrev")}</span>
-                        </div>
-                      )}
-                    </div>
-                  </motion.div>
-                ))}
+                    </motion.div>
+                  );
+                })}
               </div>
 
-              {/* Hotel Reviews */}
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-sm font-bold text-foreground">{t("travel.reviewsHeadingHotels")}</h2>
-                  <button onClick={() => setShowReviewForm(!showReviewForm)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 border border-primary/25 text-[11px] text-primary font-medium cursor-pointer hover:bg-primary/20 transition-colors">
-                    <Star size={11} /> {t("travel.leaveReview")}
-                  </button>
-                </div>
-
-                <AnimatePresence>
-                  {showReviewForm && (
-                    <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
-                      <ReviewForm onSubmit={() => { setShowReviewForm(false); toast.success(t("travel.reviewPublishedToast")); }} />
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-
-                <div className="space-y-3">
-                  {REVIEWS.filter(r => r.type === "hotel").map((review, i) => (
-                    <motion.div key={review.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
-                      className="rounded-2xl bg-card border border-border p-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-base">{review.flag}</div>
-                          <div>
-                            <div className="text-xs font-semibold text-foreground">{review.user}</div>
-                            <div className="text-[10px] text-muted-foreground">{review.entity}</div>
-                          </div>
-                        </div>
-                        <div className="flex flex-col items-end gap-1">
-                          <StarsDisplay count={review.rating} />
-                          <div className="text-[10px] text-muted-foreground">{t(review.date)}</div>
-                        </div>
-                      </div>
-                      <p className="text-[12px] text-muted-foreground mt-3 leading-relaxed">{t(review.comment)}</p>
-                    </motion.div>
-                  ))}
-                </div>
-              </div>
+              <ReviewsSection kind="hotel" reviews={reviews ?? []} items={hotelItems} userId={userId} />
             </motion.div>
           )}
 
-          {/* ── My Bookings (installment plans) ── */}
-          {activeTab === "bookings" && (
-            <motion.div key="bookings" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }}
-              className="p-4 md:p-5 space-y-4 max-w-3xl mx-auto">
-              <div>
-                <h2 className="text-sm font-bold text-foreground">{t("travel.myBookings")}</h2>
-                <p className="text-[11px] text-muted-foreground">{t("travel.myBookingsSubtitle")}</p>
-              </div>
+          {/* ── Saved ── */}
+          {activeTab === "saved" && currentUser && (
+            <motion.div key="saved" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }} className="p-4 md:p-5 max-w-3xl mx-auto">
+              <SavedTab flights={flights ?? []} hotels={hotels ?? []} favorites={favorites ?? []} onToggle={(k, id) => void handleToggleFavorite(k, id)}
+                onBookFlight={(f) => openFlightBooking(f, false)} onViewHotel={setDetailsHotel} />
+            </motion.div>
+          )}
 
-              {!installmentPlans || installmentPlans.length === 0 ? (
-                <div className="text-center py-16 text-muted-foreground text-sm">{t("travel.noBookingsYet")}</div>
-              ) : (
-                installmentPlans.map((plan) => {
-                  const paidCount = plan.installments.filter(i => i.status === "paid").length;
-                  const progress = Math.round((paidCount / plan.installments.length) * 100);
-                  return (
-                    <div key={plan.id} className="rounded-2xl bg-card border border-border p-4 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <div className="text-sm font-bold text-foreground font-mono">{formatCurrency(plan.totalAmount, plan.currency)}</div>
-                        <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-primary/15 text-primary">
-                          {t("travel.installmentsPaidOf", { paid: paidCount, total: plan.installments.length })}
-                        </span>
-                      </div>
-                      <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
-                        <div className="h-full rounded-full bg-primary" style={{ width: `${progress}%` }} />
-                      </div>
-                      <div className="space-y-2">
-                        {plan.installments.map((inst) => (
-                          <div key={inst.id} className="flex items-center justify-between text-xs">
-                            <div className="flex items-center gap-2">
-                              <div className={cn(
-                                "w-6 h-6 rounded-full border flex items-center justify-center",
-                                inst.status === "paid" ? "bg-primary/10 border-primary/30 text-primary" : "bg-secondary border-border text-muted-foreground"
-                              )}>
-                                {inst.status === "paid" ? <CheckCircle2 size={12} /> : <Clock size={11} />}
-                              </div>
-                              <span className="text-muted-foreground">{t("travel.installmentSeq", { seq: inst.seq })} · {inst.dueDate}</span>
-                            </div>
-                            <span className={cn("font-bold font-mono", inst.status === "paid" ? "text-primary" : "text-foreground")}>
-                              {formatCurrency(inst.amount, inst.currency)}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })
-              )}
+          {/* ── My bookings ── */}
+          {activeTab === "bookings" && currentUser && (
+            <motion.div key="bookings" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }} className="p-4 md:p-5 max-w-3xl mx-auto">
+              <BookingsTab userId={currentUser.id} bookings={bookings} plans={plans} />
             </motion.div>
           )}
         </AnimatePresence>
       </div>
 
-      {/* Split Payment Modal */}
-      <AnimatePresence>
-        {splitPaymentFor && (
-          <SplitPaymentModal
-            {...splitPaymentFor}
-            isReal={hasRealFlights}
-            currentUserId={currentUser?.id}
-            onBookInstallments={bookTravelItemInstallments}
-            onClose={() => setSplitPaymentFor(null)}
-          />
-        )}
-      </AnimatePresence>
+      {bookingFor && (
+        <BookingDialog
+          item={bookingFor.item} userId={userId} initialInstallments={bookingFor.installments}
+          initialDate={bookingFor.item.kind === "flight" ? flightDate : checkIn}
+          initialPassengers={bookingFor.item.kind === "flight" ? passengers : 1}
+          initialNights={nights}
+          onClose={() => setBookingFor(null)}
+          onViewBookings={() => setActiveTab("bookings")}
+        />
+      )}
+      {partnerBooking && (
+        <PartnerBookingDialog item={partnerBooking} userId={userId} onClose={() => setPartnerBooking(null)} onViewBookings={() => setActiveTab("bookings")} />
+      )}
+      {detailsHotel && (
+        <HotelDetailsDialog
+          hotel={detailsHotel} reviews={reviews ?? []} liked={favoriteSet.has(`hotel:${detailsHotel.id}`)} nights={nights}
+          onToggleLike={() => void handleToggleFavorite("hotel", detailsHotel.id)}
+          onBook={() => openHotelBooking(detailsHotel)} onClose={() => setDetailsHotel(null)}
+        />
+      )}
     </div>
   );
 }

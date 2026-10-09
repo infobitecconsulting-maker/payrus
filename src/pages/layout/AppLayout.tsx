@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { featureForPath } from "@/lib/feature-routes.ts";
 import { Outlet, NavLink, useLocation, useParams, Navigate, useNavigate } from "react-router-dom";
 import { LayoutDashboard, CreditCard, ArrowLeftRight, History, Wallet, Bell, Settings, Users, Send, Landmark, ShieldCheck, PlugZap, PiggyBank, Plane, Heart, HandHeart, TrendingUp, Gamepad2, Menu, LogOut, LogIn, User, CircleDollarSign, ScanLine, Receipt, LifeBuoy, Store, Link2, BarChart3, Banknote, ShoppingBag, UserPlus } from "lucide-react";
 import { cn } from "@/lib/utils.ts";
@@ -97,7 +98,8 @@ export default function AppLayout() {
   // their own tools. While loading, gated items stay hidden (fail-closed).
   // Called unconditionally (before the early-return guard below) per the
   // Rules of Hooks.
-  const features = useProfileFeatures(profile?.type ?? undefined) ?? [];
+  const loadedFeatures = useProfileFeatures(profile?.type ?? undefined);
+  const features = loadedFeatures ?? [];
   // Real staff roles (superadmin / admin / support_agent, from the database —
   // the same definitions the ops-console uses) also open the Administration page.
   const perms = useMyPermissions();
@@ -111,6 +113,10 @@ export default function AppLayout() {
   const joinedWorkspaces = (useWorkspaces(currentUser?.id).data ?? []).filter((w) => !w.isSelf).length > 0;
   const showModules = (modulesQ.data ?? []).length > 0 || subProfileChoices.length > 0 || joinedWorkspaces;
   const hasFeature = (key: string) => isAdmin || features.includes(key) || (key === "admin_panel" && hasStaffAccess);
+  // The page behind a switched-off feature is blocked too, not just its menu entry. Fail closed while the list loads.
+  const pageFeature = profile ? featureForPath(location.pathname) : undefined;
+  const pageBlocked = !!pageFeature && !isAdmin && loadedFeatures !== undefined && !hasFeature(pageFeature);
+  const pageLoading = !!pageFeature && !isAdmin && loadedFeatures === undefined;
 
   // Guard: send anonymous/no-profile visitors to the welcome screen first
   const publicPaths = ["/welcome", "/profile", "/fundraise", "/savings", "/wallet", "/payments"];
@@ -189,9 +195,9 @@ export default function AppLayout() {
     // Gated — previously visible to every profile regardless of admin
     // status; now requires the admin_panel feature (admin-only by default,
     // seeded in 0014, adjustable from the Roles & Access tab).
-    ...(showModules ? [{ to: `${base}/modules`, icon: BarChart3, label: t("nav.modules", "Business modules") }] : []),
-    ...(!isAdmin ? [{ to: `${base}/plans`, icon: CircleDollarSign, label: t("nav.plans", "Plans & limits") }] : []),
-    ...(hasOrgAccess ? [{ to: `${base}/organisation`, icon: Landmark, label: t("nav.organisation", "Organisation") }] : []),
+    ...(showModules && hasFeature("modules") ? [{ to: `${base}/modules`, icon: BarChart3, label: t("nav.modules", "Business modules") }] : []),
+    ...(!isAdmin && hasFeature("plans") ? [{ to: `${base}/plans`, icon: CircleDollarSign, label: t("nav.plans", "Plans & limits") }] : []),
+    ...(hasOrgAccess && hasFeature("organisation") ? [{ to: `${base}/organisation`, icon: Landmark, label: t("nav.organisation", "Organisation") }] : []),
     ...(hasFeature("admin_panel") ? [{ to: `${base}/admin`, icon: ShieldCheck, label: t("nav.admin"), highlight: true as const }] : []),
 
   ];
@@ -372,7 +378,16 @@ export default function AppLayout() {
             transition={{ duration: 0.15, ease: "easeOut" as const }}
             className="h-full"
           >
-            <Outlet />
+            {pageBlocked ? (
+              <div className="h-full flex items-center justify-center p-6" data-testid="feature-unavailable">
+                <div className="max-w-sm text-center space-y-3">
+                  <ShieldCheck size={28} className="mx-auto text-muted-foreground" />
+                  <h1 className="text-base font-bold text-foreground">{t("feature.unavailable.title")}</h1>
+                  <p className="text-sm text-muted-foreground">{t("feature.unavailable.body")}</p>
+                  <button type="button" onClick={() => navigate(base)} className="px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-semibold cursor-pointer">{t("feature.unavailable.back")}</button>
+                </div>
+              </div>
+            ) : pageLoading ? null : <Outlet />}
             <MfaStepUpHost />
           </motion.div>
         </main>
